@@ -54,8 +54,11 @@ public class BuySceneCameraModeController : MonoBehaviour
     [Tooltip("Se ligado, a entrada no modo compra encaixa a camera instantaneamente.")]
     public bool entradaInstantanea = false;
 
-    [Tooltip("Se ligado, ao sair a camera volta suavemente para onde estava antes.")]
-    public bool retornoSuave = true;
+    [Tooltip("LEGADO. Se Forcar Retorno Instantaneo Ao Sair estiver ligado, este campo e ignorado.")]
+    public bool retornoSuave = false;
+
+    [Tooltip("Se ligado, ao apertar ESC a camera volta IMEDIATAMENTE para a camera original do player, sem virar para os lados antes.")]
+    public bool forcarRetornoInstantaneoAoSair = true;
 
     [Header("Input")]
     public bool sairComEscape = true;
@@ -179,19 +182,20 @@ public class BuySceneCameraModeController : MonoBehaviour
             return;
 
         modoCompraAtivo = false;
+        retornandoCamera = false;
         LimparDestaquesDosTerrenos();
 
-        if (retornoSuave && estadoCameraSalvo)
-        {
-            retornandoCamera = true;
-        }
-        else
+        if (forcarRetornoInstantaneoAoSair || !retornoSuave || !estadoCameraSalvo)
         {
             FinalizarRetornoCamera();
         }
+        else
+        {
+            retornandoCamera = true;
+        }
 
         if (logarEventos)
-            Debug.Log("[BuyScene] Saindo do modo de compra.");
+            Debug.Log("[BuyScene] Saiu do modo de compra.");
     }
 
     private void ResolverReferenciasBasicas()
@@ -351,6 +355,12 @@ public class BuySceneCameraModeController : MonoBehaviour
 
     private void AtualizarRetornoCamera()
     {
+        if (forcarRetornoInstantaneoAoSair)
+        {
+            FinalizarRetornoCamera();
+            return;
+        }
+
         float suavizacaoPosicao = CalcularSuavizacao(velocidadeMoverCamera, Time.deltaTime);
         float suavizacaoRotacao = CalcularSuavizacao(velocidadeRotacionarCamera, Time.deltaTime);
 
