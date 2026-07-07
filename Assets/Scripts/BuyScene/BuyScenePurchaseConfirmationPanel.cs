@@ -11,6 +11,9 @@ using UnityEngine.UI;
 ///
 /// Para editar sem o painel voltar de posicao, use Fonte Do Layout = RectTransform Manual.
 /// Nesse modo, voce move pelo proprio Canvas/RectTransform e o script apenas sincroniza os campos.
+///
+/// Para editar fonte, tamanho, alinhamento e cor diretamente no componente Text,
+/// deixe Aplicar Estilo Dos Texts Pelo Script desligado.
 /// </summary>
 public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 {
@@ -18,6 +21,12 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     {
         CamposDoScript,
         RectTransformManual
+    }
+
+    public enum FonteDoTextoPrincipal
+    {
+        CampoTextoConfirmacao,
+        ComponenteTextManual
     }
 
     [Header("Canvas")]
@@ -56,22 +65,54 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     public BuySceneUIImageButton botaoFechar;
 
     [Header("Texturas")]
+    [Tooltip("Se preencher, o script aplica essa textura ao RawImage do painel. Se deixar vazio, mantem a textura manual do RawImage.")]
     public Texture2D painelWarning;
+
+    [Tooltip("Textura normal do botao confirmar. Se vazio, mantem a textura manual do RawImage/BuySceneUIImageButton.")]
     public Texture2D buttonOff;
+
+    [Tooltip("Textura hover do botao confirmar. Se vazio, mantem a configuracao manual do BuySceneUIImageButton.")]
     public Texture2D buttonOn;
+
+    [Tooltip("Textura normal do botao fechar. Se vazio, mantem a textura manual do RawImage/BuySceneUIImageButton.")]
     public Texture2D closeOff;
+
+    [Tooltip("Textura hover do botao fechar. Se vazio, mantem a configuracao manual do BuySceneUIImageButton.")]
     public Texture2D closeOn;
 
     [Header("Texto do Painel")]
+    [Tooltip("Define de onde vem a frase principal do painel.")]
+    public FonteDoTextoPrincipal fonteTextoPrincipal = FonteDoTextoPrincipal.CampoTextoConfirmacao;
+
+    [Tooltip("Se ligado, o script escreve a mensagem no Text ao abrir o painel. Se desligado, o Text fica 100% manual.")]
+    public bool atualizarTextoPrincipalPeloScript = true;
+
+    [Tooltip("Se Fonte Texto Principal for Componente Text Manual, captura o texto atual do componente Text quando o painel ainda nao estiver aberto.")]
+    public bool sincronizarTextoBasePeloTextManual = true;
+
     [TextArea(2, 4)]
     public string textoConfirmacao = "Você tem certeza que deseja comprar?";
 
     public bool exibirNomeDoTerreno = true;
     public bool exibirPrecoDoTerreno = true;
+
+    [Tooltip("Se ligado, o script escreve o texto do botao Confirmar. Se desligado, voce edita pelo componente Text do botao.")]
+    public bool atualizarTextoBotaoConfirmarPeloScript = false;
+
     public string textoBotaoConfirmar = "Confirmar";
 
     [TextArea(2, 3)]
     public string textoGoldInsuficiente = "Gold insuficiente para comprar este terreno.";
+
+    [Header("Estilo dos Texts")]
+    [Tooltip("Desligado = fonte, tamanho, alinhamento e cor ficam livres para editar no componente Text do Unity.")]
+    public bool aplicarEstiloTextoPrincipalPeloScript = false;
+
+    [Tooltip("Desligado = fonte, tamanho, alinhamento e cor do texto do botao ficam livres no componente Text.")]
+    public bool aplicarEstiloTextoBotaoPeloScript = false;
+
+    [Tooltip("Mantem Raycast Target dos Texts desligado para o texto nao bloquear clique nos botoes.")]
+    public bool forcarRaycastTargetDosTextosDesligado = true;
 
     [Header("Layout em Tempo Real")]
     [Tooltip("CamposDoScript: os campos abaixo controlam a UI. RectTransformManual: voce move no Canvas e o script nao puxa de volta.")]
@@ -118,12 +159,15 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 
     public Vector2 tamanhoBotaoFechar = new Vector2(56f, 56f);
 
+    [Header("Estilo opcional se aplicar pelo script")]
     public int tamanhoFonteTexto = 27;
     public int tamanhoFonteBotao = 24;
-
-    [Header("Cores")]
     public Color corTexto = Color.white;
     public Color corTextoBotao = Color.white;
+    public TextAnchor alinhamentoTextoPrincipal = TextAnchor.MiddleCenter;
+    public TextAnchor alinhamentoTextoBotao = TextAnchor.MiddleCenter;
+
+    [Header("Fallback Visual")]
     public Color corFundoFallback = new Color(0f, 0f, 0f, 0.88f);
 
     [Header("Debug")]
@@ -138,23 +182,28 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     private Action<BuyableLandAreaMarker> aoConfirmarCompra;
     private Action aoFecharPainel;
     private string ultimoTextoMontado;
+    private string textoBaseManualCapturado;
 
     private void Awake()
     {
         InicializarInterface();
+        CapturarTextoManualSePossivel();
         OcultarSemCallback();
     }
 
     private void Update()
     {
-        if (!atualizarLayoutEmTempoReal)
-            return;
-
         if (painelRaiz == null)
             InicializarInterface();
 
         ResolverInterfaceManual();
-        AplicarOuSincronizarLayout();
+
+        if (!PainelAberto)
+            CapturarTextoManualSePossivel();
+
+        if (atualizarLayoutEmTempoReal)
+            AplicarOuSincronizarLayout();
+
         AplicarVisualCompleto();
     }
 
@@ -174,7 +223,11 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         InicializarInterface();
         AplicarOuSincronizarLayout();
         AplicarVisualCompleto();
-        AtualizarTextoConfirmacao();
+
+        if (PainelAberto && atualizarTextoPrincipalPeloScript)
+            AtualizarTextoConfirmacao();
+        else
+            CapturarTextoManualSePossivel();
     }
 
     private void OnDisable()
@@ -186,6 +239,7 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     public void Mostrar(BuyableLandAreaMarker terreno, Action<BuyableLandAreaMarker> aoConfirmar, Action aoFechar)
     {
         InicializarInterface();
+        CapturarTextoManualSePossivel();
 
         terrenoAtual = terreno;
         aoConfirmarCompra = aoConfirmar;
@@ -193,7 +247,9 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 
         AplicarOuSincronizarLayout();
         AplicarVisualCompleto();
-        AtualizarTextoConfirmacao();
+
+        if (atualizarTextoPrincipalPeloScript)
+            AtualizarTextoConfirmacao();
 
         if (painelRaiz != null)
             painelRaiz.SetActive(true);
@@ -497,52 +553,93 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 
     private void AplicarVisualCompleto()
     {
+        AplicarTexturasSeConfiguradas();
+        AplicarConfiguracaoDosBotoesSeConfigurada();
+        AplicarConfiguracaoDosTexts();
+    }
+
+    private void AplicarTexturasSeConfiguradas()
+    {
         if (imagemPainel != null)
         {
-            imagemPainel.texture = painelWarning;
-            imagemPainel.color = painelWarning != null ? Color.white : corFundoFallback;
+            if (painelWarning != null)
+                imagemPainel.texture = painelWarning;
+
+            if (imagemPainel.texture == null)
+                imagemPainel.color = corFundoFallback;
+            else
+                imagemPainel.color = new Color(1f, 1f, 1f, imagemPainel.color.a);
+
             imagemPainel.raycastTarget = true;
         }
 
         if (imagemBotaoConfirmar != null)
         {
-            imagemBotaoConfirmar.texture = buttonOff;
-            imagemBotaoConfirmar.color = buttonOff != null ? Color.white : new Color(0.15f, 0.45f, 0.15f, 1f);
+            if (buttonOff != null)
+                imagemBotaoConfirmar.texture = buttonOff;
+
             imagemBotaoConfirmar.raycastTarget = true;
         }
 
-        if (botaoConfirmar != null)
-            botaoConfirmar.Configurar(buttonOff, buttonOn);
-
         if (imagemBotaoFechar != null)
         {
-            imagemBotaoFechar.texture = closeOff;
-            imagemBotaoFechar.color = closeOff != null ? Color.white : new Color(0.6f, 0.1f, 0.1f, 1f);
+            if (closeOff != null)
+                imagemBotaoFechar.texture = closeOff;
+
             imagemBotaoFechar.raycastTarget = true;
         }
+    }
 
-        if (botaoFechar != null)
-            botaoFechar.Configurar(closeOff, closeOn);
+    private void AplicarConfiguracaoDosBotoesSeConfigurada()
+    {
+        if (botaoConfirmar != null && (buttonOff != null || buttonOn != null))
+        {
+            Texture2D normal = buttonOff != null ? buttonOff : botaoConfirmar.texturaNormal;
+            Texture2D hover = buttonOn != null ? buttonOn : botaoConfirmar.texturaHover;
+            botaoConfirmar.Configurar(normal, hover);
+        }
 
+        if (botaoFechar != null && (closeOff != null || closeOn != null))
+        {
+            Texture2D normal = closeOff != null ? closeOff : botaoFechar.texturaNormal;
+            Texture2D hover = closeOn != null ? closeOn : botaoFechar.texturaHover;
+            botaoFechar.Configurar(normal, hover);
+        }
+    }
+
+    private void AplicarConfiguracaoDosTexts()
+    {
         if (textoPrincipal != null)
         {
-            textoPrincipal.font = ObterFontePadrao();
-            textoPrincipal.fontSize = tamanhoFonteTexto;
-            textoPrincipal.color = corTexto;
-            textoPrincipal.alignment = TextAnchor.MiddleCenter;
-            textoPrincipal.horizontalOverflow = HorizontalWrapMode.Wrap;
-            textoPrincipal.verticalOverflow = VerticalWrapMode.Overflow;
-            textoPrincipal.raycastTarget = false;
+            if (forcarRaycastTargetDosTextosDesligado)
+                textoPrincipal.raycastTarget = false;
+
+            if (aplicarEstiloTextoPrincipalPeloScript)
+            {
+                textoPrincipal.font = ObterFontePadrao();
+                textoPrincipal.fontSize = tamanhoFonteTexto;
+                textoPrincipal.color = corTexto;
+                textoPrincipal.alignment = alinhamentoTextoPrincipal;
+                textoPrincipal.horizontalOverflow = HorizontalWrapMode.Wrap;
+                textoPrincipal.verticalOverflow = VerticalWrapMode.Overflow;
+            }
         }
 
         if (textoConfirmar != null)
         {
-            textoConfirmar.font = ObterFontePadrao();
-            textoConfirmar.fontSize = tamanhoFonteBotao;
-            textoConfirmar.color = corTextoBotao;
-            textoConfirmar.alignment = TextAnchor.MiddleCenter;
-            textoConfirmar.raycastTarget = false;
-            textoConfirmar.text = textoBotaoConfirmar;
+            if (forcarRaycastTargetDosTextosDesligado)
+                textoConfirmar.raycastTarget = false;
+
+            if (aplicarEstiloTextoBotaoPeloScript)
+            {
+                textoConfirmar.font = ObterFontePadrao();
+                textoConfirmar.fontSize = tamanhoFonteBotao;
+                textoConfirmar.color = corTextoBotao;
+                textoConfirmar.alignment = alinhamentoTextoBotao;
+            }
+
+            if (atualizarTextoBotaoConfirmarPeloScript)
+                textoConfirmar.text = textoBotaoConfirmar;
         }
     }
 
@@ -558,12 +655,32 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         rect.sizeDelta = tamanho;
     }
 
+    private void CapturarTextoManualSePossivel()
+    {
+        if (!sincronizarTextoBasePeloTextManual)
+            return;
+
+        if (fonteTextoPrincipal != FonteDoTextoPrincipal.ComponenteTextManual)
+            return;
+
+        if (textoPrincipal == null)
+            return;
+
+        if (string.IsNullOrEmpty(textoPrincipal.text))
+            return;
+
+        if (!string.IsNullOrEmpty(ultimoTextoMontado) && textoPrincipal.text == ultimoTextoMontado)
+            return;
+
+        textoBaseManualCapturado = textoPrincipal.text;
+    }
+
     private void AtualizarTextoConfirmacao()
     {
         if (textoPrincipal == null)
             return;
 
-        string textoFinal = textoConfirmacao;
+        string textoFinal = ObterTextoBaseConfirmacao();
 
         if (terrenoAtual != null)
         {
@@ -577,8 +694,21 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         ultimoTextoMontado = textoFinal;
         textoPrincipal.text = textoFinal;
 
-        if (textoConfirmar != null)
+        if (textoConfirmar != null && atualizarTextoBotaoConfirmarPeloScript)
             textoConfirmar.text = textoBotaoConfirmar;
+    }
+
+    private string ObterTextoBaseConfirmacao()
+    {
+        if (fonteTextoPrincipal == FonteDoTextoPrincipal.ComponenteTextManual)
+        {
+            CapturarTextoManualSePossivel();
+
+            if (!string.IsNullOrEmpty(textoBaseManualCapturado))
+                return textoBaseManualCapturado;
+        }
+
+        return textoConfirmacao;
     }
 
     private Font ObterFontePadrao()
