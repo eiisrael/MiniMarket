@@ -6,16 +6,19 @@ using UnityEngine.UI;
 /// <summary>
 /// Controla somente a logica do painel de confirmacao da BuyScene.
 ///
-/// Este script NAO controla mais posicao, tamanho, fonte, cor, alinhamento,
-/// textura ou layout da janela. Tudo isso fica no proprio objeto do Canvas:
+/// O visual fica 100% nos objetos do Canvas:
 /// - PainelWarning / RawImage
 /// - TextAsking / Text
 /// - ButtonConfirm / RawImage / BuySceneUIImageButton
 /// - TextConfirm / Text
 /// - ButtonClose / RawImage / BuySceneUIImageButton
 ///
-/// Assim o painel se comporta como o HUD: voce ajusta visualmente pelo Inspector
-/// de cada objeto, sem o script sobrescrever ou puxar valores de volta.
+/// Este script apenas:
+/// - Encontra as referencias.
+/// - Abre/fecha o painel.
+/// - Atualiza o texto se solicitado.
+/// - Liga os eventos dos botoes.
+/// - Garante EventSystem/GraphicRaycaster para os botoes clicarem.
 /// </summary>
 public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 {
@@ -33,11 +36,21 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     public BuySceneUIImageButton botaoFechar;
 
     [Header("Busca Automatica")]
-    [Tooltip("Se alguma referencia estiver vazia, tenta encontrar pelos nomes dos filhos: PainelWarning, TextAsking, ButtonConfirm e ButtonClose.")]
+    [Tooltip("Se alguma referencia estiver vazia, tenta encontrar pelos nomes dos filhos e tambem pelos pais das referencias preenchidas.")]
     public bool procurarReferenciasAutomaticamente = true;
+
+    [Tooltip("Se o Painel Raiz estiver vazio, tenta descobrir pelo pai do TextAsking/ButtonConfirm/ButtonClose.")]
+    public bool inferirPainelRaizPelasReferencias = true;
 
     [Tooltip("Garante que exista um EventSystem na cena para os botoes UI receberem clique/hover.")]
     public bool garantirEventSystem = true;
+
+    [Tooltip("Garante GraphicRaycaster no Canvas pai da janela. Sem isso, botoes de UI podem nao receber clique.")]
+    public bool garantirGraphicRaycasterNoCanvas = true;
+
+    [Header("Comportamento Inicial")]
+    [Tooltip("Recomendado ligado. Esconde o painel ao iniciar o jogo para ele aparecer apenas quando clicar no terreno.")]
+    public bool ocultarPainelAoIniciar = true;
 
     [Header("Texto")]
     [Tooltip("Se ligado, o script monta a mensagem ao abrir o painel. Se desligado, o texto fica exatamente como esta no componente Text.")]
@@ -69,27 +82,46 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     private BuyableLandAreaMarker terrenoAtual;
     private Action<BuyableLandAreaMarker> aoConfirmarCompra;
     private Action aoFecharPainel;
+    private bool iniciou;
 
     private void Awake()
     {
         Inicializar();
-        OcultarSemCallback();
+
+        if (ocultarPainelAoIniciar)
+            OcultarSemCallback();
+
+        iniciou = true;
     }
 
     private void OnEnable()
     {
         Inicializar();
+
+        if (!iniciou && ocultarPainelAoIniciar)
+            OcultarSemCallback();
+    }
+
+    private void Start()
+    {
+        Inicializar();
+
+        if (ocultarPainelAoIniciar && aoConfirmarCompra == null)
+            OcultarSemCallback();
     }
 
     private void OnDisable()
     {
-        if (PainelAberto)
-            OcultarSemCallback();
+        ExistePainelAberto = false;
     }
 
     private void Reset()
     {
         procurarReferenciasAutomaticamente = true;
+        inferirPainelRaizPelasReferencias = true;
+        garantirEventSystem = true;
+        garantirGraphicRaycasterNoCanvas = true;
+        ocultarPainelAoIniciar = true;
         ResolverReferenciasAutomaticas();
     }
 
@@ -112,9 +144,14 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         if (atualizarTextoPeloScript)
             AtualizarTextoConfirmacao();
 
-        if (painelRaiz != null)
-            painelRaiz.SetActive(true);
+        if (painelRaiz == null)
+        {
+            Debug.LogWarning("[BuyScenePurchaseConfirmationPanel] Painel Raiz nao encontrado. Arraste o objeto PainelWarning no campo Painel Raiz.");
+            ExistePainelAberto = false;
+            return;
+        }
 
+        painelRaiz.SetActive(true);
         ExistePainelAberto = true;
 
         if (logarEventos)
@@ -133,6 +170,7 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 
     public void FecharPeloBotao()
     {
+        Inicializar();
         OcultarSemCallback();
 
         if (aoFecharPainel != null)
@@ -146,6 +184,8 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 
     public void OcultarSemCallback()
     {
+        ResolverPainelRaizComFallbacks();
+
         if (painelRaiz != null)
             painelRaiz.SetActive(false);
 
@@ -163,29 +203,23 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     {
         if (procurarReferenciasAutomaticamente)
             ResolverReferenciasAutomaticas();
+        else
+            ResolverPainelRaizComFallbacks();
 
         if (garantirEventSystem)
             GarantirEventSystemNaCena();
 
+        if (garantirGraphicRaycasterNoCanvas)
+            GarantirGraphicRaycaster();
+
         ConfigurarEventosDosBotoes();
+        ConfigurarBotoesParaReceberClique();
         ConfigurarTextosSemAlterarVisual();
     }
 
     private void ResolverReferenciasAutomaticas()
     {
-        if (painelRaiz == null)
-        {
-            Transform painelEncontrado = EncontrarFilhoPorNome(transform, "PainelWarning");
-
-            if (painelEncontrado == null)
-                painelEncontrado = EncontrarFilhoPorNome(transform, "PanelWarning");
-
-            if (painelEncontrado == null)
-                painelEncontrado = EncontrarFilhoPorNome(transform, "Painel_Confirmacao");
-
-            if (painelEncontrado != null)
-                painelRaiz = painelEncontrado.gameObject;
-        }
+        ResolverPainelRaizComFallbacks();
 
         Transform raizBusca = painelRaiz != null ? painelRaiz.transform : transform;
 
@@ -230,6 +264,71 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
             if (botao != null)
                 botaoFechar = botao.GetComponent<BuySceneUIImageButton>();
         }
+
+        ResolverPainelRaizComFallbacks();
+    }
+
+    private void ResolverPainelRaizComFallbacks()
+    {
+        if (painelRaiz != null && painelRaiz != gameObject)
+            return;
+
+        Transform painelEncontrado = EncontrarFilhoPorNome(transform, "PainelWarning");
+
+        if (painelEncontrado == null)
+            painelEncontrado = EncontrarFilhoPorNome(transform, "PanelWarning");
+
+        if (painelEncontrado == null)
+            painelEncontrado = EncontrarFilhoPorNome(transform, "Painel_Confirmacao");
+
+        if (painelEncontrado == null && inferirPainelRaizPelasReferencias)
+            painelEncontrado = InferirPainelRaizPelasReferencias();
+
+        if (painelEncontrado != null && painelEncontrado.gameObject != gameObject)
+            painelRaiz = painelEncontrado.gameObject;
+    }
+
+    private Transform InferirPainelRaizPelasReferencias()
+    {
+        Transform candidato = InferirPainelRaizPorTransform(textoPrincipal != null ? textoPrincipal.transform : null);
+
+        if (candidato != null)
+            return candidato;
+
+        candidato = InferirPainelRaizPorTransform(botaoConfirmar != null ? botaoConfirmar.transform : null);
+
+        if (candidato != null)
+            return candidato;
+
+        candidato = InferirPainelRaizPorTransform(botaoFechar != null ? botaoFechar.transform : null);
+
+        if (candidato != null)
+            return candidato;
+
+        return null;
+    }
+
+    private Transform InferirPainelRaizPorTransform(Transform origem)
+    {
+        if (origem == null)
+            return null;
+
+        Transform atual = origem.parent;
+
+        while (atual != null && atual != transform)
+        {
+            string nome = atual.name.ToLowerInvariant();
+
+            if (nome.Contains("painel") || nome.Contains("panel") || nome.Contains("warning"))
+                return atual;
+
+            if (atual.GetComponent<RawImage>() != null && atual.childCount > 0)
+                return atual;
+
+            atual = atual.parent;
+        }
+
+        return origem.parent != null && origem.parent != transform ? origem.parent : null;
     }
 
     private Transform EncontrarFilhoPorNome(Transform raiz, string nome)
@@ -261,6 +360,26 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
     }
 
+    private void GarantirGraphicRaycaster()
+    {
+        Canvas canvas = null;
+
+        if (painelRaiz != null)
+            canvas = painelRaiz.GetComponentInParent<Canvas>(true);
+
+        if (canvas == null && transform != null)
+            canvas = transform.GetComponentInParent<Canvas>(true);
+
+        if (canvas == null)
+            canvas = FindObjectOfType<Canvas>();
+
+        if (canvas == null)
+            return;
+
+        if (canvas.GetComponent<GraphicRaycaster>() == null)
+            canvas.gameObject.AddComponent<GraphicRaycaster>();
+    }
+
     private void ConfigurarEventosDosBotoes()
     {
         if (botaoConfirmar != null)
@@ -274,6 +393,25 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
             botaoFechar.Clique -= FecharPeloBotao;
             botaoFechar.Clique += FecharPeloBotao;
         }
+    }
+
+    private void ConfigurarBotoesParaReceberClique()
+    {
+        ConfigurarBotaoParaClique(botaoConfirmar);
+        ConfigurarBotaoParaClique(botaoFechar);
+    }
+
+    private void ConfigurarBotaoParaClique(BuySceneUIImageButton botao)
+    {
+        if (botao == null)
+            return;
+
+        botao.interagivel = true;
+
+        RawImage imagem = botao.GetComponent<RawImage>();
+
+        if (imagem != null)
+            imagem.raycastTarget = true;
     }
 
     private void ConfigurarTextosSemAlterarVisual()
@@ -311,6 +449,8 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     {
         if (aoConfirmarCompra != null)
             aoConfirmarCompra.Invoke(terrenoAtual);
+        else if (logarEventos)
+            Debug.LogWarning("[BuyScenePurchaseConfirmationPanel] Clique em Confirmar ignorado: painel nao foi aberto por um terreno valido.");
     }
 
     private void AtualizarTextoConfirmacao()
