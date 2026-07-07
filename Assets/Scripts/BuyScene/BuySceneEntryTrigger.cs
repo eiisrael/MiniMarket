@@ -186,6 +186,9 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (!playerDentro)
             return;
 
+        if (BuyScenePurchaseConfirmationPanel.ExistePainelAberto)
+            return;
+
         if (usarTeclaParaAbrirFechar)
         {
             if (Input.GetKeyDown(teclaAbrirFechar))
