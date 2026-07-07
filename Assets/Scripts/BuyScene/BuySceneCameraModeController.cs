@@ -60,6 +60,29 @@ public class BuySceneCameraModeController : MonoBehaviour
     [Tooltip("Se ligado, ao apertar ESC a camera volta IMEDIATAMENTE para a camera original do player, sem virar para os lados antes.")]
     public bool forcarRetornoInstantaneoAoSair = true;
 
+    [Header("Animacao do Player")]
+    [Tooltip("Ao entrar na BuyScene, zera parametros de andar/correr e tenta jogar o Animator para Idle.")]
+    public bool forcarIdleAoEntrarNoModoCompra = true;
+
+    [Tooltip("Zera floats/ints e desliga bools de movimento do Animator para evitar ficar correndo parado.")]
+    public bool zerarParametrosMovimentoAnimator = true;
+
+    [Tooltip("Normalmente deixe desligado. Se ligar, a animacao congela no idle enquanto estiver na BuyScene.")]
+    public bool pausarAnimatorDuranteBuyScene = false;
+
+    [Tooltip("Nomes de estados Idle que o script tenta encontrar no Animator Controller.")]
+    public string[] nomesEstadosIdle =
+    {
+        "Base Layer.Idle",
+        "Idle",
+        "idle",
+        "Stand",
+        "Standing",
+        "Standing Idle",
+        "Idle_A",
+        "Idle01"
+    };
+
     [Header("Input")]
     public bool sairComEscape = true;
     public KeyCode teclaSairModoCompra = KeyCode.Escape;
@@ -82,6 +105,7 @@ public class BuySceneCameraModeController : MonoBehaviour
     private Transform focoAtual;
     private readonly List<BuyableLandAreaMarker> terrenosDestacados = new List<BuyableLandAreaMarker>();
     private readonly List<MonoBehaviour> componentesDesativadosAutomaticamente = new List<MonoBehaviour>();
+    private readonly List<AnimatorEstadoSalvo> animadoresSalvos = new List<AnimatorEstadoSalvo>();
 
     private bool modoCompraAtivo;
     private bool retornandoCamera;
@@ -96,6 +120,13 @@ public class BuySceneCameraModeController : MonoBehaviour
     private bool cursorVisivelAntes;
 
     public bool ModoCompraAtivo => modoCompraAtivo || retornandoCamera;
+
+    private struct AnimatorEstadoSalvo
+    {
+        public Animator animator;
+        public float velocidadeAntes;
+        public bool applyRootMotionAntes;
+    }
 
     private void Awake()
     {
@@ -152,6 +183,7 @@ public class BuySceneCameraModeController : MonoBehaviour
 
         PrepararCursorModoCompra();
         DesativarComponentesDoJogo();
+        PrepararAnimacaoModoCompra();
         DestacarTerrenosDaArea(terrenosDaArea, true);
 
         if (usarOrtograficaNoModoCompra)
@@ -229,8 +261,13 @@ public class BuySceneCameraModeController : MonoBehaviour
         componentesDesativadosAutomaticamente.Clear();
 
         AdicionarComponentesPorNome(jogadorRaiz, "PlayerMove");
+        AdicionarComponentesPorNome(jogadorRaiz, "Player_Move");
         AdicionarComponentesPorNome(jogadorRaiz, "PlayerObjectGrabberHardcore");
         AdicionarComponentesPorNome(jogadorRaiz, "MouseLookHardcore");
+        AdicionarComponentesPorNome(jogadorRaiz, "PlayerAnimation");
+        AdicionarComponentesPorNome(jogadorRaiz, "Player_Animation");
+        AdicionarComponentesPorNome(jogadorRaiz, "PlayerAnimator");
+        AdicionarComponentesPorNome(jogadorRaiz, "PlayerAnimatorController");
 
         if (cameraPrincipal != null)
         {
@@ -298,6 +335,128 @@ public class BuySceneCameraModeController : MonoBehaviour
             return;
 
         componentesDesativadosAutomaticamente.Add(componente);
+    }
+
+    private void PrepararAnimacaoModoCompra()
+    {
+        if (!forcarIdleAoEntrarNoModoCompra || jogadorRaiz == null)
+            return;
+
+        animadoresSalvos.Clear();
+
+        Animator[] animadores = jogadorRaiz.GetComponentsInChildren<Animator>(true);
+
+        for (int i = 0; i < animadores.Length; i++)
+        {
+            Animator animator = animadores[i];
+
+            if (animator == null)
+                continue;
+
+            AnimatorEstadoSalvo estado = new AnimatorEstadoSalvo
+            {
+                animator = animator,
+                velocidadeAntes = animator.speed,
+                applyRootMotionAntes = animator.applyRootMotion
+            };
+
+            animadoresSalvos.Add(estado);
+
+            animator.applyRootMotion = false;
+
+            if (zerarParametrosMovimentoAnimator)
+                ZerarParametrosAnimator(animator);
+
+            TentarForcarEstadoIdle(animator);
+
+            if (pausarAnimatorDuranteBuyScene)
+                animator.speed = 0f;
+            else
+                animator.speed = Mathf.Max(0.01f, animator.speed);
+
+            animator.Update(0f);
+        }
+    }
+
+    private void RestaurarAnimacaoModoJogo()
+    {
+        for (int i = 0; i < animadoresSalvos.Count; i++)
+        {
+            AnimatorEstadoSalvo estado = animadoresSalvos[i];
+
+            if (estado.animator == null)
+                continue;
+
+            estado.animator.speed = estado.velocidadeAntes;
+            estado.animator.applyRootMotion = estado.applyRootMotionAntes;
+        }
+
+        animadoresSalvos.Clear();
+    }
+
+    private void ZerarParametrosAnimator(Animator animator)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null)
+            return;
+
+        AnimatorControllerParameter[] parametros = animator.parameters;
+
+        for (int i = 0; i < parametros.Length; i++)
+        {
+            AnimatorControllerParameter parametro = parametros[i];
+            string nome = parametro.name;
+            string nomeLower = nome.ToLowerInvariant();
+
+            switch (parametro.type)
+            {
+                case AnimatorControllerParameterType.Float:
+                    animator.SetFloat(nome, 0f);
+                    break;
+
+                case AnimatorControllerParameterType.Int:
+                    animator.SetInteger(nome, 0);
+                    break;
+
+                case AnimatorControllerParameterType.Bool:
+                    if (nomeLower.Contains("ground") || nomeLower.Contains("chao") || nomeLower.Contains("floor"))
+                        animator.SetBool(nome, true);
+                    else
+                        animator.SetBool(nome, false);
+                    break;
+
+                case AnimatorControllerParameterType.Trigger:
+                    animator.ResetTrigger(nome);
+                    break;
+            }
+        }
+    }
+
+    private void TentarForcarEstadoIdle(Animator animator)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null)
+            return;
+
+        if (nomesEstadosIdle == null || nomesEstadosIdle.Length == 0)
+            return;
+
+        for (int layer = 0; layer < animator.layerCount; layer++)
+        {
+            for (int i = 0; i < nomesEstadosIdle.Length; i++)
+            {
+                string nomeEstado = nomesEstadosIdle[i];
+
+                if (string.IsNullOrEmpty(nomeEstado))
+                    continue;
+
+                int hashEstado = Animator.StringToHash(nomeEstado);
+
+                if (!animator.HasState(layer, hashEstado))
+                    continue;
+
+                animator.CrossFadeInFixedTime(hashEstado, 0.05f, layer, 0f);
+                return;
+            }
+        }
     }
 
     private void DestacarTerrenosDaArea(BuyableLandAreaMarker[] terrenosDaArea, bool destacar)
@@ -417,6 +576,7 @@ public class BuySceneCameraModeController : MonoBehaviour
         Cursor.lockState = cursorLockAntes;
         Cursor.visible = cursorVisivelAntes;
 
+        RestaurarAnimacaoModoJogo();
         ReativarComponentesDoJogo();
         estadoCameraSalvo = false;
     }
