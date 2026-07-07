@@ -3,8 +3,7 @@ using UnityEngine.Rendering;
 
 /// <summary>
 /// Marca visualmente uma area/terreno a venda no chao.
-/// Use este script nos quadrados dos terrenos vendidos/disponiveis.
-/// Ele cria linhas no runtime sem depender de prefab extra.
+/// Tambem oferece suporte a hover/selecao para compra na BuyScene.
 /// </summary>
 public class BuyableLandAreaMarker : MonoBehaviour
 {
@@ -16,10 +15,10 @@ public class BuyableLandAreaMarker : MonoBehaviour
     }
 
     [Header("Identificacao")]
-    [Tooltip("Nome amigavel para organizar no Inspector.")]
+    [Tooltip("Nome amigavel para organizar no Inspector e mostrar no painel de compra.")]
     public string nomeDoTerreno = "Terreno a Venda";
 
-    [Tooltip("Preco futuro do terreno. Neste momento e apenas informativo.")]
+    [Tooltip("Preco do terreno em gold.")]
     [Min(0)]
     public int precoGold = 20000;
 
@@ -50,6 +49,13 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
     public Color corDisponivel = new Color(1f, 0.92f, 0f, 1f);
     public Color corDestacado = new Color(0.25f, 1f, 0.1f, 1f);
+
+    [Tooltip("Cor usada quando o mouse esta em cima do terreno durante a BuyScene.")]
+    public Color corHover = new Color(0.1f, 0.95f, 1f, 1f);
+
+    [Tooltip("Cor usada quando o terreno foi clicado e esta aguardando confirmacao.")]
+    public Color corSelecionado = new Color(1f, 0.65f, 0.1f, 1f);
+
     public Color corIndisponivel = new Color(1f, 0.15f, 0.1f, 1f);
 
     [Tooltip("Mostra um X no centro do terreno, como na referencia enviada.")]
@@ -66,6 +72,9 @@ public class BuyableLandAreaMarker : MonoBehaviour
     private LineRenderer linhaDiagonalB;
     private Material materialGerado;
 
+    private bool hoverAtivo;
+    private bool selecionadoAtivo;
+
     public Bounds BoundsMundo
     {
         get
@@ -75,6 +84,8 @@ public class BuyableLandAreaMarker : MonoBehaviour
             return new Bounds(centro, tamanho);
         }
     }
+
+    public bool EstaDisponivelParaCompra => estadoAtual != EstadoDoTerreno.Indisponivel;
 
     private void Awake()
     {
@@ -99,6 +110,7 @@ public class BuyableLandAreaMarker : MonoBehaviour
         tamanhoArea.y = Mathf.Max(0.1f, tamanhoArea.y);
         larguraLinha = Mathf.Max(0.005f, larguraLinha);
         alturaAcimaDoChao = Mathf.Max(0f, alturaAcimaDoChao);
+        precoGold = Mathf.Max(0, precoGold);
 
         if (Application.isPlaying)
             CriarOuAtualizarLinhas();
@@ -116,15 +128,65 @@ public class BuyableLandAreaMarker : MonoBehaviour
         CriarOuAtualizarLinhas();
     }
 
+    public void DefinirHover(bool ativo)
+    {
+        if (estadoAtual == EstadoDoTerreno.Indisponivel)
+        {
+            hoverAtivo = false;
+            CriarOuAtualizarLinhas();
+            return;
+        }
+
+        hoverAtivo = ativo;
+        CriarOuAtualizarLinhas();
+    }
+
+    public void DefinirSelecionado(bool ativo)
+    {
+        if (estadoAtual == EstadoDoTerreno.Indisponivel)
+        {
+            selecionadoAtivo = false;
+            CriarOuAtualizarLinhas();
+            return;
+        }
+
+        selecionadoAtivo = ativo;
+        CriarOuAtualizarLinhas();
+    }
+
     public void DefinirDisponivel(bool disponivel)
     {
         estadoAtual = disponivel ? EstadoDoTerreno.Disponivel : EstadoDoTerreno.Indisponivel;
+        hoverAtivo = false;
+        selecionadoAtivo = false;
         CriarOuAtualizarLinhas();
+    }
+
+    public void MarcarComoComprado()
+    {
+        DefinirDisponivel(false);
     }
 
     public Vector3 ObterPontoDeFoco()
     {
         return transform.TransformPoint(centroLocal);
+    }
+
+    public float ObterAlturaDoPlanoDeSelecao()
+    {
+        return ObterPontoDeFoco().y + alturaAcimaDoChao;
+    }
+
+    public bool ContemPontoMundo(Vector3 pontoMundo, float margemExtra = 0f)
+    {
+        Vector3 local = transform.InverseTransformPoint(pontoMundo) - centroLocal;
+        float metadeX = Mathf.Abs(tamanhoArea.x) * 0.5f + Mathf.Max(0f, margemExtra);
+        float metadeZ = Mathf.Abs(tamanhoArea.y) * 0.5f + Mathf.Max(0f, margemExtra);
+
+        return local.x >= -metadeX &&
+               local.x <= metadeX &&
+               local.z >= -metadeZ &&
+               local.z <= metadeZ;
     }
 
     private void CriarOuAtualizarLinhas()
@@ -186,6 +248,9 @@ public class BuyableLandAreaMarker : MonoBehaviour
         Color cor = ObterCorAtual();
         linha.startColor = cor;
         linha.endColor = cor;
+
+        if (linha.material != null && linha.material.HasProperty("_Color"))
+            linha.material.color = cor;
     }
 
     private Material ObterMaterialLinha()
@@ -214,11 +279,17 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
     private Color ObterCorAtual()
     {
-        if (estadoAtual == EstadoDoTerreno.Destacado)
-            return corDestacado;
-
         if (estadoAtual == EstadoDoTerreno.Indisponivel)
             return corIndisponivel;
+
+        if (selecionadoAtivo)
+            return corSelecionado;
+
+        if (hoverAtivo)
+            return corHover;
+
+        if (estadoAtual == EstadoDoTerreno.Destacado)
+            return corDestacado;
 
         return corDisponivel;
     }
@@ -279,5 +350,11 @@ public class BuyableLandAreaMarker : MonoBehaviour
         Gizmos.DrawLine(centro - direita + frente, centro + direita + frente);
         Gizmos.DrawLine(centro + direita + frente, centro + direita - frente);
         Gizmos.DrawLine(centro + direita - frente, centro - direita - frente);
+    }
+
+    private void OnDestroy()
+    {
+        if (Application.isPlaying && materialGerado != null)
+            Destroy(materialGerado);
     }
 }
