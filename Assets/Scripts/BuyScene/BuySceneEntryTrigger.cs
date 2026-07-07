@@ -2,9 +2,14 @@ using UnityEngine;
 
 /// <summary>
 /// Script unico da area de entrada da BuyScene.
-/// Ele faz 2 coisas:
-/// 1. Mostra a marcacao visual da area da calcada no Game View.
-/// 2. Detecta o player passando por cima e ativa a camera aerea da BuyScene.
+/// Responsabilidades:
+/// - Desenhar a marcacao visual da area da calcada no Game View.
+/// - Detectar o player dentro da area.
+/// - Abrir e fechar a BuyScene com a mesma tecla configuravel no Inspector.
+///
+/// Fluxo recomendado:
+/// Player entra na area -> aperta E -> abre BuyScene.
+/// Player ainda esta na area -> aperta E novamente -> fecha BuyScene.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider))]
@@ -26,13 +31,25 @@ public class BuySceneEntryTrigger : MonoBehaviour
     [Tooltip("Raio usado para buscar terrenos proximos automaticamente.")]
     public float raioBuscaTerrenosProximos = 60f;
 
-    [Header("ENTRADA")]
-    public bool entrarAutomaticamenteAoPassar = true;
-    public bool exigirTeclaParaEntrar = false;
+    [Header("ABRIR / FECHAR")]
+    [Tooltip("Modo recomendado. A mesma tecla abre e fecha a BuyScene enquanto o player estiver na area.")]
+    public bool usarTeclaParaAbrirFechar = true;
+
+    [Tooltip("Tecla unica para abrir e fechar a BuyScene. Padrao: E.")]
+    public KeyCode teclaAbrirFechar = KeyCode.E;
+
+    [Tooltip("Mantido por compatibilidade. Se Usar Tecla Para Abrir Fechar estiver ligado, este campo nao abre automaticamente.")]
+    public bool entrarAutomaticamenteAoPassar = false;
+
+    [Tooltip("LEGADO. Mantido para nao quebrar configuracoes antigas. Prefira Usar Tecla Para Abrir Fechar.")]
+    public bool exigirTeclaParaEntrar = true;
+
+    [Tooltip("LEGADO. Mantido para cenas antigas. Prefira Tecla Abrir Fechar.")]
     public KeyCode teclaEntrar = KeyCode.E;
 
     [Min(0f)]
-    public float intervaloMinimoEntreAtivacoes = 0.75f;
+    [Tooltip("Evita duplo clique/duplo trigger no mesmo frame ou em sequencia rapida.")]
+    public float intervaloMinimoEntreAtivacoes = 0.25f;
 
     [Header("DETECCAO DO PLAYER")]
     public string tagDoPlayer = "Player";
@@ -104,7 +121,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
     private void Awake()
     {
         areaCollider = GetComponent<Collider>();
-
         PrepararColliderComoTrigger();
         ResolverReferencias();
         CriarRenderizadores();
@@ -122,8 +138,7 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (usarDeteccaoPorOverlapSegura)
             VerificarPlayerPorOverlapSeguro();
 
-        if (playerDentro && exigirTeclaParaEntrar && Input.GetKeyDown(teclaEntrar))
-            TentarEntrarNaBuyScene();
+        ProcessarInputAbrirFechar();
 
         if (atualizarVisualEmTempoReal)
             AtualizarVisualCompleto();
@@ -136,6 +151,9 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         if (raioBuscaTerrenosProximos < 1f)
             raioBuscaTerrenosProximos = 1f;
+
+        if (intervaloMinimoEntreAtivacoes < 0f)
+            intervaloMinimoEntreAtivacoes = 0f;
 
         if (!Application.isPlaying)
             return;
@@ -161,6 +179,23 @@ public class BuySceneEntryTrigger : MonoBehaviour
             return;
 
         RegistrarSaidaDoPlayer();
+    }
+
+    private void ProcessarInputAbrirFechar()
+    {
+        if (!playerDentro)
+            return;
+
+        if (usarTeclaParaAbrirFechar)
+        {
+            if (Input.GetKeyDown(teclaAbrirFechar))
+                AlternarBuyScene();
+
+            return;
+        }
+
+        if (exigirTeclaParaEntrar && Input.GetKeyDown(teclaEntrar))
+            TentarEntrarNaBuyScene();
     }
 
     private void PrepararColliderComoTrigger()
@@ -214,17 +249,12 @@ public class BuySceneEntryTrigger : MonoBehaviour
     private void VerificarPlayerPorOverlapSeguro()
     {
         Transform playerEncontrado = EncontrarPlayerDentroDaArea();
-
         bool dentroAgora = playerEncontrado != null;
 
         if (dentroAgora && !playerDentro)
-        {
             RegistrarEntradaDoPlayer(playerEncontrado);
-        }
         else if (!dentroAgora && playerDentro)
-        {
             RegistrarSaidaDoPlayer();
-        }
     }
 
     private Transform EncontrarPlayerDentroDaArea()
@@ -243,7 +273,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (box != null)
         {
             Vector3 centro = transform.TransformPoint(box.center);
-
             Vector3 escala = transform.lossyScale;
             Vector3 metade = new Vector3(
                 Mathf.Abs(box.size.x * escala.x) * 0.5f,
@@ -264,10 +293,7 @@ public class BuySceneEntryTrigger : MonoBehaviour
             {
                 Collider encontrado = resultadosOverlap[i];
 
-                if (encontrado == null)
-                    continue;
-
-                if (encontrado == areaCollider)
+                if (encontrado == null || encontrado == areaCollider)
                     continue;
 
                 if (EhPlayer(encontrado))
@@ -293,10 +319,7 @@ public class BuySceneEntryTrigger : MonoBehaviour
         {
             Collider encontrado = resultadosOverlap[i];
 
-            if (encontrado == null)
-                continue;
-
-            if (encontrado == areaCollider)
+            if (encontrado == null || encontrado == areaCollider)
                 continue;
 
             if (EhPlayer(encontrado))
@@ -334,11 +357,13 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
     private void RegistrarEntradaDoPlayer(Transform raizPlayer)
     {
-        playerDentro = true;
-
         if (jogadorRaizOpcional == null && raizPlayer != null)
             jogadorRaizOpcional = raizPlayer;
 
+        if (playerDentro)
+            return;
+
+        playerDentro = true;
         AtualizarCorVisual();
 
         if (destacarTerrenosAoDetectarPlayer)
@@ -347,24 +372,26 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (logarEventos)
             Debug.Log("[BuySceneEntryTrigger] Player entrou na area de compra: " + gameObject.name);
 
-        if (entrarAutomaticamenteAoPassar && !exigirTeclaParaEntrar)
+        if (!usarTeclaParaAbrirFechar && entrarAutomaticamenteAoPassar && !exigirTeclaParaEntrar)
             TentarEntrarNaBuyScene();
     }
 
     private void RegistrarSaidaDoPlayer()
     {
-        playerDentro = false;
+        if (!playerDentro)
+            return;
 
+        playerDentro = false;
         AtualizarCorVisual();
 
-        if (limparDestaqueAoSairDaArea)
+        if (limparDestaqueAoSairDaArea && (controladorBuyScene == null || !controladorBuyScene.ModoCompraAtivo))
             DefinirDestaqueTerrenos(false);
 
         if (logarEventos)
             Debug.Log("[BuySceneEntryTrigger] Player saiu da area de compra: " + gameObject.name);
     }
 
-    public void TentarEntrarNaBuyScene()
+    public void AlternarBuyScene()
     {
         ResolverReferencias();
 
@@ -379,6 +406,44 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         ultimoTempoAtivacao = Time.time;
 
+        if (controladorBuyScene.ModoCompraAtivo)
+        {
+            controladorBuyScene.SairDoModoCompra();
+
+            if (destacarTerrenosAoDetectarPlayer)
+                DefinirDestaqueTerrenos(playerDentro);
+
+            if (logarEventos)
+                Debug.Log("[BuySceneEntryTrigger] Fechou BuyScene pela tecla: " + teclaAbrirFechar);
+
+            return;
+        }
+
+        EntrarNaBuySceneSemCooldown();
+    }
+
+    public void TentarEntrarNaBuyScene()
+    {
+        ResolverReferencias();
+
+        if (controladorBuyScene == null)
+        {
+            Debug.LogWarning("[BuySceneEntryTrigger] Nenhum BuySceneCameraModeController foi encontrado na cena.");
+            return;
+        }
+
+        if (controladorBuyScene.ModoCompraAtivo)
+            return;
+
+        if (Time.time < ultimoTempoAtivacao + intervaloMinimoEntreAtivacoes)
+            return;
+
+        ultimoTempoAtivacao = Time.time;
+        EntrarNaBuySceneSemCooldown();
+    }
+
+    private void EntrarNaBuySceneSemCooldown()
+    {
         Transform foco = pontoDeFocoDaCamera != null ? pontoDeFocoDaCamera : transform;
         BuyableLandAreaMarker[] terrenosParaCamera = ObterTerrenosParaCamera(foco.position);
 
@@ -386,6 +451,9 @@ public class BuySceneEntryTrigger : MonoBehaviour
             DefinirDestaqueTerrenos(true, terrenosParaCamera);
 
         controladorBuyScene.EntrarNoModoCompra(foco, terrenosParaCamera);
+
+        if (logarEventos)
+            Debug.Log("[BuySceneEntryTrigger] Abriu BuyScene pela area: " + gameObject.name);
     }
 
     private BuyableLandAreaMarker[] ObterTerrenosParaCamera(Vector3 posicaoReferencia)
@@ -576,19 +644,9 @@ public class BuySceneEntryTrigger : MonoBehaviour
     private LineRenderer CriarLinha(string nome, int quantidadePontos)
     {
         Transform existente = transform.Find(nome);
+        GameObject objetoLinha = existente != null ? existente.gameObject : new GameObject(nome);
 
-        GameObject objetoLinha;
-
-        if (existente != null)
-        {
-            objetoLinha = existente.gameObject;
-        }
-        else
-        {
-            objetoLinha = new GameObject(nome);
-            objetoLinha.transform.SetParent(transform, false);
-        }
-
+        objetoLinha.transform.SetParent(transform, false);
         objetoLinha.transform.localPosition = Vector3.zero;
         objetoLinha.transform.localRotation = Quaternion.identity;
         objetoLinha.transform.localScale = Vector3.one;
@@ -670,7 +728,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
     private void AtualizarCorVisual()
     {
         Color corAtual = playerDentro ? corPlayerDentro : corNormal;
-
         AplicarCorNaLinha(linhaBorda, corAtual);
         AplicarCorNaLinha(linhaDiagonalA, corAtual);
         AplicarCorNaLinha(linhaDiagonalB, corAtual);
@@ -701,7 +758,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
         Vector3 p1;
         Vector3 p2;
         Vector3 p3;
-
         CalcularCantosSuperiores(out p0, out p1, out p2, out p3);
 
         if (linhaBorda != null)
@@ -766,14 +822,12 @@ public class BuySceneEntryTrigger : MonoBehaviour
             return;
 
         Gizmos.color = corGizmo;
-
         BoxCollider box = col as BoxCollider;
 
         if (box != null)
         {
             Gizmos.matrix = transform.localToWorldMatrix;
             Gizmos.DrawCube(box.center, box.size);
-
             Gizmos.color = new Color(corGizmo.r, corGizmo.g, corGizmo.b, 1f);
             Gizmos.DrawWireCube(box.center, box.size);
             return;
@@ -781,7 +835,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         Gizmos.matrix = Matrix4x4.identity;
         Gizmos.DrawCube(col.bounds.center, col.bounds.size);
-
         Gizmos.color = new Color(corGizmo.r, corGizmo.g, corGizmo.b, 1f);
         Gizmos.DrawWireCube(col.bounds.center, col.bounds.size);
     }
