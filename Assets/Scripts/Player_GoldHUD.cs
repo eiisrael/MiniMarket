@@ -1,10 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public class GoldHUDHardcore : MonoBehaviour
+public class GoldHUD : MonoBehaviour
 {
     [Header("Referências")]
-    public PlayerGoldHardcore playerGold;
+    public PlayerGold playerGold;
 
     [Tooltip("Texto que mostra o gold. Pode ser UI > Legacy > Text.")]
     public Text textoGold;
@@ -37,7 +37,7 @@ public class GoldHUDHardcore : MonoBehaviour
     private void Awake()
     {
         if (playerGold == null && procurarPlayerAutomaticamente)
-            playerGold = FindObjectOfType<PlayerGoldHardcore>();
+            playerGold = FindObjectOfType<PlayerGold>();
 
         if (canvasGroup == null)
             canvasGroup = GetComponent<CanvasGroup>();
@@ -68,7 +68,7 @@ public class GoldHUDHardcore : MonoBehaviour
         {
             if (procurarPlayerAutomaticamente)
             {
-                playerGold = FindObjectOfType<PlayerGoldHardcore>();
+                playerGold = FindObjectOfType<PlayerGold>();
                 TentarRegistrarEvento();
             }
 

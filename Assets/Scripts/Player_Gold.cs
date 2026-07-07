@@ -1,9 +1,9 @@
 using System;
 using UnityEngine;
 
-public class PlayerGoldHardcore : MonoBehaviour
+public class PlayerGold : MonoBehaviour
 {
-    public static PlayerGoldHardcore Instance { get; private set; }
+    public static PlayerGold Instance { get; private set; }
 
     [Header("Gold Global")]
     [Tooltip("Gold inicial do personagem ao começar o jogo.")]

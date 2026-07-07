@@ -1,10 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public class StaminaHUDHardcore : MonoBehaviour
+public class StaminaHUD : MonoBehaviour
 {
     [Header("Referências")]
-    public PlayerMoveHardcore2 player;
+    public PlayerMove player;
 
     [Tooltip("Arraste aqui o RectTransform do objeto Energy/BarraStamina.")]
     public RectTransform barraStaminaRect;
@@ -98,7 +98,7 @@ public class StaminaHUDHardcore : MonoBehaviour
             return;
 
         if (player == null && procurarPlayerAutomaticamente)
-            player = FindObjectOfType<PlayerMoveHardcore2>();
+            player = FindObjectOfType<PlayerMove>();
 
         if (canvasGroup == null)
             canvasGroup = GetComponent<CanvasGroup>();
@@ -130,7 +130,7 @@ public class StaminaHUDHardcore : MonoBehaviour
         if (player == null)
         {
             if (procurarPlayerAutomaticamente)
-                player = FindObjectOfType<PlayerMoveHardcore2>();
+                player = FindObjectOfType<PlayerMove>();
 
             return;
         }

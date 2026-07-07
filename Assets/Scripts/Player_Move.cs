@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
-public class PlayerMoveHardcore2 : MonoBehaviour
+public class PlayerMove : MonoBehaviour
 {
     [Header("Referências")]
     public Transform cameraTransform;
