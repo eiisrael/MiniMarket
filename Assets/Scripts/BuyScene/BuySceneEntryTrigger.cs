@@ -6,10 +6,12 @@ using UnityEngine;
 /// - Desenhar a marcacao visual da area da calcada no Game View.
 /// - Detectar o player dentro da area.
 /// - Abrir e fechar a BuyScene com a mesma tecla configuravel no Inspector.
+/// - Sincronizar a cor/status do X da calcada com os terrenos ligados a esta area.
 ///
 /// Fluxo recomendado:
 /// Player entra na area -> aperta E -> abre BuyScene.
 /// Player ainda esta na area -> aperta E novamente -> fecha BuyScene.
+/// Quando o terreno for comprado e ficar indisponivel, a marcacao da calcada tambem fica indisponivel.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider))]
@@ -73,10 +75,10 @@ public class BuySceneEntryTrigger : MonoBehaviour
     public bool mostrarMarcacaoVisual = true;
     public bool mostrarXCentral = true;
 
-    [Tooltip("Cor normal da area da calcada.")]
+    [Tooltip("Cor normal da area da calcada. Usada como fallback quando nao ha terreno associado.")]
     public Color corNormal = new Color(1f, 0.92f, 0f, 1f);
 
-    [Tooltip("Cor quando o player esta dentro da area.")]
+    [Tooltip("Cor quando o player esta dentro da area. Usada apenas se a sincronizacao com o terreno estiver desligada ou nao houver terreno associado.")]
     public Color corPlayerDentro = new Color(0.1f, 1f, 0.1f, 1f);
 
     [Min(0.01f)]
@@ -87,6 +89,19 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
     [Tooltip("Atualiza as linhas em tempo real enquanto voce move/escala o objeto.")]
     public bool atualizarVisualEmTempoReal = true;
+
+    [Header("SINCRONIA COM STATUS DOS TERRENOS")]
+    [Tooltip("Se ligado, o X/borda da calcada usa a mesma cor/status dos terrenos associados.")]
+    public bool sincronizarMarcacaoComStatusDosTerrenos = true;
+
+    [Tooltip("Se ligado, a calcada so fica indisponivel quando TODOS os terrenos associados estiverem indisponiveis. Recomendado para uma entrada que mostra varios lotes.")]
+    public bool calcadaIndisponivelSomenteQuandoTodosTerrenosIndisponiveis = true;
+
+    [Tooltip("Se ligado, quando todos os terrenos associados forem comprados, a marcacao continua visivel usando a cor Indisponivel do terreno.")]
+    public bool manterMarcacaoVisivelQuandoIndisponivel = true;
+
+    [Tooltip("Se a lista Terrenos Desta Area estiver vazia, a sincronizacao usa os mesmos terrenos encontrados automaticamente pelo raio da BuyScene.")]
+    public bool sincronizarComTerrenosEncontradosAutomaticamente = true;
 
     [Header("DESTAQUE DOS TERRENOS")]
     public bool destacarTerrenosAoDetectarPlayer = true;
@@ -372,6 +387,8 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (destacarTerrenosAoDetectarPlayer)
             DefinirDestaqueTerrenos(true);
 
+        AtualizarCorVisual();
+
         if (logarEventos)
             Debug.Log("[BuySceneEntryTrigger] Player entrou na area de compra: " + gameObject.name);
 
@@ -389,6 +406,8 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         if (limparDestaqueAoSairDaArea && (controladorBuyScene == null || !controladorBuyScene.ModoCompraAtivo))
             DefinirDestaqueTerrenos(false);
+
+        AtualizarCorVisual();
 
         if (logarEventos)
             Debug.Log("[BuySceneEntryTrigger] Player saiu da area de compra: " + gameObject.name);
@@ -415,6 +434,8 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
             if (destacarTerrenosAoDetectarPlayer)
                 DefinirDestaqueTerrenos(playerDentro);
+
+            AtualizarCorVisual();
 
             if (logarEventos)
                 Debug.Log("[BuySceneEntryTrigger] Fechou BuyScene pela tecla: " + teclaAbrirFechar);
@@ -453,6 +474,7 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (destacarTerrenosAoDetectarPlayer)
             DefinirDestaqueTerrenos(true, terrenosParaCamera);
 
+        AtualizarCorVisual();
         controladorBuyScene.EntrarNoModoCompra(foco, terrenosParaCamera);
 
         if (logarEventos)
@@ -713,7 +735,11 @@ public class BuySceneEntryTrigger : MonoBehaviour
         CriarRenderizadores();
         AtualizarPosicoesVisual();
         AtualizarCorVisual();
-        DefinirLinhasAtivas(true);
+
+        if (sincronizarMarcacaoComStatusDosTerrenos && manterMarcacaoVisivelQuandoIndisponivel)
+            DefinirLinhasAtivas(true);
+        else
+            DefinirLinhasAtivas(true);
     }
 
     private void DefinirLinhasAtivas(bool ativo)
@@ -730,10 +756,124 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
     private void AtualizarCorVisual()
     {
-        Color corAtual = playerDentro ? corPlayerDentro : corNormal;
+        Color corAtual = ObterCorVisualAtual();
+
         AplicarCorNaLinha(linhaBorda, corAtual);
         AplicarCorNaLinha(linhaDiagonalA, corAtual);
         AplicarCorNaLinha(linhaDiagonalB, corAtual);
+    }
+
+    private Color ObterCorVisualAtual()
+    {
+        if (!sincronizarMarcacaoComStatusDosTerrenos)
+            return playerDentro ? corPlayerDentro : corNormal;
+
+        BuyableLandAreaMarker terrenoReferencia = ObterTerrenoReferenciaParaCor();
+
+        if (terrenoReferencia == null)
+            return playerDentro ? corPlayerDentro : corNormal;
+
+        BuyableLandAreaMarker.EstadoDoTerreno estadoAgregado = CalcularEstadoAgregadoDosTerrenos(terrenoReferencia);
+
+        switch (estadoAgregado)
+        {
+            case BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel:
+                return terrenoReferencia.corIndisponivel;
+
+            case BuyableLandAreaMarker.EstadoDoTerreno.Destacado:
+                return terrenoReferencia.corDestacado;
+
+            case BuyableLandAreaMarker.EstadoDoTerreno.Disponivel:
+            default:
+                return terrenoReferencia.corDisponivel;
+        }
+    }
+
+    private BuyableLandAreaMarker[] ObterTerrenosParaSincronia()
+    {
+        if (terrenosDestaArea != null && terrenosDestaArea.Length > 0)
+            return terrenosDestaArea;
+
+        if (!sincronizarComTerrenosEncontradosAutomaticamente)
+            return null;
+
+        Transform foco = pontoDeFocoDaCamera != null ? pontoDeFocoDaCamera : transform;
+        return ObterTerrenosParaCamera(foco.position);
+    }
+
+    private BuyableLandAreaMarker ObterTerrenoReferenciaParaCor()
+    {
+        BuyableLandAreaMarker[] terrenos = ObterTerrenosParaSincronia();
+
+        if (terrenos == null || terrenos.Length == 0)
+            return null;
+
+        for (int i = 0; i < terrenos.Length; i++)
+        {
+            BuyableLandAreaMarker terreno = terrenos[i];
+
+            if (terreno != null && terreno.estadoAtual != BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel)
+                return terreno;
+        }
+
+        for (int i = 0; i < terrenos.Length; i++)
+        {
+            if (terrenos[i] != null)
+                return terrenos[i];
+        }
+
+        return null;
+    }
+
+    private BuyableLandAreaMarker.EstadoDoTerreno CalcularEstadoAgregadoDosTerrenos(BuyableLandAreaMarker terrenoReferencia)
+    {
+        BuyableLandAreaMarker[] terrenos = ObterTerrenosParaSincronia();
+
+        if (terrenos == null || terrenos.Length == 0)
+            return terrenoReferencia.estadoAtual;
+
+        bool encontrouValido = false;
+        bool todosIndisponiveis = true;
+        bool existeDestacado = false;
+        bool existeDisponivel = false;
+
+        for (int i = 0; i < terrenos.Length; i++)
+        {
+            BuyableLandAreaMarker terreno = terrenos[i];
+
+            if (terreno == null)
+                continue;
+
+            encontrouValido = true;
+
+            if (terreno.estadoAtual != BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel)
+                todosIndisponiveis = false;
+
+            if (terreno.estadoAtual == BuyableLandAreaMarker.EstadoDoTerreno.Destacado)
+                existeDestacado = true;
+
+            if (terreno.estadoAtual == BuyableLandAreaMarker.EstadoDoTerreno.Disponivel)
+                existeDisponivel = true;
+        }
+
+        if (!encontrouValido)
+            return terrenoReferencia.estadoAtual;
+
+        if (calcadaIndisponivelSomenteQuandoTodosTerrenosIndisponiveis)
+        {
+            if (todosIndisponiveis)
+                return BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel;
+
+            if (existeDestacado)
+                return BuyableLandAreaMarker.EstadoDoTerreno.Destacado;
+
+            if (existeDisponivel)
+                return BuyableLandAreaMarker.EstadoDoTerreno.Disponivel;
+
+            return terrenoReferencia.estadoAtual;
+        }
+
+        return terrenoReferencia.estadoAtual;
     }
 
     private void AplicarCorNaLinha(LineRenderer linha, Color cor)
