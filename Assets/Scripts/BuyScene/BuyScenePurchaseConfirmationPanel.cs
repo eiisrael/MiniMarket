@@ -9,10 +9,17 @@ using UnityEngine.UI;
 /// 1. Modo recomendado: usando uma hierarquia manual dentro de um Canvas, igual HUD.
 /// 2. Modo automatico: o script cria a janela em runtime se os RectTransforms nao forem preenchidos.
 ///
-/// O layout e reaplicado em tempo real durante o Play quando Atualizar Layout Em Tempo Real estiver ligado.
+/// Para editar sem o painel voltar de posicao, use Fonte Do Layout = RectTransform Manual.
+/// Nesse modo, voce move pelo proprio Canvas/RectTransform e o script apenas sincroniza os campos.
 /// </summary>
 public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 {
+    public enum FonteDoLayout
+    {
+        CamposDoScript,
+        RectTransformManual
+    }
+
     [Header("Canvas")]
     [Tooltip("Canvas onde o painel esta ou sera criado. Recomendado usar o Canvas do HUD ou um Canvas_BuyScene_UI separado.")]
     public Canvas canvasAlvo;
@@ -67,8 +74,20 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
     public string textoGoldInsuficiente = "Gold insuficiente para comprar este terreno.";
 
     [Header("Layout em Tempo Real")]
-    [Tooltip("Se ligado, alterar X/Y/tamanho/fonte no Inspector durante o Play move tudo na hora.")]
+    [Tooltip("CamposDoScript: os campos abaixo controlam a UI. RectTransformManual: voce move no Canvas e o script nao puxa de volta.")]
+    public FonteDoLayout fonteDoLayout = FonteDoLayout.RectTransformManual;
+
+    [Tooltip("Se ligado, o layout e atualizado durante o Play.")]
     public bool atualizarLayoutEmTempoReal = true;
+
+    [Tooltip("No modo RectTransformManual, copia X/Y/tamanhos reais dos RectTransforms para estes campos.")]
+    public bool sincronizarCamposComRectTransform = true;
+
+    [Tooltip("Normalmente deixe desligado para evitar truncar valores quebrados.")]
+    public bool arredondarValoresSincronizados = false;
+
+    [Range(0, 4)]
+    public int casasDecimaisSincronizacao = 2;
 
     [Tooltip("Posicao X/Y do painel inteiro na tela. X direita/esquerda, Y cima/baixo.")]
     public Vector2 posicaoPainel = Vector2.zero;
@@ -134,7 +153,8 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         if (painelRaiz == null)
             InicializarInterface();
 
-        AplicarLayoutCompleto();
+        ResolverInterfaceManual();
+        AplicarOuSincronizarLayout();
         AplicarVisualCompleto();
     }
 
@@ -152,7 +172,7 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
             return;
 
         InicializarInterface();
-        AplicarLayoutCompleto();
+        AplicarOuSincronizarLayout();
         AplicarVisualCompleto();
         AtualizarTextoConfirmacao();
     }
@@ -171,7 +191,7 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         aoConfirmarCompra = aoConfirmar;
         aoFecharPainel = aoFechar;
 
-        AplicarLayoutCompleto();
+        AplicarOuSincronizarLayout();
         AplicarVisualCompleto();
         AtualizarTextoConfirmacao();
 
@@ -236,7 +256,7 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 
         ResolverInterfaceManual();
         ConfigurarEventosDosBotoes();
-        AplicarLayoutCompleto();
+        AplicarOuSincronizarLayout();
         AplicarVisualCompleto();
     }
 
@@ -402,6 +422,17 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         }
     }
 
+    private void AplicarOuSincronizarLayout()
+    {
+        if (fonteDoLayout == FonteDoLayout.RectTransformManual)
+        {
+            SincronizarCamposPelosRectTransforms();
+            return;
+        }
+
+        AplicarLayoutCompleto();
+    }
+
     private void AplicarLayoutCompleto()
     {
         AplicarRectCentralizado(painelRect, posicaoPainel, tamanhoPainel);
@@ -409,6 +440,59 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
         AplicarRectCentralizado(botaoConfirmarRect, posicaoBotaoConfirmar, tamanhoBotaoConfirmar);
         AplicarRectCentralizado(textoBotaoConfirmarRect, posicaoTextoBotaoConfirmar, tamanhoTextoBotaoConfirmar);
         AplicarRectCentralizado(botaoFecharRect, posicaoBotaoFechar, tamanhoBotaoFechar);
+    }
+
+    private void SincronizarCamposPelosRectTransforms()
+    {
+        if (!sincronizarCamposComRectTransform)
+            return;
+
+        posicaoPainel = LerPosicaoDoRect(painelRect, posicaoPainel);
+        tamanhoPainel = LerTamanhoDoRect(painelRect, tamanhoPainel);
+
+        posicaoTextoPrincipal = LerPosicaoDoRect(textoPrincipalRect, posicaoTextoPrincipal);
+        tamanhoAreaTextoPrincipal = LerTamanhoDoRect(textoPrincipalRect, tamanhoAreaTextoPrincipal);
+
+        posicaoBotaoConfirmar = LerPosicaoDoRect(botaoConfirmarRect, posicaoBotaoConfirmar);
+        tamanhoBotaoConfirmar = LerTamanhoDoRect(botaoConfirmarRect, tamanhoBotaoConfirmar);
+
+        posicaoTextoBotaoConfirmar = LerPosicaoDoRect(textoBotaoConfirmarRect, posicaoTextoBotaoConfirmar);
+        tamanhoTextoBotaoConfirmar = LerTamanhoDoRect(textoBotaoConfirmarRect, tamanhoTextoBotaoConfirmar);
+
+        posicaoBotaoFechar = LerPosicaoDoRect(botaoFecharRect, posicaoBotaoFechar);
+        tamanhoBotaoFechar = LerTamanhoDoRect(botaoFecharRect, tamanhoBotaoFechar);
+    }
+
+    private Vector2 LerPosicaoDoRect(RectTransform rect, Vector2 valorAtual)
+    {
+        if (rect == null)
+            return valorAtual;
+
+        return NormalizarValor(rect.anchoredPosition);
+    }
+
+    private Vector2 LerTamanhoDoRect(RectTransform rect, Vector2 valorAtual)
+    {
+        if (rect == null)
+            return valorAtual;
+
+        return NormalizarValor(rect.sizeDelta);
+    }
+
+    private Vector2 NormalizarValor(Vector2 valor)
+    {
+        if (!arredondarValoresSincronizados)
+            return valor;
+
+        valor.x = Arredondar(valor.x);
+        valor.y = Arredondar(valor.y);
+        return valor;
+    }
+
+    private float Arredondar(float valor)
+    {
+        float fator = Mathf.Pow(10f, casasDecimaisSincronizacao);
+        return Mathf.Round(valor * fator) / fator;
     }
 
     private void AplicarVisualCompleto()
