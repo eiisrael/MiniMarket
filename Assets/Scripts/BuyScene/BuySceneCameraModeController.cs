@@ -2,9 +2,16 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Controla o modo BuyScene sem trocar de cena Unity ainda.
-/// Ao entrar, a camera principal sobe para uma vista aerea/ortografica,
-/// destaca terrenos proximos e bloqueia temporariamente scripts de movimento/mira.
+/// Controla o modo BuyScene sem trocar de cena Unity.
+/// Responsabilidades:
+/// - Mover a Main Camera para a vista aerea/ortografica.
+/// - Restaurar a camera original imediatamente ao sair.
+/// - Bloquear movimento/mira durante a BuyScene.
+/// - Forcar Idle no Animator para evitar personagem correndo parado.
+///
+/// Observacao importante:
+/// A abertura/fechamento por tecla deve ficar preferencialmente no BuySceneEntryTrigger.
+/// Assim evitamos duplo input no mesmo frame e bug de abrir/fechar imediatamente.
 /// </summary>
 public class BuySceneCameraModeController : MonoBehaviour
 {
@@ -19,25 +26,18 @@ public class BuySceneCameraModeController : MonoBehaviour
     public MonoBehaviour[] componentesExtrasParaDesativar;
 
     [Header("Camera BuyScene")]
-    [Tooltip("Altura da camera no modo de compra.")]
     [Min(1f)]
     public float alturaCameraAerea = 18f;
 
-    [Tooltip("Pequeno recuo horizontal para evitar rotacao completamente vertical.")]
     [Min(0f)]
     public float recuoCameraAerea = 0.35f;
 
-    [Tooltip("Rotacao Y da vista aerea. 0 olha pelo eixo Z do mundo.")]
     public float rotacaoYCameraAerea = 0f;
-
-    [Tooltip("Offset aplicado ao foco da camera.")]
     public Vector3 offsetFoco = Vector3.zero;
 
     [Header("Modo Ortografico")]
-    [Tooltip("Recomendado para visualizar terrenos a venda de cima.")]
     public bool usarOrtograficaNoModoCompra = true;
 
-    [Tooltip("Tamanho da visualizacao ortografica. Maior = mostra mais area.")]
     [Min(1f)]
     public float tamanhoOrtografico = 16f;
 
@@ -54,20 +54,15 @@ public class BuySceneCameraModeController : MonoBehaviour
     [Tooltip("Se ligado, a entrada no modo compra encaixa a camera instantaneamente.")]
     public bool entradaInstantanea = false;
 
-    [Tooltip("LEGADO. Se Forcar Retorno Instantaneo Ao Sair estiver ligado, este campo e ignorado.")]
+    [Tooltip("LEGADO. Por padrao a saida atual e instantanea para evitar camera virando para o lado.")]
     public bool retornoSuave = false;
 
-    [Tooltip("Se ligado, ao apertar ESC a camera volta IMEDIATAMENTE para a camera original do player, sem virar para os lados antes.")]
+    [Tooltip("Ao sair, restaura a camera original no mesmo frame.")]
     public bool forcarRetornoInstantaneoAoSair = true;
 
     [Header("Animacao do Player")]
-    [Tooltip("Ao entrar na BuyScene, zera parametros de andar/correr e tenta jogar o Animator para Idle.")]
     public bool forcarIdleAoEntrarNoModoCompra = true;
-
-    [Tooltip("Zera floats/ints e desliga bools de movimento do Animator para evitar ficar correndo parado.")]
     public bool zerarParametrosMovimentoAnimator = true;
-
-    [Tooltip("Normalmente deixe desligado. Se ligar, a animacao congela no idle enquanto estiver na BuyScene.")]
     public bool pausarAnimatorDuranteBuyScene = false;
 
     [Tooltip("Nomes de estados Idle que o script tenta encontrar no Animator Controller.")]
@@ -83,21 +78,23 @@ public class BuySceneCameraModeController : MonoBehaviour
         "Idle01"
     };
 
-    [Header("Input")]
-    public bool sairComEscape = true;
-    public KeyCode teclaSairModoCompra = KeyCode.Escape;
+    [Header("Input do Controller")]
+    [Tooltip("LEGADO. Mantido apenas para nao quebrar Inspector antigo. Nao usado por padrao.")]
+    public bool sairComEscape = false;
+
+    [Tooltip("Use apenas se quiser que este controller tambem feche por tecla. Recomendado deixar desligado e controlar pelo BuySceneEntryTrigger.")]
+    public bool permitirFecharPelaTeclaDoController = false;
+
+    [Tooltip("Tecla opcional para fechar pelo controller, caso Permitir Fechar Pela Tecla Do Controller esteja ligado.")]
+    public KeyCode teclaFecharPeloController = KeyCode.E;
 
     [Header("Cursor")]
-    [Tooltip("No modo compra, normalmente o cursor fica visivel para selecionar terrenos no futuro.")]
     public bool mostrarCursorNoModoCompra = true;
-
     public CursorLockMode lockModeNoModoCompra = CursorLockMode.None;
 
     [Header("Mensagem Temporaria")]
-    [Tooltip("Mensagem simples por OnGUI para prototipo. Pode desligar quando criar uma UI propria no Canvas.")]
     public bool mostrarMensagemNaTela = true;
-
-    public string mensagemModoCompra = "BuyScene: terrenos a venda - ESC para voltar";
+    public string mensagemModoCompra = "BuyScene: terrenos a venda - E para voltar";
 
     [Header("Debug")]
     public bool logarEventos = true;
@@ -135,7 +132,7 @@ public class BuySceneCameraModeController : MonoBehaviour
 
     private void Update()
     {
-        if (modoCompraAtivo && sairComEscape && Input.GetKeyDown(teclaSairModoCompra))
+        if (modoCompraAtivo && permitirFecharPelaTeclaDoController && Input.GetKeyDown(teclaFecharPeloController))
             SairDoModoCompra();
     }
 
@@ -210,7 +207,7 @@ public class BuySceneCameraModeController : MonoBehaviour
 
     public void SairDoModoCompra()
     {
-        if (!modoCompraAtivo)
+        if (!modoCompraAtivo && !retornandoCamera)
             return;
 
         modoCompraAtivo = false;
@@ -218,13 +215,9 @@ public class BuySceneCameraModeController : MonoBehaviour
         LimparDestaquesDosTerrenos();
 
         if (forcarRetornoInstantaneoAoSair || !retornoSuave || !estadoCameraSalvo)
-        {
             FinalizarRetornoCamera();
-        }
         else
-        {
             retornandoCamera = true;
-        }
 
         if (logarEventos)
             Debug.Log("[BuyScene] Saiu do modo de compra.");
@@ -243,10 +236,8 @@ public class BuySceneCameraModeController : MonoBehaviour
         cameraFovAntes = cameraPrincipal.fieldOfView;
         cameraOrtograficaAntes = cameraPrincipal.orthographic;
         cameraOrthographicSizeAntes = cameraPrincipal.orthographicSize;
-
         cursorLockAntes = Cursor.lockState;
         cursorVisivelAntes = Cursor.visible;
-
         estadoCameraSalvo = true;
     }
 
@@ -325,16 +316,11 @@ public class BuySceneCameraModeController : MonoBehaviour
 
     private void AdicionarComponenteParaDesativar(MonoBehaviour componente)
     {
-        if (componente == null)
+        if (componente == null || componente == this)
             return;
 
-        if (componente == this)
-            return;
-
-        if (componentesDesativadosAutomaticamente.Contains(componente))
-            return;
-
-        componentesDesativadosAutomaticamente.Add(componente);
+        if (!componentesDesativadosAutomaticamente.Contains(componente))
+            componentesDesativadosAutomaticamente.Add(componente);
     }
 
     private void PrepararAnimacaoModoCompra()
@@ -343,7 +329,6 @@ public class BuySceneCameraModeController : MonoBehaviour
             return;
 
         animadoresSalvos.Clear();
-
         Animator[] animadores = jogadorRaiz.GetComponentsInChildren<Animator>(true);
 
         for (int i = 0; i < animadores.Length; i++)
@@ -361,7 +346,6 @@ public class BuySceneCameraModeController : MonoBehaviour
             };
 
             animadoresSalvos.Add(estado);
-
             animator.applyRootMotion = false;
 
             if (zerarParametrosMovimentoAnimator)
@@ -433,10 +417,7 @@ public class BuySceneCameraModeController : MonoBehaviour
 
     private void TentarForcarEstadoIdle(Animator animator)
     {
-        if (animator == null || animator.runtimeAnimatorController == null)
-            return;
-
-        if (nomesEstadosIdle == null || nomesEstadosIdle.Length == 0)
+        if (animator == null || animator.runtimeAnimatorController == null || nomesEstadosIdle == null)
             return;
 
         for (int layer = 0; layer < animator.layerCount; layer++)
@@ -537,7 +518,6 @@ public class BuySceneCameraModeController : MonoBehaviour
     {
         Vector3 foco = ObterFocoAtual();
         Vector3 direcaoRecuo = Quaternion.Euler(0f, rotacaoYCameraAerea, 0f) * Vector3.back;
-
         return foco + Vector3.up * alturaCameraAerea + direcaoRecuo * recuoCameraAerea;
     }
 
@@ -588,7 +568,6 @@ public class BuySceneCameraModeController : MonoBehaviour
 
         modoCompraAtivo = false;
         retornandoCamera = false;
-
         LimparDestaquesDosTerrenos();
         FinalizarRetornoCamera();
     }
