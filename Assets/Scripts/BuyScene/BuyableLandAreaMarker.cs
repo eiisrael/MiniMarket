@@ -4,6 +4,7 @@ using UnityEngine.Rendering;
 /// <summary>
 /// Marca visualmente uma area/terreno a venda no chao.
 /// Tambem oferece suporte a hover/selecao para compra na BuyScene.
+/// Agora sincroniza o status com o MiniMarketPlayerDatabase.
 /// </summary>
 public class BuyableLandAreaMarker : MonoBehaviour
 {
@@ -15,12 +16,22 @@ public class BuyableLandAreaMarker : MonoBehaviour
     }
 
     [Header("Identificacao")]
+    [Tooltip("ID fixo salvo no banco. Para propriedades importantes, preencha manualmente. Ex: BRONZE_MARKET.")]
+    public string idPersistente;
+
     [Tooltip("Nome amigavel para organizar no Inspector e mostrar no painel de compra.")]
     public string nomeDoTerreno = "Terreno a Venda";
 
     [Tooltip("Preco do terreno em gold.")]
     [Min(0)]
     public int precoGold = 20000;
+
+    [Header("Banco de Dados")]
+    [Tooltip("Se ligado, carrega/salva o status desta area pelo banco do jogador.")]
+    public bool sincronizarComBancoDeDados = true;
+
+    [Tooltip("Se comprado no banco, fica vermelho/indisponivel automaticamente ao iniciar a cena.")]
+    public bool aplicarEstadoSalvoAoIniciar = true;
 
     [Header("Estado")]
     public EstadoDoTerreno estadoAtual = EstadoDoTerreno.Disponivel;
@@ -66,6 +77,7 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
     [Header("Debug")]
     public bool desenharGizmosNoEditor = true;
+    public bool logarBancoDeDados = false;
 
     private LineRenderer linhaBorda;
     private LineRenderer linhaDiagonalA;
@@ -74,6 +86,7 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
     private bool hoverAtivo;
     private bool selecionadoAtivo;
+    private MiniMarketPlayerDatabase banco;
 
     public Bounds BoundsMundo
     {
@@ -86,16 +99,39 @@ public class BuyableLandAreaMarker : MonoBehaviour
     }
 
     public bool EstaDisponivelParaCompra => estadoAtual != EstadoDoTerreno.Indisponivel;
+    public string IdPersistente => ObterIdPersistente();
 
     private void Awake()
     {
+        ResolverBanco();
         CriarOuAtualizarLinhas();
     }
 
     private void OnEnable()
     {
+        ResolverBanco();
+
+        if (banco != null)
+            banco.OnDatabaseChanged += AoBancoAlterado;
+
         CriarOuAtualizarLinhas();
+
+        if (aplicarEstadoSalvoAoIniciar)
+            SincronizarEstadoComBanco();
+
         AplicarVisibilidade();
+    }
+
+    private void Start()
+    {
+        if (aplicarEstadoSalvoAoIniciar)
+            SincronizarEstadoComBanco();
+    }
+
+    private void OnDisable()
+    {
+        if (banco != null)
+            banco.OnDatabaseChanged -= AoBancoAlterado;
     }
 
     private void Update()
@@ -114,6 +150,28 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
         if (Application.isPlaying)
             CriarOuAtualizarLinhas();
+    }
+
+    public void SincronizarEstadoComBanco()
+    {
+        if (!sincronizarComBancoDeDados)
+            return;
+
+        ResolverBanco();
+        if (banco == null)
+            return;
+
+        string id = ObterIdPersistente();
+        if (string.IsNullOrEmpty(id))
+            return;
+
+        if (banco.PropriedadeComprada(id) || banco.PropriedadeIndisponivel(id))
+        {
+            DefinirDisponivelInterno(false, false);
+
+            if (logarBancoDeDados)
+                Debug.Log("[BuyableLandAreaMarker] Estado carregado do banco: " + id + " = Indisponivel/Comprado");
+        }
     }
 
     public void DefinirDestaque(bool destacar)
@@ -156,15 +214,50 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
     public void DefinirDisponivel(bool disponivel)
     {
+        DefinirDisponivelInterno(disponivel, true);
+    }
+
+    private void DefinirDisponivelInterno(bool disponivel, bool salvarNoBanco)
+    {
         estadoAtual = disponivel ? EstadoDoTerreno.Disponivel : EstadoDoTerreno.Indisponivel;
         hoverAtivo = false;
         selecionadoAtivo = false;
         CriarOuAtualizarLinhas();
+
+        if (salvarNoBanco && sincronizarComBancoDeDados)
+        {
+            ResolverBanco();
+            if (banco != null)
+            {
+                banco.DefinirStatusPropriedade(
+                    ObterIdPersistente(),
+                    nomeDoTerreno,
+                    !disponivel,
+                    disponivel,
+                    disponivel ? "Disponivel" : "Indisponivel"
+                );
+            }
+        }
     }
 
     public void MarcarComoComprado()
     {
-        DefinirDisponivel(false);
+        estadoAtual = EstadoDoTerreno.Indisponivel;
+        hoverAtivo = false;
+        selecionadoAtivo = false;
+        CriarOuAtualizarLinhas();
+
+        if (sincronizarComBancoDeDados)
+        {
+            ResolverBanco();
+            if (banco != null)
+            {
+                banco.RegistrarPropriedadeComprada(ObterIdPersistente(), nomeDoTerreno);
+
+                if (logarBancoDeDados)
+                    Debug.Log("[BuyableLandAreaMarker] Compra salva no banco: " + ObterIdPersistente());
+            }
+        }
     }
 
     public Vector3 ObterPontoDeFoco()
@@ -187,6 +280,42 @@ public class BuyableLandAreaMarker : MonoBehaviour
                local.x <= metadeX &&
                local.z >= -metadeZ &&
                local.z <= metadeZ;
+    }
+
+    private void ResolverBanco()
+    {
+        if (!sincronizarComBancoDeDados)
+            return;
+
+        if (banco == null)
+            banco = MiniMarketPlayerDatabase.ObterOuCriar();
+    }
+
+    private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
+    {
+        if (!Application.isPlaying)
+            return;
+
+        SincronizarEstadoComBanco();
+    }
+
+    private string ObterIdPersistente()
+    {
+        if (!string.IsNullOrWhiteSpace(idPersistente))
+            return NormalizarId(idPersistente);
+
+        if (!string.IsNullOrWhiteSpace(nomeDoTerreno) && nomeDoTerreno != "Terreno a Venda")
+            return NormalizarId(nomeDoTerreno);
+
+        return NormalizarId(gameObject.name);
+    }
+
+    private string NormalizarId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return string.Empty;
+
+        return id.Trim().ToUpperInvariant().Replace(' ', '_');
     }
 
     private void CriarOuAtualizarLinhas()
