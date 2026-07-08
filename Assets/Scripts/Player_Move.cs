@@ -63,6 +63,18 @@ public class PlayerMove : MonoBehaviour
     [Tooltip("Se ativado, ao zerar stamina, bloqueia a corrida até recuperar um pouco.")]
     public bool bloquearCorridaQuandoCansado = true;
 
+    [Header("Banco de Dados - Stamina/Energia")]
+    [Tooltip("Se ligado, le e grava a stamina no MiniMarketPlayerDatabase em tempo real.")]
+    public bool usarBancoDeDadosStamina = true;
+
+    [Tooltip("Diferença mínima para salvar stamina no banco, evitando escrita excessiva a cada frame.")]
+    [Min(0.01f)]
+    public float diferencaMinimaParaSalvarStamina = 0.25f;
+
+    [Tooltip("Intervalo máximo entre salvamentos da stamina enquanto ela muda.")]
+    [Min(0.05f)]
+    public float intervaloSalvarStamina = 0.35f;
+
     [Header("Rotação")]
     public bool usarRotacaoPeloMouse = true;
     public bool rotateTowardsMovement = false;
@@ -166,6 +178,10 @@ public class PlayerMove : MonoBehaviour
     private Vector2 smoothInput;
     private Vector2 smoothInputVelocity;
 
+    private MiniMarketPlayerDatabase banco;
+    private float ultimaStaminaSalva;
+    private float ultimoTempoSalvouStamina;
+
     private readonly HashSet<string> animatorParams = new HashSet<string>();
 
     public float StaminaAtual => staminaAtual;
@@ -181,6 +197,8 @@ public class PlayerMove : MonoBehaviour
 
         staminaMaxima = Mathf.Max(1f, staminaMaxima);
         staminaAtual = Mathf.Clamp(staminaAtual, 0f, staminaMaxima);
+
+        InicializarStaminaComBanco();
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
@@ -205,6 +223,29 @@ public class PlayerMove : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        if (usarBancoDeDadosStamina)
+        {
+            banco = MiniMarketPlayerDatabase.ObterOuCriar();
+            if (banco != null)
+                banco.OnDatabaseChanged += AoBancoAlterado;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (banco != null)
+            banco.OnDatabaseChanged -= AoBancoAlterado;
+
+        SalvarStaminaNoBanco(true);
+    }
+
+    private void OnApplicationQuit()
+    {
+        SalvarStaminaNoBanco(true);
+    }
+
     private void Update()
     {
         ReadInput();
@@ -215,6 +256,75 @@ public class PlayerMove : MonoBehaviour
         CalculateJumpAndGravity();
         ApplyMovement();
         UpdateAnimator();
+    }
+
+    private void InicializarStaminaComBanco()
+    {
+        if (!usarBancoDeDadosStamina)
+        {
+            ultimaStaminaSalva = staminaAtual;
+            return;
+        }
+
+        banco = MiniMarketPlayerDatabase.ObterOuCriar();
+        banco.GarantirStaminaInicial(staminaAtual, staminaMaxima);
+
+        staminaMaxima = Mathf.Max(1f, banco.StaminaMaxima);
+        staminaAtual = Mathf.Clamp(banco.StaminaAtual, 0f, staminaMaxima);
+        ultimaStaminaSalva = staminaAtual;
+        ultimoTempoSalvouStamina = Time.time;
+    }
+
+    private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
+    {
+        if (dados == null || !usarBancoDeDadosStamina)
+            return;
+
+        staminaMaxima = Mathf.Max(1f, dados.staminaMaxima);
+        staminaAtual = Mathf.Clamp(dados.staminaAtual, 0f, staminaMaxima);
+        ultimaStaminaSalva = staminaAtual;
+    }
+
+    public void DefinirStamina(float novaStamina)
+    {
+        staminaAtual = Mathf.Clamp(novaStamina, 0f, staminaMaxima);
+        if (corridaBloqueadaPorStamina && staminaAtual >= staminaParaLiberarCorrida)
+            corridaBloqueadaPorStamina = false;
+
+        SalvarStaminaNoBanco(true);
+    }
+
+    public void RestaurarStaminaCompleta()
+    {
+        staminaAtual = Mathf.Max(1f, staminaMaxima);
+        corridaBloqueadaPorStamina = false;
+        estaGastandoStamina = false;
+        tempoSemGastarStamina = 0f;
+        SalvarStaminaNoBanco(true);
+    }
+
+    public void RecarregarEnergiaCompleta()
+    {
+        RestaurarStaminaCompleta();
+    }
+
+    private void SalvarStaminaNoBanco(bool forcar)
+    {
+        if (!usarBancoDeDadosStamina)
+            return;
+
+        if (banco == null)
+            banco = MiniMarketPlayerDatabase.ObterOuCriar();
+
+        bool mudouValor = Mathf.Abs(staminaAtual - ultimaStaminaSalva) >= diferencaMinimaParaSalvarStamina;
+        bool passouTempo = Time.time - ultimoTempoSalvouStamina >= intervaloSalvarStamina;
+
+        if (!forcar && (!mudouValor || !passouTempo))
+            return;
+
+        banco.DefinirStamina(staminaAtual, staminaMaxima);
+        ultimaStaminaSalva = staminaAtual;
+        ultimoTempoSalvouStamina = Time.time;
     }
 
     private void ReadInput()
@@ -431,6 +541,7 @@ public class PlayerMove : MonoBehaviour
             staminaAtual = staminaMaxima;
             estaGastandoStamina = false;
             corridaBloqueadaPorStamina = false;
+            SalvarStaminaNoBanco(false);
             return;
         }
 
@@ -471,6 +582,7 @@ public class PlayerMove : MonoBehaviour
         }
 
         staminaAtual = Mathf.Clamp(staminaAtual, 0f, staminaMaxima);
+        SalvarStaminaNoBanco(false);
     }
 
     private Vector3 GetCameraRelativeDirection(Vector2 input)
@@ -651,6 +763,8 @@ public class PlayerMove : MonoBehaviour
         staminaAtual = Mathf.Clamp(staminaAtual, 0f, staminaMaxima);
         staminaMinimaParaCorrer = Mathf.Clamp(staminaMinimaParaCorrer, 0f, staminaMaxima);
         staminaParaLiberarCorrida = Mathf.Clamp(staminaParaLiberarCorrida, staminaMinimaParaCorrer, staminaMaxima);
+        diferencaMinimaParaSalvarStamina = Mathf.Max(0.01f, diferencaMinimaParaSalvarStamina);
+        intervaloSalvarStamina = Mathf.Max(0.05f, intervaloSalvarStamina);
     }
 
     private void OnDrawGizmosSelected()
