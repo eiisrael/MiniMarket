@@ -41,6 +41,10 @@ public class BuySceneLandPurchaseController : MonoBehaviour
     [TextArea(2, 3)]
     public string mensagemTerrenoIndisponivel = "Este terreno nao esta disponivel para compra.";
 
+    [Header("Perfil / Empresas")]
+    [Tooltip("Quando ligado, cada compra confirmada registra uma empresa no perfil permanente temporario.")]
+    public bool registrarEmpresaNoPerfilAoComprar = true;
+
     [Header("Debug")]
     public bool logarEventos = true;
 
@@ -250,6 +254,8 @@ public class BuySceneLandPurchaseController : MonoBehaviour
         if (marcarTerrenoComoIndisponivelAposComprar)
             terreno.MarcarComoComprado();
 
+        RegistrarEmpresaCompradaNoPerfil(terreno);
+
         if (fecharPainelAposCompraConfirmada && painelConfirmacao != null)
         {
             painelConfirmacao.OcultarSemCallback();
@@ -263,6 +269,22 @@ public class BuySceneLandPurchaseController : MonoBehaviour
 
         if (logarEventos)
             Debug.Log("[BuySceneLandPurchaseController] Compra confirmada. Gold debitado: " + terreno.precoGold);
+    }
+
+    private void RegistrarEmpresaCompradaNoPerfil(BuyableLandAreaMarker terreno)
+    {
+        if (!registrarEmpresaNoPerfilAoComprar || terreno == null)
+            return;
+
+        MiniMarketPlayerProfile perfil = MiniMarketPlayerProfile.ObterOuCriar();
+        if (perfil == null)
+            return;
+
+        string nomeEmpresa = !string.IsNullOrWhiteSpace(terreno.nomeDoTerreno)
+            ? terreno.nomeDoTerreno
+            : terreno.name;
+
+        perfil.RegistrarEmpresaComprada(nomeEmpresa);
     }
 
     private void FecharPainelSemComprar()
