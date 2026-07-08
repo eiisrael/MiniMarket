@@ -6,6 +6,7 @@ using UnityEngine.EventSystems;
 /// - Mouse em cima do terreno muda a cor do marcador.
 /// - Clique esquerdo abre painel de confirmacao.
 /// - Confirmar remove gold global do PlayerGold e marca o terreno como comprado/indisponivel.
+/// - Terrenos comprados sao carregados do banco e ficam vermelhos ao reiniciar o Play.
 /// </summary>
 public class BuySceneLandPurchaseController : MonoBehaviour
 {
@@ -42,7 +43,7 @@ public class BuySceneLandPurchaseController : MonoBehaviour
     public string mensagemTerrenoIndisponivel = "Este terreno nao esta disponivel para compra.";
 
     [Header("Perfil / Empresas")]
-    [Tooltip("Quando ligado, cada compra confirmada registra uma empresa no perfil permanente temporario.")]
+    [Tooltip("Quando ligado, cada compra confirmada registra uma empresa no banco do perfil.")]
     public bool registrarEmpresaNoPerfilAoComprar = true;
 
     [Header("Debug")]
@@ -60,6 +61,7 @@ public class BuySceneLandPurchaseController : MonoBehaviour
     {
         ResolverReferencias();
         AtualizarListaTerrenosSeNecessario();
+        AplicarEstadoSalvoDosTerrenos();
     }
 
     private void Update()
@@ -92,7 +94,22 @@ public class BuySceneLandPurchaseController : MonoBehaviour
         if (terrenos != null && terrenos.Length > 0)
             return;
 
-        terrenos = FindObjectsOfType<BuyableLandAreaMarker>();
+        terrenos = FindObjectsOfType<BuyableLandAreaMarker>(true);
+    }
+
+    public void AplicarEstadoSalvoDosTerrenos()
+    {
+        if (terrenos == null || terrenos.Length == 0)
+            AtualizarListaTerrenosSeNecessario();
+
+        if (terrenos == null)
+            return;
+
+        for (int i = 0; i < terrenos.Length; i++)
+        {
+            if (terrenos[i] != null)
+                terrenos[i].SincronizarEstadoComBanco();
+        }
     }
 
     private void ResolverReferencias()
@@ -116,7 +133,7 @@ public class BuySceneLandPurchaseController : MonoBehaviour
             cameraCompra = Camera.main;
 
         if (playerGold == null)
-            playerGold = PlayerGold.Instance;
+            playerGold = PlayerGold.Instance != null ? PlayerGold.Instance : FindObjectOfType<PlayerGold>();
 
         if (painelConfirmacao == null)
             painelConfirmacao = FindObjectOfType<BuyScenePurchaseConfirmationPanel>();
@@ -163,6 +180,8 @@ public class BuySceneLandPurchaseController : MonoBehaviour
             if (terreno == null)
                 continue;
 
+            terreno.SincronizarEstadoComBanco();
+
             if (!permitirComprarTerrenoIndisponivel && !terreno.EstaDisponivelParaCompra)
                 continue;
 
@@ -194,6 +213,11 @@ public class BuySceneLandPurchaseController : MonoBehaviour
         if (terrenoHover == null)
             return;
 
+        terrenoHover.SincronizarEstadoComBanco();
+
+        if (!permitirComprarTerrenoIndisponivel && !terrenoHover.EstaDisponivelParaCompra)
+            return;
+
         if (painelConfirmacao == null)
         {
             Debug.LogWarning("[BuySceneLandPurchaseController] Nenhum painel de confirmacao foi encontrado na cena.");
@@ -218,6 +242,8 @@ public class BuySceneLandPurchaseController : MonoBehaviour
     {
         if (terreno == null)
             return;
+
+        terreno.SincronizarEstadoComBanco();
 
         if (!permitirComprarTerrenoIndisponivel && !terreno.EstaDisponivelParaCompra)
         {
@@ -268,7 +294,7 @@ public class BuySceneLandPurchaseController : MonoBehaviour
         terrenoSelecionado = null;
 
         if (logarEventos)
-            Debug.Log("[BuySceneLandPurchaseController] Compra confirmada. Gold debitado: " + terreno.precoGold);
+            Debug.Log("[BuySceneLandPurchaseController] Compra confirmada. Gold debitado: " + terreno.precoGold + " | Area: " + terreno.IdPersistente);
     }
 
     private void RegistrarEmpresaCompradaNoPerfil(BuyableLandAreaMarker terreno)
@@ -280,11 +306,7 @@ public class BuySceneLandPurchaseController : MonoBehaviour
         if (perfil == null)
             return;
 
-        string nomeEmpresa = !string.IsNullOrWhiteSpace(terreno.nomeDoTerreno)
-            ? terreno.nomeDoTerreno
-            : terreno.name;
-
-        perfil.RegistrarEmpresaComprada(nomeEmpresa);
+        perfil.RegistrarEmpresaComprada(terreno.IdPersistente);
     }
 
     private void FecharPainelSemComprar()
