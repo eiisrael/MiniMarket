@@ -1,27 +1,26 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Dados permanentes simples do jogador enquanto ainda nao existe banco de dados.
-/// Salva nome temporario e empresas compradas usando PlayerPrefs.
+/// Fachada de perfil do jogador.
+/// Mantem compatibilidade com os scripts existentes, mas agora le/escreve no MiniMarketPlayerDatabase.
 /// </summary>
 [DisallowMultipleComponent]
 public class MiniMarketPlayerProfile : MonoBehaviour
 {
     public static MiniMarketPlayerProfile Instance { get; private set; }
 
-    private const string KeyPlayerName = "MiniMarket.Player.Name";
-    private const string KeyOwnedCompanies = "MiniMarket.Player.OwnedCompanies";
-
     [Header("Dados Temporarios")]
-    [Tooltip("Nome temporario ate existir banco de dados/sistema de personagem.")]
+    [Tooltip("Nome temporario ate existir login/conta online.")]
     public string nomePadrao = "Player";
+
+    [Header("Banco de Dados")]
+    public bool usarBancoDeDados = true;
 
     [Header("Debug")]
     public bool logarAlteracoes = true;
 
-    private readonly HashSet<string> empresasCompradas = new HashSet<string>();
+    private MiniMarketPlayerDatabase banco;
 
     public event Action OnDadosAlterados;
 
@@ -29,19 +28,34 @@ public class MiniMarketPlayerProfile : MonoBehaviour
     {
         get
         {
-            string nome = PlayerPrefs.GetString(KeyPlayerName, nomePadrao);
-            return string.IsNullOrWhiteSpace(nome) ? nomePadrao : nome;
+            ResolverBanco();
+
+            if (usarBancoDeDados && banco != null)
+                return banco.NomePersonagem;
+
+            return string.IsNullOrWhiteSpace(nomePadrao) ? "Player" : nomePadrao;
         }
         set
         {
+            ResolverBanco();
+
             string novoNome = string.IsNullOrWhiteSpace(value) ? nomePadrao : value.Trim();
-            PlayerPrefs.SetString(KeyPlayerName, novoNome);
-            PlayerPrefs.Save();
+
+            if (usarBancoDeDados && banco != null)
+                banco.DefinirNome(novoNome);
+
             DispararAlteracao();
         }
     }
 
-    public int EmpresasCompradas => empresasCompradas.Count;
+    public int EmpresasCompradas
+    {
+        get
+        {
+            ResolverBanco();
+            return usarBancoDeDados && banco != null ? banco.EmpresasCompradas : 0;
+        }
+    }
 
     private void Awake()
     {
@@ -53,19 +67,27 @@ public class MiniMarketPlayerProfile : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        CarregarEmpresasCompradas();
+        ResolverBanco();
 
-        if (!PlayerPrefs.HasKey(KeyPlayerName))
-        {
-            PlayerPrefs.SetString(KeyPlayerName, nomePadrao);
-            PlayerPrefs.Save();
-        }
+        if (usarBancoDeDados && banco != null && string.IsNullOrWhiteSpace(banco.NomePersonagem))
+            banco.DefinirNome(nomePadrao);
     }
 
     private void OnEnable()
     {
         if (Instance == null)
             Instance = this;
+
+        ResolverBanco();
+
+        if (banco != null)
+            banco.OnDatabaseChanged += AoBancoAlterado;
+    }
+
+    private void OnDisable()
+    {
+        if (banco != null)
+            banco.OnDatabaseChanged -= AoBancoAlterado;
     }
 
     public static MiniMarketPlayerProfile ObterOuCriar()
@@ -73,7 +95,7 @@ public class MiniMarketPlayerProfile : MonoBehaviour
         if (Instance != null)
             return Instance;
 
-        MiniMarketPlayerProfile encontrado = FindObjectOfType<MiniMarketPlayerProfile>();
+        MiniMarketPlayerProfile encontrado = FindObjectOfType<MiniMarketPlayerProfile>(true);
         if (encontrado != null)
         {
             Instance = encontrado;
@@ -87,97 +109,79 @@ public class MiniMarketPlayerProfile : MonoBehaviour
 
     public bool EmpresaJaComprada(string empresaId)
     {
-        empresaId = NormalizarEmpresaId(empresaId);
-        return !string.IsNullOrEmpty(empresaId) && empresasCompradas.Contains(empresaId);
+        ResolverBanco();
+        return usarBancoDeDados && banco != null && banco.EmpresaJaComprada(empresaId);
     }
 
     public bool RegistrarEmpresaComprada(string empresaId)
     {
-        empresaId = NormalizarEmpresaId(empresaId);
+        ResolverBanco();
 
-        if (string.IsNullOrEmpty(empresaId))
+        if (!usarBancoDeDados || banco == null)
             return false;
 
-        if (empresasCompradas.Contains(empresaId))
-        {
-            if (logarAlteracoes)
-                Debug.Log("[MiniMarketPlayerProfile] Empresa ja registrada: " + empresaId);
-
-            DispararAlteracao();
-            return false;
-        }
-
-        empresasCompradas.Add(empresaId);
-        SalvarEmpresasCompradas();
+        bool registrou = banco.RegistrarEmpresaComprada(empresaId);
         DispararAlteracao();
 
         if (logarAlteracoes)
-            Debug.Log("[MiniMarketPlayerProfile] Empresa comprada registrada: " + empresaId + " | Total: " + EmpresasCompradas);
+        {
+            string msg = registrou ? "Empresa comprada registrada: " : "Empresa ja registrada: ";
+            Debug.Log("[MiniMarketPlayerProfile] " + msg + empresaId + " | Total: " + EmpresasCompradas);
+        }
 
-        return true;
+        return registrou;
     }
 
     public void DefinirEmpresasCompradasParaTeste(int quantidade)
     {
+        ResolverBanco();
+
+        if (banco == null)
+            return;
+
+        banco.ResetarBancoLocal();
+
         quantidade = Mathf.Max(0, quantidade);
-        empresasCompradas.Clear();
-
         for (int i = 0; i < quantidade; i++)
-            empresasCompradas.Add("TESTE_EMPRESA_" + i);
+            banco.RegistrarEmpresaComprada("TESTE_EMPRESA_" + i);
 
-        SalvarEmpresasCompradas();
-        DispararAlteracao();
-    }
-
-    [ContextMenu("Resetar Empresas Compradas")]
-    public void ResetarEmpresasCompradas()
-    {
-        empresasCompradas.Clear();
-        SalvarEmpresasCompradas();
         DispararAlteracao();
     }
 
     [ContextMenu("Resetar Perfil Completo")]
     public void ResetarPerfilCompleto()
     {
-        empresasCompradas.Clear();
-        PlayerPrefs.DeleteKey(KeyPlayerName);
-        PlayerPrefs.DeleteKey(KeyOwnedCompanies);
-        PlayerPrefs.Save();
+        ResolverBanco();
+
+        if (banco != null)
+            banco.ResetarBancoLocal();
+
         DispararAlteracao();
     }
 
-    private void CarregarEmpresasCompradas()
+    [ContextMenu("Resetar Empresas Compradas")]
+    public void ResetarEmpresasCompradas()
     {
-        empresasCompradas.Clear();
+        ResolverBanco();
 
-        string dados = PlayerPrefs.GetString(KeyOwnedCompanies, string.Empty);
-        if (string.IsNullOrWhiteSpace(dados))
+        if (banco != null)
+            banco.ResetarBancoLocal();
+
+        DispararAlteracao();
+    }
+
+    private void ResolverBanco()
+    {
+        if (!usarBancoDeDados)
             return;
 
-        string[] partes = dados.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-
-        for (int i = 0; i < partes.Length; i++)
-        {
-            string id = NormalizarEmpresaId(partes[i]);
-            if (!string.IsNullOrEmpty(id))
-                empresasCompradas.Add(id);
-        }
+        if (banco == null)
+            banco = MiniMarketPlayerDatabase.ObterOuCriar();
     }
 
-    private void SalvarEmpresasCompradas()
+    private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
     {
-        string dados = string.Join("|", empresasCompradas);
-        PlayerPrefs.SetString(KeyOwnedCompanies, dados);
-        PlayerPrefs.Save();
-    }
-
-    private string NormalizarEmpresaId(string empresaId)
-    {
-        if (string.IsNullOrWhiteSpace(empresaId))
-            return string.Empty;
-
-        return empresaId.Trim().ToUpperInvariant();
+        DispararAlteracao();
     }
 
     private void DispararAlteracao()
