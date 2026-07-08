@@ -1984,7 +1984,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 555, y: 532.8}
+  m_SizeDelta: {x: 755, y: 645}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &122507288
 MonoBehaviour:
@@ -9538,42 +9538,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07afa4d0f07fb8a4483cdf4a768d8aa4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StaminaHUDHardcore
-  player: {fileID: 0}
-  barraStaminaRect: {fileID: 0}
-  barraStaminaImagem: {fileID: 0}
-  iconeEnergiaImagem: {fileID: 0}
-  canvasGroup: {fileID: 0}
-  textoStamina: {fileID: 0}
-  greenEnergySprite: {fileID: 0}
-  yellowEnergySprite: {fileID: 0}
-  redEnergySprite: {fileID: 0}
-  procurarPlayerAutomaticamente: 1
-  mostrarTexto: 1
-  trocarIconePorEstado: 1
-  tingirIconeComCorDoEstado: 0
-  velocidadeBarra: 10
-  velocidadeFade: 8
-  reduzirAlphaQuandoCheia: 0
-  alphaQuandoCheia: 0.35
-  alphaNormal: 1
-  usarCoresPorEstado: 1
-  limiteStaminaBaixa: 0.35
-  limiteStaminaCritica: 0.15
-  corNormal:
-    r: 0.1
-    g: 1
-    b: 0.45
-    a: 1
-  corBaixa:
-    r: 1
-    g: 0.8
-    b: 0.1
-    a: 1
-  corCritica:
-    r: 1
-    g: 0.15
-    b: 0.08
-    a: 1
 --- !u!225 &631137370
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -10903,6 +10867,10 @@ MonoBehaviour:
   larguraLinha: 0.08
   alturaAcimaDoCollider: 0.08
   atualizarVisualEmTempoReal: 1
+  sincronizarMarcacaoComStatusDosTerrenos: 1
+  calcadaIndisponivelSomenteQuandoTodosTerrenosIndisponiveis: 1
+  manterMarcacaoVisivelQuandoIndisponivel: 1
+  sincronizarComTerrenosEncontradosAutomaticamente: 1
   destacarTerrenosAoDetectarPlayer: 1
   limparDestaqueAoSairDaArea: 1
   logarEventos: 1
@@ -11089,7 +11057,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 5.8}
-  m_SizeDelta: {x: 160, y: 37}
+  m_SizeDelta: {x: 257.2, y: 49.7}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &688213031
 MonoBehaviour:
@@ -11113,7 +11081,7 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 32
+    m_FontSize: 40
     m_FontStyle: 1
     m_BestFit: 0
     m_MinSize: 3
@@ -11812,8 +11780,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 151.3, y: -128}
-  m_SizeDelta: {x: 96, y: 100}
+  m_AnchoredPosition: {x: 170, y: -140}
+  m_SizeDelta: {x: 120, y: 120}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &730164068
 MonoBehaviour:
@@ -11827,9 +11795,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce7cbfb53d39ba24eb9fa7122cc9f81c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BuySceneUIImageButton
-  texturaNormal: {fileID: 0}
-  texturaHover: {fileID: 0}
+  texturaNormal: {fileID: 2800000, guid: 771d182b85102af4b9b53cf9b3837b87, type: 3}
+  texturaHover: {fileID: 2800000, guid: ae7d23a34df2cb04c84e5562a702e56a, type: 3}
+  capturarTexturaNormalDoRawImage: 1
+  corNormal: {r: 1, g: 1, b: 1, a: 1}
+  corHover: {r: 1.12, g: 1.12, b: 1.12, a: 1}
+  corPressionado: {r: 0.88, g: 0.88, b: 0.88, a: 1}
+  aplicarCorMesmoComTexturaHover: 0
   interagivel: 1
+  forcarRaycastTargetLigado: 1
   aoClicar:
     m_PersistentCalls:
       m_Calls: []
@@ -19246,7 +19220,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerGoldHardcore
   goldInicial: 20000
   goldAtual: 20000
-  manterGoldEntreCenas: 1
+  manterGoldEntreCenas: 0
 --- !u!1001 &1158079062
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -27594,8 +27568,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -59.2, y: -128}
-  m_SizeDelta: {x: 250, y: 100}
+  m_AnchoredPosition: {x: -97.9, y: -142.2}
+  m_SizeDelta: {x: 280, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1663240108
 MonoBehaviour:
@@ -27609,9 +27583,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce7cbfb53d39ba24eb9fa7122cc9f81c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BuySceneUIImageButton
-  texturaNormal: {fileID: 0}
-  texturaHover: {fileID: 0}
+  texturaNormal: {fileID: 2800000, guid: 72a84dc670b7b9444b4870fa3b3b72a9, type: 3}
+  texturaHover: {fileID: 2800000, guid: e5826ef312060194d9689bb7f3e4b90d, type: 3}
+  capturarTexturaNormalDoRawImage: 1
+  corNormal: {r: 1, g: 1, b: 1, a: 1}
+  corHover: {r: 1.12, g: 1.12, b: 1.12, a: 1}
+  corPressionado: {r: 0.88, g: 0.88, b: 0.88, a: 1}
+  aplicarCorMesmoComTexturaHover: 0
   interagivel: 1
+  forcarRaycastTargetLigado: 1
   aoClicar:
     m_PersistentCalls:
       m_Calls: []
@@ -27945,7 +27925,7 @@ MonoBehaviour:
       m_Calls: []
   m_FontData:
     m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 24
+    m_FontSize: 33
     m_FontStyle: 1
     m_BestFit: 0
     m_MinSize: 0
@@ -27956,7 +27936,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "Voc\xEA tem certeza que deseja comprar?"
+  m_Text: "Voc\xEA tem certeza que deseja comprar?\n\nPre\xE7o: $20.000"
 --- !u!222 &1677569754
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -30639,8 +30619,8 @@ MonoBehaviour:
   fecharPainelAposCompraConfirmada: 1
   bloquearCliqueQuandoMouseEstaSobreUI: 1
   botaoMouseCompra: 323
-  mensagemGoldInsuficiente: Gold insuficiente para comprar este terreno.
-  mensagemTerrenoIndisponivel: Este terreno nao esta disponivel para compra.
+  mensagemGoldInsuficiente: Ops... Dinheiro insuficiente!
+  mensagemTerrenoIndisponivel: Terreno indisponivel.
   logarEventos: 1
 --- !u!114 &1852335260
 MonoBehaviour:
@@ -30654,51 +30634,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bcc0f686a70e19a48b85bf8f719f2c73, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BuyScenePurchaseConfirmationPanel
-  canvasAlvo: {fileID: 1197762075}
-  criarInterfaceAutomaticamente: 1
-  painelRect: {fileID: 122507287}
-  imagemPainel: {fileID: 122507288}
-  textoPrincipalRect: {fileID: 1677569752}
+  painelRaiz: {fileID: 122507286}
   textoPrincipal: {fileID: 1677569753}
-  botaoConfirmarRect: {fileID: 1663240107}
-  imagemBotaoConfirmar: {fileID: 1663240109}
   botaoConfirmar: {fileID: 1663240108}
-  textoBotaoConfirmarRect: {fileID: 688213030}
-  textoConfirmar: {fileID: 688213031}
-  botaoFecharRect: {fileID: 730164067}
-  imagemBotaoFechar: {fileID: 730164069}
   botaoFechar: {fileID: 730164068}
-  painelWarning: {fileID: 2800000, guid: 054fe188f0e6a594191a15da9a277fd8, type: 3}
-  buttonOff: {fileID: 2800000, guid: 72a84dc670b7b9444b4870fa3b3b72a9, type: 3}
-  buttonOn: {fileID: 2800000, guid: e5826ef312060194d9689bb7f3e4b90d, type: 3}
-  closeOff: {fileID: 2800000, guid: 771d182b85102af4b9b53cf9b3837b87, type: 3}
-  closeOn: {fileID: 2800000, guid: ae7d23a34df2cb04c84e5562a702e56a, type: 3}
+  procurarReferenciasAutomaticamente: 1
+  inferirPainelRaizPelasReferencias: 1
+  garantirEventSystem: 1
+  garantirGraphicRaycasterNoCanvas: 1
+  ocultarPainelAoIniciar: 1
+  atualizarTextoPeloScript: 0
   textoConfirmacao: "Voc\xEA tem certeza que deseja comprar?"
-  exibirNomeDoTerreno: 1
-  exibirPrecoDoTerreno: 1
-  textoBotaoConfirmar: Confirmar
-  textoGoldInsuficiente: Gold insuficiente para comprar este terreno.
-  fonteDoLayout: 1
-  atualizarLayoutEmTempoReal: 1
-  sincronizarCamposComRectTransform: 1
-  arredondarValoresSincronizados: 0
-  casasDecimaisSincronizacao: 2
-  posicaoPainel: {x: 0, y: 0}
-  tamanhoPainel: {x: 640, y: 450}
-  posicaoTextoPrincipal: {x: 0, y: 35}
-  tamanhoAreaTextoPrincipal: {x: 550, y: 145}
-  margemTexto: {x: 70, y: 95}
-  posicaoBotaoConfirmar: {x: 0, y: -105}
-  tamanhoBotaoConfirmar: {x: 300, y: 100}
-  posicaoTextoBotaoConfirmar: {x: 0, y: 11.5}
-  tamanhoTextoBotaoConfirmar: {x: 230, y: 70}
-  posicaoBotaoFechar: {x: 307, y: 240}
-  tamanhoBotaoFechar: {x: 56, y: 56}
-  tamanhoFonteTexto: 27
-  tamanhoFonteBotao: 24
-  corTexto: {r: 0, g: 0, b: 0, a: 1}
-  corTextoBotao: {r: 1, g: 1, b: 1, a: 1}
-  corFundoFallback: {r: 0, g: 0, b: 0, a: 0.88}
+  exibirNomeDoTerreno: 0
+  exibirPrecoDoTerreno: 0
+  textoGoldInsuficiente: Ops... Dinheiro insuficiente!
+  forcarRaycastTargetDosTextosDesligado: 0
   logarEventos: 0
 --- !u!1001 &1852625880
 PrefabInstance:
