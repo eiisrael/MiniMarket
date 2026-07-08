@@ -2,31 +2,43 @@ using System;
 using System.Globalization;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
 /// Controla o painel de menu do MiniMarket.
-/// - ESC abre/fecha.
+/// - TAB abre/fecha por padrao, evitando conflito com ESC do editor/camera.
 /// - Exibe nome temporario, gold, stamina em porcentagem e empresas compradas.
 /// - Botao Gemas Gratis restaura stamina para 100%.
 /// - Botao Close fecha o painel.
+/// - Fecha o painel com CanvasGroup por padrao, sem desativar o GameObject do Menu.
 /// </summary>
 [DisallowMultipleComponent]
 public class MiniMarketMenuController : MonoBehaviour
 {
+    public enum ModoOcultarPainel
+    {
+        CanvasGroup,
+        SetActive
+    }
+
     [Header("Painel")]
     [Tooltip("Arraste aqui o GameObject Menu. Se vazio, usa este GameObject.")]
     public GameObject painelMenu;
 
-    [Tooltip("ESC abre e fecha o menu.")]
-    public KeyCode teclaMenu = KeyCode.Escape;
+    [Tooltip("Tecla que abre e fecha o menu. TAB e recomendado para evitar conflito com ESC do Unity/camera.")]
+    public KeyCode teclaMenu = KeyCode.Tab;
 
     [Tooltip("Comecar com menu fechado.")]
     public bool iniciarFechado = true;
 
     [Tooltip("Atualiza os textos em tempo real enquanto o painel estiver aberto.")]
     public bool atualizarEmTempoReal = true;
+
+    [Tooltip("Modo usado para esconder o painel. CanvasGroup e mais seguro se este script estiver no proprio Menu.")]
+    public ModoOcultarPainel modoOcultarPainel = ModoOcultarPainel.CanvasGroup;
+
+    [Tooltip("Se usar CanvasGroup, cria automaticamente quando nao existir.")]
+    public bool criarCanvasGroupAutomaticamente = true;
 
     [Header("Textos do Menu")]
     public Text textoNome;
@@ -65,6 +77,9 @@ public class MiniMarketMenuController : MonoBehaviour
     [Tooltip("Libera o cursor quando abre o menu para clicar nos botoes.")]
     public bool desbloquearCursorQuandoMenuAberto = true;
 
+    [Tooltip("Enquanto o menu estiver aberto, forca cursor visivel todo frame para evitar conflito com scripts de camera.")]
+    public bool manterCursorLivreEnquantoAberto = true;
+
     [Tooltip("Trava o cursor novamente ao fechar o menu.")]
     public bool travarCursorAoFechar = true;
 
@@ -72,6 +87,7 @@ public class MiniMarketMenuController : MonoBehaviour
     public bool logarEventos = true;
 
     private bool menuAberto;
+    private CanvasGroup canvasGroupMenu;
     private readonly CultureInfo culturaBR = new CultureInfo("pt-BR");
 
     private void Awake()
@@ -79,13 +95,16 @@ public class MiniMarketMenuController : MonoBehaviour
         if (painelMenu == null)
             painelMenu = gameObject;
 
+        ResolverCanvasGroup();
         ResolverReferencias();
         ConectarBotoes();
     }
 
     private void Start()
     {
+        ResolverCanvasGroup();
         ResolverReferencias();
+        ConectarBotoes();
 
         if (perfil != null && string.IsNullOrWhiteSpace(perfil.NomePersonagem))
             perfil.NomePersonagem = nomeTemporario;
@@ -100,6 +119,9 @@ public class MiniMarketMenuController : MonoBehaviour
 
     private void OnEnable()
     {
+        if (perfil == null)
+            perfil = MiniMarketPlayerProfile.ObterOuCriar();
+
         if (perfil != null)
             perfil.OnDadosAlterados += AtualizarTextos;
     }
@@ -115,8 +137,14 @@ public class MiniMarketMenuController : MonoBehaviour
         if (Input.GetKeyDown(teclaMenu))
             AlternarMenu();
 
-        if (menuAberto && atualizarEmTempoReal)
-            AtualizarTextos();
+        if (menuAberto)
+        {
+            if (manterCursorLivreEnquantoAberto)
+                LiberarCursor();
+
+            if (atualizarEmTempoReal)
+                AtualizarTextos();
+        }
     }
 
     public void AlternarMenu()
@@ -139,31 +167,24 @@ public class MiniMarketMenuController : MonoBehaviour
 
     private void AbrirMenu(bool logar)
     {
+        ResolverCanvasGroup();
         ResolverReferenciasLeves();
 
         menuAberto = true;
-
-        if (painelMenu != null)
-            painelMenu.SetActive(true);
-
+        AplicarVisibilidadePainel(true);
         AtualizarTextos();
 
         if (desbloquearCursorQuandoMenuAberto)
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-        }
+            LiberarCursor();
 
         if (logar && logarEventos)
-            Debug.Log("[MiniMarketMenuController] Menu aberto.");
+            Debug.Log("[MiniMarketMenuController] Menu aberto pela tecla: " + teclaMenu);
     }
 
     private void FecharMenu(bool logar)
     {
         menuAberto = false;
-
-        if (painelMenu != null)
-            painelMenu.SetActive(false);
+        AplicarVisibilidadePainel(false);
 
         if (travarCursorAoFechar)
         {
@@ -173,6 +194,50 @@ public class MiniMarketMenuController : MonoBehaviour
 
         if (logar && logarEventos)
             Debug.Log("[MiniMarketMenuController] Menu fechado.");
+    }
+
+    private void AplicarVisibilidadePainel(bool visivel)
+    {
+        if (painelMenu == null)
+            return;
+
+        if (modoOcultarPainel == ModoOcultarPainel.SetActive)
+        {
+            // Use este modo apenas se o script NAO estiver dentro do proprio painelMenu.
+            painelMenu.SetActive(visivel);
+            return;
+        }
+
+        ResolverCanvasGroup();
+
+        if (!painelMenu.activeSelf)
+            painelMenu.SetActive(true);
+
+        if (canvasGroupMenu != null)
+        {
+            canvasGroupMenu.alpha = visivel ? 1f : 0f;
+            canvasGroupMenu.interactable = visivel;
+            canvasGroupMenu.blocksRaycasts = visivel;
+        }
+        else
+        {
+            // Fallback seguro: se nao existe CanvasGroup e nao pode criar, usa SetActive.
+            painelMenu.SetActive(visivel);
+        }
+    }
+
+    private void ResolverCanvasGroup()
+    {
+        if (painelMenu == null)
+            return;
+
+        if (canvasGroupMenu != null)
+            return;
+
+        canvasGroupMenu = painelMenu.GetComponent<CanvasGroup>();
+
+        if (canvasGroupMenu == null && criarCanvasGroupAutomaticamente)
+            canvasGroupMenu = painelMenu.AddComponent<CanvasGroup>();
     }
 
     public void AtualizarTextos()
@@ -442,6 +507,12 @@ public class MiniMarketMenuController : MonoBehaviour
             botaoGemasGratis.onClick.RemoveListener(RecarregarStaminaComGemasGratis);
             botaoGemasGratis.onClick.AddListener(RecarregarStaminaComGemasGratis);
         }
+    }
+
+    private void LiberarCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     private bool PossuiAlgumMembro(Type tipo, params string[] nomes)
