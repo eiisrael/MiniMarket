@@ -1,5 +1,7 @@
 using UnityEngine;
-
+/// <summary>
+///  camera principal do personagem
+/// </summary>
 public class CameraGTAFollowHardcore : MonoBehaviour
 {
     [Header("Alvo")]
@@ -109,17 +111,36 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
     public Renderer[] renderersParaOcultar;
 
-    [Header("Colisão da Câmera")]
+    [Header("Colisão da Câmera - Anti Parede Seguro")]
     public bool usarColisaoCamera = true;
 
-    [Tooltip("Use uma layer que tenha cenário, parede, chão, objetos. Evite colocar o Player aqui.")]
+    [Tooltip("Use uma layer que tenha cenário, parede, chão e objetos grandes. Evite colocar o Player aqui.")]
     public LayerMask cameraCollisionLayers = ~0;
 
+    [Tooltip("Raio da esfera de segurança da câmera. Aumente se a câmera ainda encostar/entrar na parede.")]
     [Min(0.01f)]
-    public float cameraCollisionRadius = 0.22f;
+    public float cameraCollisionRadius = 0.30f;
 
+    [Tooltip("Distância extra para a câmera não ficar colada na parede.")]
     [Min(0f)]
-    public float cameraCollisionOffset = 0.08f;
+    public float cameraCollisionOffset = 0.18f;
+
+    [Tooltip("Distância mínima entre o foco do personagem e a câmera. Evita a câmera entrar dentro do personagem.")]
+    [Min(0.05f)]
+    public float cameraMinDistanceFromFocus = 0.75f;
+
+    [Tooltip("Faz uma verificação extra para impedir que a câmera fique dentro de paredes/objetos.")]
+    public bool usarAntiGrudarExtra = true;
+
+    [Tooltip("Quantidade de tentativas internas para achar uma posição segura. 8 normalmente é suficiente.")]
+    [Range(3, 14)]
+    public int passosBuscaAntiGrudar = 8;
+
+    [Tooltip("Corrige também a posição suavizada final da câmera. Recomendado deixar ligado.")]
+    public bool corrigirPosicaoFinalSuavizada = true;
+
+    [Header("Debug")]
+    public bool desenharDebugColisaoCamera = false;
 
     [Header("Cursor")]
     public bool lockCursorOnStart = true;
@@ -140,6 +161,9 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
     private bool primeiraPessoaSolicitada;
     private float primeiraPessoaBlend;
+
+    private readonly RaycastHit[] cameraHits = new RaycastHit[32];
+    private readonly Collider[] cameraOverlaps = new Collider[32];
 
     public bool EstaEmPrimeiraPessoa => primeiraPessoaSolicitada || primeiraPessoaBlend > 0.15f;
     public bool EstaTransicionandoPrimeiraPessoa => primeiraPessoaBlend > 0.01f && primeiraPessoaBlend < 0.99f;
@@ -301,7 +325,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             - orbitRotation * Vector3.forward * distance
             + Vector3.up * height;
 
-        terceiraPessoaPosition = AplicarColisaoCamera(
+        terceiraPessoaPosition = AplicarColisaoCameraSegura(
             focusPoint,
             terceiraPessoaPosition
         );
@@ -351,12 +375,26 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             );
         }
 
-        transform.position = Vector3.SmoothDamp(
+        Vector3 novaPosicao = Vector3.SmoothDamp(
             transform.position,
             desiredPosition,
             ref positionVelocity,
             smoothPositionAtual
         );
+
+        if (
+            usarColisaoCamera &&
+            corrigirPosicaoFinalSuavizada &&
+            blendSuave < 0.95f
+        )
+        {
+            novaPosicao = AplicarColisaoCameraSegura(
+                focusPoint,
+                novaPosicao
+            );
+        }
+
+        transform.position = novaPosicao;
 
         transform.rotation = SmoothDampQuaternion(
             transform.rotation,
@@ -392,7 +430,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         return target.TransformPoint(offsetPrimeiraPessoa);
     }
 
-    private Vector3 AplicarColisaoCamera(Vector3 focusPoint, Vector3 desiredPosition)
+    private Vector3 AplicarColisaoCameraSegura(Vector3 focusPoint, Vector3 desiredPosition)
     {
         if (!usarColisaoCamera)
             return desiredPosition;
@@ -405,46 +443,147 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
         direction /= targetDistance;
 
-        RaycastHit[] hits = Physics.SphereCastAll(
+        float distanciaSegura = targetDistance;
+
+        int hitCount = Physics.SphereCastNonAlloc(
             focusPoint,
             cameraCollisionRadius,
             direction,
-            targetDistance,
+            cameraHits,
+            targetDistance + cameraCollisionOffset,
             cameraCollisionLayers,
             QueryTriggerInteraction.Ignore
         );
 
-        float menorDistancia = targetDistance;
         bool encontrouBloqueio = false;
 
-        for (int i = 0; i < hits.Length; i++)
+        for (int i = 0; i < hitCount; i++)
         {
-            RaycastHit hit = hits[i];
+            RaycastHit hit = cameraHits[i];
 
-            if (hit.collider == null)
+            if (DeveIgnorarCollider(hit.collider))
                 continue;
 
-            if (target != null)
+            if (hit.distance < distanciaSegura)
             {
-                Transform hitTransform = hit.collider.transform;
-
-                if (hitTransform == target || hitTransform.IsChildOf(target))
-                    continue;
-            }
-
-            if (hit.distance < menorDistancia)
-            {
-                menorDistancia = hit.distance;
+                distanciaSegura = hit.distance;
                 encontrouBloqueio = true;
             }
         }
 
-        if (!encontrouBloqueio)
-            return desiredPosition;
+        if (encontrouBloqueio)
+        {
+            distanciaSegura -= cameraCollisionOffset;
+            distanciaSegura = Mathf.Clamp(
+                distanciaSegura,
+                cameraMinDistanceFromFocus,
+                targetDistance
+            );
+        }
 
-        menorDistancia = Mathf.Max(0f, menorDistancia - cameraCollisionOffset);
+        Vector3 posicaoCorrigida = focusPoint + direction * distanciaSegura;
 
-        return focusPoint + direction * menorDistancia;
+        if (usarAntiGrudarExtra && CameraEstaSobreposta(posicaoCorrigida))
+        {
+            posicaoCorrigida = EncontrarMelhorPosicaoSemGrudar(
+                focusPoint,
+                direction,
+                distanciaSegura
+            );
+        }
+
+        if (desenharDebugColisaoCamera)
+        {
+            Debug.DrawLine(focusPoint, desiredPosition, Color.red);
+            Debug.DrawLine(focusPoint, posicaoCorrigida, Color.green);
+        }
+
+        return posicaoCorrigida;
+    }
+
+    private Vector3 EncontrarMelhorPosicaoSemGrudar(
+        Vector3 focusPoint,
+        Vector3 direction,
+        float distanciaMaxima
+    )
+    {
+        float distanciaMinima = Mathf.Min(cameraMinDistanceFromFocus, distanciaMaxima);
+        float menor = distanciaMinima;
+        float maior = distanciaMaxima;
+
+        Vector3 melhorPosicao = focusPoint + direction * menor;
+
+        for (int i = 0; i < passosBuscaAntiGrudar; i++)
+        {
+            float meio = (menor + maior) * 0.5f;
+            Vector3 teste = focusPoint + direction * meio;
+
+            if (CameraEstaSobreposta(teste))
+            {
+                maior = meio;
+            }
+            else
+            {
+                melhorPosicao = teste;
+                menor = meio;
+            }
+        }
+
+        return melhorPosicao;
+    }
+
+    private bool CameraEstaSobreposta(Vector3 position)
+    {
+        int count = Physics.OverlapSphereNonAlloc(
+            position,
+            cameraCollisionRadius,
+            cameraOverlaps,
+            cameraCollisionLayers,
+            QueryTriggerInteraction.Ignore
+        );
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider col = cameraOverlaps[i];
+
+            if (DeveIgnorarCollider(col))
+                continue;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool DeveIgnorarCollider(Collider col)
+    {
+        if (col == null)
+            return true;
+
+        if (!col.enabled)
+            return true;
+
+        if (col.isTrigger)
+            return true;
+
+        Transform colTransform = col.transform;
+
+        if (target != null)
+        {
+            if (colTransform == target)
+                return true;
+
+            if (colTransform.IsChildOf(target))
+                return true;
+        }
+
+        if (colTransform == transform)
+            return true;
+
+        if (colTransform.IsChildOf(transform))
+            return true;
+
+        return false;
     }
 
     private void HandleAutoAlign()
@@ -566,5 +705,20 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     {
         value = Mathf.Clamp01(value);
         return value * value * (3f - 2f * value);
+    }
+
+    private void OnValidate()
+    {
+        distance = Mathf.Max(0.1f, distance);
+        cameraCollisionRadius = Mathf.Max(0.01f, cameraCollisionRadius);
+        cameraCollisionOffset = Mathf.Max(0f, cameraCollisionOffset);
+        cameraMinDistanceFromFocus = Mathf.Max(0.05f, cameraMinDistanceFromFocus);
+        passosBuscaAntiGrudar = Mathf.Clamp(passosBuscaAntiGrudar, 3, 14);
+
+        minPitch = Mathf.Clamp(minPitch, -89f, 89f);
+        maxPitch = Mathf.Clamp(maxPitch, -89f, 89f);
+
+        if (maxPitch < minPitch)
+            maxPitch = minPitch;
     }
 }
