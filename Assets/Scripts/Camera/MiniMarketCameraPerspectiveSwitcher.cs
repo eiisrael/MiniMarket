@@ -44,8 +44,15 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     [Tooltip("Mantem o cursor travado durante a troca de camera.")]
     public bool manterCursorTravado = true;
 
-    [Tooltip("Se um menu estiver aberto, evite alternar camera. Arraste CanvasGroup do menu aqui se quiser bloquear.")]
+    [Header("Bloqueio por Menu")]
+    [Tooltip("Se um menu estiver aberto, evita alternar camera.")]
+    public bool bloquearAlternanciaComMenuAberto = true;
+
+    [Tooltip("Arraste CanvasGroup do Menu aqui se quiser bloquear explicitamente.")]
     public CanvasGroup[] menusQueBloqueiamAlternancia;
+
+    [Tooltip("Procura automaticamente CanvasGroups visiveis com nome contendo 'Menu'. Evita conflito se Menu e Camera usam TAB.")]
+    public bool detectarMenusAutomaticamente = true;
 
     [Header("Debug")]
     public bool logarEventos = true;
@@ -97,9 +104,7 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         }
 
         if (logarEventos)
-        {
             Debug.Log("[MiniMarketCameraPerspectiveSwitcher] Camera ativa: " + (usandoPrimeiraPessoa ? "Primeira Pessoa" : "Normal"));
-        }
     }
 
     public void UsarCameraNormal()
@@ -170,19 +175,44 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
     private bool AlgumMenuBloqueando()
     {
-        if (menusQueBloqueiamAlternancia == null)
+        if (!bloquearAlternanciaComMenuAberto)
             return false;
 
-        for (int i = 0; i < menusQueBloqueiamAlternancia.Length; i++)
+        if (menusQueBloqueiamAlternancia != null)
         {
-            CanvasGroup menu = menusQueBloqueiamAlternancia[i];
-            if (menu == null)
+            for (int i = 0; i < menusQueBloqueiamAlternancia.Length; i++)
+            {
+                if (CanvasGroupEstaAberto(menusQueBloqueiamAlternancia[i]))
+                    return true;
+            }
+        }
+
+        if (!detectarMenusAutomaticamente)
+            return false;
+
+        CanvasGroup[] grupos = FindObjectsOfType<CanvasGroup>(true);
+        for (int i = 0; i < grupos.Length; i++)
+        {
+            CanvasGroup grupo = grupos[i];
+            if (grupo == null)
                 continue;
 
-            if (menu.gameObject.activeInHierarchy && menu.alpha > 0.05f && menu.blocksRaycasts)
+            string nome = grupo.gameObject.name.ToLowerInvariant();
+            if (!nome.Contains("menu"))
+                continue;
+
+            if (CanvasGroupEstaAberto(grupo))
                 return true;
         }
 
         return false;
+    }
+
+    private bool CanvasGroupEstaAberto(CanvasGroup grupo)
+    {
+        if (grupo == null)
+            return false;
+
+        return grupo.gameObject.activeInHierarchy && grupo.alpha > 0.05f && grupo.blocksRaycasts;
     }
 }
