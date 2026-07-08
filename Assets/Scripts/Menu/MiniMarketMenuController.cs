@@ -6,12 +6,13 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Controla o painel de menu do MiniMarket.
-/// - TAB abre/fecha por padrao, evitando conflito com ESC do editor/camera.
-/// - Exibe nome temporario, gold, stamina em porcentagem e empresas compradas.
-/// - Botao Gemas Gratis restaura stamina para 100%.
+/// - TAB abre/fecha por padrao.
+/// - Exibe Nome, Gold, Energia/Stamina em porcentagem e Empresas.
+/// - Botao Gemas Gratis restaura Energia/Stamina para 100%.
 /// - Botao Close fecha o painel.
-/// - Fecha o painel com CanvasGroup por padrao, sem desativar o GameObject do Menu.
+/// - Mantem cursor livre quando o menu esta aberto, mesmo se outro script tentar travar o mouse.
 /// </summary>
+[DefaultExecutionOrder(10000)]
 [DisallowMultipleComponent]
 public class MiniMarketMenuController : MonoBehaviour
 {
@@ -25,7 +26,7 @@ public class MiniMarketMenuController : MonoBehaviour
     [Tooltip("Arraste aqui o GameObject Menu. Se vazio, usa este GameObject.")]
     public GameObject painelMenu;
 
-    [Tooltip("Tecla que abre e fecha o menu. TAB e recomendado para evitar conflito com ESC do Unity/camera.")]
+    [Tooltip("Tecla que abre e fecha o menu.")]
     public KeyCode teclaMenu = KeyCode.Tab;
 
     [Tooltip("Comecar com menu fechado.")]
@@ -34,7 +35,7 @@ public class MiniMarketMenuController : MonoBehaviour
     [Tooltip("Atualiza os textos em tempo real enquanto o painel estiver aberto.")]
     public bool atualizarEmTempoReal = true;
 
-    [Tooltip("Modo usado para esconder o painel. CanvasGroup e mais seguro se este script estiver no proprio Menu.")]
+    [Tooltip("CanvasGroup e mais seguro se este script estiver no proprio Menu.")]
     public ModoOcultarPainel modoOcultarPainel = ModoOcultarPainel.CanvasGroup;
 
     [Tooltip("Se usar CanvasGroup, cria automaticamente quando nao existir.")]
@@ -53,42 +54,98 @@ public class MiniMarketMenuController : MonoBehaviour
     public Button botaoClose;
     public Button botaoGemasGratis;
 
-    [Header("Dados")]
-    [Tooltip("Perfil permanente temporario. Se vazio, o script cria um automaticamente.")]
-    public MiniMarketPlayerProfile perfil;
+    [Tooltip("Captura clique nos botoes manualmente tambem, caso o Button.onClick nao dispare por conflito de cursor/camera.")]
+    public bool usarCliqueManualDeSeguranca = true;
 
-    [Tooltip("PlayerGold da cena. Se vazio, tenta encontrar automaticamente.")]
+    [Header("Dados")]
+    public MiniMarketPlayerProfile perfil;
     public PlayerGold playerGold;
 
-    [Tooltip("Script do player que possui stamina. Pode arrastar PlayerMoveHardcore2 ou outro script de stamina.")]
+    [Tooltip("Arraste aqui o SCRIPT que possui stamina/energia. Nao arraste o Transform. Se errar, o script tenta corrigir sozinho.")]
     public Component componenteStaminaOuMovimento;
 
-    [Tooltip("Nome temporario ate criarmos banco de dados/personagem.")]
     public string nomeTemporario = "Player";
 
-    [Header("Stamina - Leitura Automatica")]
-    [Tooltip("Quando ligado, procura automaticamente um script com campos/metodos de stamina.")]
+    [Header("Energia / Stamina")]
+    [Tooltip("Quando ligado, procura automaticamente um script com campos/metodos de stamina ou energia.")]
     public bool procurarComponenteStaminaAutomaticamente = true;
 
-    [Tooltip("Valor exibido se nao encontrar stamina.")]
-    public string staminaNaoEncontradaTexto = "--%";
+    [Tooltip("Texto exibido quando nao encontrar o script/valor de energia.")]
+    public string energiaNaoEncontradaTexto = "--%";
+
+    [Tooltip("Texto base antes da porcentagem.")]
+    public string rotuloEnergia = "Energia";
+
+    [Tooltip("Ao clicar em Gemas Gratis, tenta restaurar Energia/Stamina para o maximo.")]
+    public bool gemasGratisRecarregaEnergia = true;
 
     [Header("Cursor")]
-    [Tooltip("Libera o cursor quando abre o menu para clicar nos botoes.")]
     public bool desbloquearCursorQuandoMenuAberto = true;
-
-    [Tooltip("Enquanto o menu estiver aberto, forca cursor visivel todo frame para evitar conflito com scripts de camera.")]
     public bool manterCursorLivreEnquantoAberto = true;
-
-    [Tooltip("Trava o cursor novamente ao fechar o menu.")]
     public bool travarCursorAoFechar = true;
 
     [Header("Debug")]
     public bool logarEventos = true;
+    public bool logarComponenteEnergiaEncontrado = true;
 
     private bool menuAberto;
     private CanvasGroup canvasGroupMenu;
     private readonly CultureInfo culturaBR = new CultureInfo("pt-BR");
+    private int ultimoFrameCliqueManual = -100;
+
+    private static readonly string[] nomesPercentualEnergia =
+    {
+        "PercentualStamina", "percentualStamina",
+        "StaminaPercentual", "staminaPercentual",
+        "StaminaNormalizada", "staminaNormalizada",
+        "PercentualEnergia", "percentualEnergia",
+        "EnergiaPercentual", "energiaPercentual",
+        "EnergiaNormalizada", "energiaNormalizada"
+    };
+
+    private static readonly string[] nomesEnergiaAtual =
+    {
+        "StaminaAtual", "staminaAtual",
+        "CurrentStamina", "currentStamina",
+        "Stamina", "stamina",
+        "EnergiaAtual", "energiaAtual",
+        "CurrentEnergy", "currentEnergy",
+        "Energia", "energia",
+        "energy", "Energy"
+    };
+
+    private static readonly string[] nomesEnergiaMaxima =
+    {
+        "StaminaMaxima", "staminaMaxima",
+        "MaxStamina", "maxStamina",
+        "StaminaMax", "staminaMax",
+        "staminaTotal", "StaminaTotal",
+        "EnergiaMaxima", "energiaMaxima",
+        "MaxEnergia", "maxEnergia",
+        "EnergiaMax", "energiaMax",
+        "energiaTotal", "EnergiaTotal",
+        "MaxEnergy", "maxEnergy"
+    };
+
+    private static readonly string[] metodosRestaurarEnergia =
+    {
+        "RecarregarStaminaCompleta",
+        "RecarregarStaminaTotal",
+        "RestaurarStaminaCompleta",
+        "RestaurarStaminaTotal",
+        "RestaurarTodaStamina",
+        "RecuperarStaminaTotal",
+        "EncherStamina",
+        "ResetarStamina",
+        "RecarregarEnergiaCompleta",
+        "RecarregarEnergiaTotal",
+        "RestaurarEnergiaCompleta",
+        "RestaurarEnergiaTotal",
+        "RestaurarTodaEnergia",
+        "RecuperarEnergiaTotal",
+        "EncherEnergia",
+        "ResetarEnergia"
+    };
 
     private void Awake()
     {
@@ -137,14 +194,23 @@ public class MiniMarketMenuController : MonoBehaviour
         if (Input.GetKeyDown(teclaMenu))
             AlternarMenu();
 
-        if (menuAberto)
-        {
-            if (manterCursorLivreEnquantoAberto)
-                LiberarCursor();
+        if (!menuAberto)
+            return;
 
-            if (atualizarEmTempoReal)
-                AtualizarTextos();
-        }
+        if (manterCursorLivreEnquantoAberto)
+            LiberarCursor();
+
+        if (usarCliqueManualDeSeguranca)
+            VerificarCliqueManualNosBotoes();
+
+        if (atualizarEmTempoReal)
+            AtualizarTextos();
+    }
+
+    private void LateUpdate()
+    {
+        if (menuAberto && manterCursorLivreEnquantoAberto)
+            LiberarCursor();
     }
 
     public void AlternarMenu()
@@ -169,6 +235,7 @@ public class MiniMarketMenuController : MonoBehaviour
     {
         ResolverCanvasGroup();
         ResolverReferenciasLeves();
+        ConectarBotoes();
 
         menuAberto = true;
         AplicarVisibilidadePainel(true);
@@ -203,7 +270,6 @@ public class MiniMarketMenuController : MonoBehaviour
 
         if (modoOcultarPainel == ModoOcultarPainel.SetActive)
         {
-            // Use este modo apenas se o script NAO estiver dentro do proprio painelMenu.
             painelMenu.SetActive(visivel);
             return;
         }
@@ -221,7 +287,6 @@ public class MiniMarketMenuController : MonoBehaviour
         }
         else
         {
-            // Fallback seguro: se nao existe CanvasGroup e nao pode criar, usa SetActive.
             painelMenu.SetActive(visivel);
         }
     }
@@ -240,29 +305,80 @@ public class MiniMarketMenuController : MonoBehaviour
             canvasGroupMenu = painelMenu.AddComponent<CanvasGroup>();
     }
 
+    private void VerificarCliqueManualNosBotoes()
+    {
+        if (!Input.GetMouseButtonDown(0))
+            return;
+
+        if (Time.frameCount == ultimoFrameCliqueManual)
+            return;
+
+        if (PonteiroSobreBotao(botaoClose))
+        {
+            ultimoFrameCliqueManual = Time.frameCount;
+            FecharMenu();
+            return;
+        }
+
+        if (PonteiroSobreBotao(botaoGemasGratis))
+        {
+            ultimoFrameCliqueManual = Time.frameCount;
+            RecarregarEnergiaComGemasGratis();
+        }
+    }
+
+    private bool PonteiroSobreBotao(Button botao)
+    {
+        if (botao == null || !botao.gameObject.activeInHierarchy)
+            return false;
+
+        RectTransform rect = botao.GetComponent<RectTransform>();
+        if (rect == null)
+            return false;
+
+        Canvas canvas = botao.GetComponentInParent<Canvas>();
+        Camera cameraUI = null;
+
+        if (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+            cameraUI = canvas.worldCamera != null ? canvas.worldCamera : Camera.main;
+
+        return RectTransformUtility.RectangleContainsScreenPoint(rect, Input.mousePosition, cameraUI);
+    }
+
     public void AtualizarTextos()
     {
         ResolverReferenciasLeves();
 
         AtualizarTextoNome();
         AtualizarTextoGold();
-        AtualizarTextoStamina();
+        AtualizarTextoEnergia();
         AtualizarTextoEmpresas();
     }
 
     public void RecarregarStaminaComGemasGratis()
     {
+        RecarregarEnergiaComGemasGratis();
+    }
+
+    public void RecarregarEnergiaComGemasGratis()
+    {
+        if (!gemasGratisRecarregaEnergia)
+            return;
+
         ResolverReferenciasLeves();
 
-        bool sucesso = TentarRestaurarStaminaParaCemPorCento();
+        bool sucesso = TentarRestaurarEnergiaParaCemPorCento();
         AtualizarTextos();
+
+        if (menuAberto && manterCursorLivreEnquantoAberto)
+            LiberarCursor();
 
         if (logarEventos)
         {
             if (sucesso)
-                Debug.Log("[MiniMarketMenuController] Gemas Gratis: stamina restaurada para 100%.");
+                Debug.Log("[MiniMarketMenuController] Gemas Gratis: energia/stamina restaurada para 100%.");
             else
-                Debug.LogWarning("[MiniMarketMenuController] Gemas Gratis: nao encontrei campos/metodos de stamina para restaurar.");
+                Debug.LogWarning("[MiniMarketMenuController] Gemas Gratis: nao encontrei campos/metodos de energia/stamina para restaurar.");
         }
     }
 
@@ -287,18 +403,18 @@ public class MiniMarketMenuController : MonoBehaviour
         textoGold.text = incluirRotulosNosTextos ? "Gold: " + goldTexto : goldTexto;
     }
 
-    private void AtualizarTextoStamina()
+    private void AtualizarTextoEnergia()
     {
         if (textoStamina == null)
             return;
 
-        float porcentagem = LerPorcentagemStamina();
+        float porcentagem = LerPorcentagemEnergia();
 
         string valor = porcentagem >= 0f
             ? Mathf.RoundToInt(porcentagem).ToString(culturaBR) + "%"
-            : staminaNaoEncontradaTexto;
+            : energiaNaoEncontradaTexto;
 
-        textoStamina.text = incluirRotulosNosTextos ? "Recarregando... " + valor : valor;
+        textoStamina.text = incluirRotulosNosTextos ? rotuloEnergia + ": " + valor : valor;
     }
 
     private void AtualizarTextoEmpresas()
@@ -315,34 +431,23 @@ public class MiniMarketMenuController : MonoBehaviour
         if (playerGold == null)
             return 0;
 
-        object valor = LerMembroNumerico(
-            playerGold,
-            "GoldGlobal",
-            "goldGlobal",
-            "GoldAtual",
-            "goldAtual",
-            "Gold",
-            "gold",
-            "goldInicial"
-        );
+        object valor = LerMembroNumerico(playerGold,
+            "GoldGlobal", "goldGlobal",
+            "GoldAtual", "goldAtual",
+            "Gold", "gold",
+            "goldInicial");
 
         return ConverterParaLong(valor);
     }
 
-    private float LerPorcentagemStamina()
+    private float LerPorcentagemEnergia()
     {
+        GarantirComponenteEnergiaValido();
+
         if (componenteStaminaOuMovimento == null)
             return -1f;
 
-        object percentualDireto = LerMembroNumerico(
-            componenteStaminaOuMovimento,
-            "PercentualStamina",
-            "percentualStamina",
-            "StaminaPercentual",
-            "staminaPercentual",
-            "StaminaNormalizada",
-            "staminaNormalizada"
-        );
+        object percentualDireto = LerMembroNumerico(componenteStaminaOuMovimento, nomesPercentualEnergia);
 
         if (percentualDireto != null)
         {
@@ -353,26 +458,14 @@ public class MiniMarketMenuController : MonoBehaviour
             return Mathf.Clamp(valor, 0f, 100f);
         }
 
-        object atual = LerMembroNumerico(
-            componenteStaminaOuMovimento,
-            "StaminaAtual",
-            "staminaAtual",
-            "CurrentStamina",
-            "currentStamina",
-            "Stamina",
-            "stamina"
-        );
+        object atual = LerMembroNumerico(componenteStaminaOuMovimento, nomesEnergiaAtual);
+        object maxima = LerMembroNumerico(componenteStaminaOuMovimento, nomesEnergiaMaxima);
 
-        object maxima = LerMembroNumerico(
-            componenteStaminaOuMovimento,
-            "StaminaMaxima",
-            "staminaMaxima",
-            "MaxStamina",
-            "maxStamina",
-            "StaminaMax",
-            "staminaMax",
-            "staminaTotal"
-        );
+        if (atual == null)
+            atual = ProcurarMembroNumericoPorPalavras(componenteStaminaOuMovimento, true, "stamina", "energia", "energy");
+
+        if (maxima == null)
+            maxima = ProcurarMembroNumericoPorPalavras(componenteStaminaOuMovimento, false, "stamina", "energia", "energy");
 
         if (atual == null || maxima == null)
             return -1f;
@@ -386,61 +479,31 @@ public class MiniMarketMenuController : MonoBehaviour
         return Mathf.Clamp01(atualFloat / maximaFloat) * 100f;
     }
 
-    private bool TentarRestaurarStaminaParaCemPorCento()
+    private bool TentarRestaurarEnergiaParaCemPorCento()
     {
+        GarantirComponenteEnergiaValido();
+
         if (componenteStaminaOuMovimento == null)
             return false;
 
-        bool chamouMetodo = TentarChamarMetodoSemParametro(
-            componenteStaminaOuMovimento,
-            "RecarregarStaminaCompleta",
-            "RecarregarStaminaTotal",
-            "RestaurarStaminaCompleta",
-            "RestaurarStaminaTotal",
-            "RestaurarTodaStamina",
-            "RecuperarStaminaTotal",
-            "EncherStamina",
-            "ResetarStamina"
-        );
+        bool chamouMetodo = TentarChamarMetodoSemParametro(componenteStaminaOuMovimento, metodosRestaurarEnergia);
 
-        object maxima = LerMembroNumerico(
-            componenteStaminaOuMovimento,
-            "StaminaMaxima",
-            "staminaMaxima",
-            "MaxStamina",
-            "maxStamina",
-            "StaminaMax",
-            "staminaMax",
-            "staminaTotal"
-        );
+        object maxima = LerMembroNumerico(componenteStaminaOuMovimento, nomesEnergiaMaxima);
+
+        if (maxima == null)
+            maxima = ProcurarMembroNumericoPorPalavras(componenteStaminaOuMovimento, false, "stamina", "energia", "energy");
 
         if (maxima != null)
         {
-            bool setou = TentarDefinirMembroNumerico(
-                componenteStaminaOuMovimento,
-                ConverterParaFloat(maxima),
-                "StaminaAtual",
-                "staminaAtual",
-                "CurrentStamina",
-                "currentStamina",
-                "Stamina",
-                "stamina"
-            );
+            bool setou = TentarDefinirMembroNumerico(componenteStaminaOuMovimento, ConverterParaFloat(maxima), nomesEnergiaAtual);
+
+            if (!setou)
+                setou = TentarDefinirMembroNumericoPorPalavras(componenteStaminaOuMovimento, ConverterParaFloat(maxima), true, "stamina", "energia", "energy");
 
             return chamouMetodo || setou;
         }
 
-        bool setouPercentual = TentarDefinirMembroNumerico(
-            componenteStaminaOuMovimento,
-            1f,
-            "PercentualStamina",
-            "percentualStamina",
-            "StaminaPercentual",
-            "staminaPercentual",
-            "StaminaNormalizada",
-            "staminaNormalizada"
-        );
-
+        bool setouPercentual = TentarDefinirMembroNumerico(componenteStaminaOuMovimento, 1f, nomesPercentualEnergia);
         return chamouMetodo || setouPercentual;
     }
 
@@ -452,7 +515,7 @@ public class MiniMarketMenuController : MonoBehaviour
         if (playerGold == null)
             playerGold = PlayerGold.Instance != null ? PlayerGold.Instance : FindObjectOfType<PlayerGold>();
 
-        ResolverComponenteStamina();
+        GarantirComponenteEnergiaValido();
     }
 
     private void ResolverReferenciasLeves()
@@ -461,37 +524,92 @@ public class MiniMarketMenuController : MonoBehaviour
             perfil = MiniMarketPlayerProfile.ObterOuCriar();
 
         if (playerGold == null)
-            playerGold = PlayerGold.Instance;
+            playerGold = PlayerGold.Instance != null ? PlayerGold.Instance : FindObjectOfType<PlayerGold>();
 
-        if (componenteStaminaOuMovimento == null)
-            ResolverComponenteStamina();
+        GarantirComponenteEnergiaValido();
     }
 
-    private void ResolverComponenteStamina()
+    private void GarantirComponenteEnergiaValido()
     {
-        if (!procurarComponenteStaminaAutomaticamente || componenteStaminaOuMovimento != null)
+        if (ComponenteEnergiaEhValido(componenteStaminaOuMovimento))
             return;
 
+        if (!procurarComponenteStaminaAutomaticamente)
+            return;
+
+        Component encontrado = EncontrarMelhorComponenteEnergia();
+
+        if (encontrado != null)
+        {
+            componenteStaminaOuMovimento = encontrado;
+
+            if (logarComponenteEnergiaEncontrado)
+                Debug.Log("[MiniMarketMenuController] Componente de energia/stamina encontrado: " + encontrado.GetType().Name + " em " + encontrado.gameObject.name);
+        }
+    }
+
+    private bool ComponenteEnergiaEhValido(Component componente)
+    {
+        if (componente == null)
+            return false;
+
+        if (componente is Transform)
+            return false;
+
+        Type tipo = componente.GetType();
+
+        if (PossuiAlgumMembro(tipo, nomesPercentualEnergia))
+            return true;
+
+        if (PossuiAlgumMembro(tipo, nomesEnergiaAtual) && PossuiAlgumMembro(tipo, nomesEnergiaMaxima))
+            return true;
+
+        return TipoTemMembroComPalavras(tipo, "stamina", "energia", "energy");
+    }
+
+    private Component EncontrarMelhorComponenteEnergia()
+    {
         MonoBehaviour[] scripts = FindObjectsOfType<MonoBehaviour>(true);
+
+        Component melhor = null;
+        int melhorPontuacao = -1;
 
         for (int i = 0; i < scripts.Length; i++)
         {
             MonoBehaviour script = scripts[i];
-            if (script == null)
+            if (script == null || script == this)
                 continue;
 
-            Type tipo = script.GetType();
-            string nomeTipo = tipo.Name;
+            if (!ComponenteEnergiaEhValido(script))
+                continue;
 
-            if (nomeTipo.Contains("PlayerMoveHardcore") || nomeTipo.Contains("Stamina"))
+            int pontos = CalcularPontuacaoComponenteEnergia(script);
+
+            if (pontos > melhorPontuacao)
             {
-                if (PossuiAlgumMembro(tipo, "staminaAtual", "StaminaAtual", "stamina", "Stamina", "currentStamina", "CurrentStamina"))
-                {
-                    componenteStaminaOuMovimento = script;
-                    return;
-                }
+                melhorPontuacao = pontos;
+                melhor = script;
             }
         }
+
+        return melhor;
+    }
+
+    private int CalcularPontuacaoComponenteEnergia(Component componente)
+    {
+        int pontos = 0;
+        string nomeTipo = componente.GetType().Name.ToLowerInvariant();
+        string nomeObjeto = componente.gameObject.name.ToLowerInvariant();
+
+        if (nomeTipo.Contains("player")) pontos += 30;
+        if (nomeTipo.Contains("move")) pontos += 25;
+        if (nomeTipo.Contains("stamina")) pontos += 20;
+        if (nomeTipo.Contains("energia")) pontos += 20;
+        if (nomeTipo.Contains("hud")) pontos -= 20;
+        if (nomeObjeto.Contains("character")) pontos += 20;
+        if (nomeObjeto.Contains("player")) pontos += 20;
+
+        return pontos;
     }
 
     private void ConectarBotoes()
@@ -504,8 +622,9 @@ public class MiniMarketMenuController : MonoBehaviour
 
         if (botaoGemasGratis != null)
         {
+            botaoGemasGratis.onClick.RemoveListener(RecarregarEnergiaComGemasGratis);
             botaoGemasGratis.onClick.RemoveListener(RecarregarStaminaComGemasGratis);
-            botaoGemasGratis.onClick.AddListener(RecarregarStaminaComGemasGratis);
+            botaoGemasGratis.onClick.AddListener(RecarregarEnergiaComGemasGratis);
         }
     }
 
@@ -517,15 +636,41 @@ public class MiniMarketMenuController : MonoBehaviour
 
     private bool PossuiAlgumMembro(Type tipo, params string[] nomes)
     {
+        if (tipo == null || nomes == null)
+            return false;
+
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
         for (int i = 0; i < nomes.Length; i++)
         {
-            if (tipo.GetField(nomes[i], BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) != null)
+            if (tipo.GetField(nomes[i], flags) != null)
                 return true;
 
-            if (tipo.GetProperty(nomes[i], BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) != null)
+            if (tipo.GetProperty(nomes[i], flags) != null)
                 return true;
 
-            if (tipo.GetMethod(nomes[i], BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) != null)
+            if (tipo.GetMethod(nomes[i], flags) != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool TipoTemMembroComPalavras(Type tipo, params string[] palavras)
+    {
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        FieldInfo[] fields = tipo.GetFields(flags);
+        for (int i = 0; i < fields.Length; i++)
+        {
+            if (EhTipoNumerico(fields[i].FieldType) && NomeContemAlgumaPalavra(fields[i].Name, palavras))
+                return true;
+        }
+
+        PropertyInfo[] props = tipo.GetProperties(flags);
+        for (int i = 0; i < props.Length; i++)
+        {
+            if (props[i].CanRead && EhTipoNumerico(props[i].PropertyType) && NomeContemAlgumaPalavra(props[i].Name, palavras))
                 return true;
         }
 
@@ -534,7 +679,7 @@ public class MiniMarketMenuController : MonoBehaviour
 
     private object LerMembroNumerico(object alvo, params string[] nomes)
     {
-        if (alvo == null)
+        if (alvo == null || nomes == null)
             return null;
 
         Type tipo = alvo.GetType();
@@ -558,9 +703,60 @@ public class MiniMarketMenuController : MonoBehaviour
         return null;
     }
 
-    private bool TentarDefinirMembroNumerico(object alvo, float valor, params string[] nomes)
+    private object ProcurarMembroNumericoPorPalavras(object alvo, bool atual, params string[] palavras)
     {
         if (alvo == null)
+            return null;
+
+        Type tipo = alvo.GetType();
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        FieldInfo[] fields = tipo.GetFields(flags);
+        for (int i = 0; i < fields.Length; i++)
+        {
+            FieldInfo field = fields[i];
+            if (!EhTipoNumerico(field.FieldType))
+                continue;
+
+            if (!NomeContemAlgumaPalavra(field.Name, palavras))
+                continue;
+
+            bool pareceMaximo = NomePareceMaximo(field.Name);
+            if (atual && pareceMaximo)
+                continue;
+
+            if (!atual && !pareceMaximo)
+                continue;
+
+            return field.GetValue(alvo);
+        }
+
+        PropertyInfo[] props = tipo.GetProperties(flags);
+        for (int i = 0; i < props.Length; i++)
+        {
+            PropertyInfo prop = props[i];
+            if (!prop.CanRead || !EhTipoNumerico(prop.PropertyType))
+                continue;
+
+            if (!NomeContemAlgumaPalavra(prop.Name, palavras))
+                continue;
+
+            bool pareceMaximo = NomePareceMaximo(prop.Name);
+            if (atual && pareceMaximo)
+                continue;
+
+            if (!atual && !pareceMaximo)
+                continue;
+
+            return prop.GetValue(alvo, null);
+        }
+
+        return null;
+    }
+
+    private bool TentarDefinirMembroNumerico(object alvo, float valor, params string[] nomes)
+    {
+        if (alvo == null || nomes == null)
             return false;
 
         Type tipo = alvo.GetType();
@@ -586,9 +782,62 @@ public class MiniMarketMenuController : MonoBehaviour
         return false;
     }
 
-    private bool TentarChamarMetodoSemParametro(object alvo, params string[] nomes)
+    private bool TentarDefinirMembroNumericoPorPalavras(object alvo, float valor, bool atual, params string[] palavras)
     {
         if (alvo == null)
+            return false;
+
+        Type tipo = alvo.GetType();
+        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        FieldInfo[] fields = tipo.GetFields(flags);
+        for (int i = 0; i < fields.Length; i++)
+        {
+            FieldInfo field = fields[i];
+            if (!EhTipoNumerico(field.FieldType))
+                continue;
+
+            if (!NomeContemAlgumaPalavra(field.Name, palavras))
+                continue;
+
+            bool pareceMaximo = NomePareceMaximo(field.Name);
+            if (atual && pareceMaximo)
+                continue;
+
+            if (!atual && !pareceMaximo)
+                continue;
+
+            field.SetValue(alvo, ConverterParaTipo(valor, field.FieldType));
+            return true;
+        }
+
+        PropertyInfo[] props = tipo.GetProperties(flags);
+        for (int i = 0; i < props.Length; i++)
+        {
+            PropertyInfo prop = props[i];
+            if (!prop.CanWrite || !EhTipoNumerico(prop.PropertyType))
+                continue;
+
+            if (!NomeContemAlgumaPalavra(prop.Name, palavras))
+                continue;
+
+            bool pareceMaximo = NomePareceMaximo(prop.Name);
+            if (atual && pareceMaximo)
+                continue;
+
+            if (!atual && !pareceMaximo)
+                continue;
+
+            prop.SetValue(alvo, ConverterParaTipo(valor, prop.PropertyType), null);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TentarChamarMetodoSemParametro(object alvo, params string[] nomes)
+    {
+        if (alvo == null || nomes == null)
             return false;
 
         Type tipo = alvo.GetType();
@@ -605,6 +854,28 @@ public class MiniMarketMenuController : MonoBehaviour
         }
 
         return false;
+    }
+
+    private bool NomeContemAlgumaPalavra(string nome, params string[] palavras)
+    {
+        if (string.IsNullOrEmpty(nome))
+            return false;
+
+        string nomeLower = nome.ToLowerInvariant();
+
+        for (int i = 0; i < palavras.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(palavras[i]) && nomeLower.Contains(palavras[i].ToLowerInvariant()))
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool NomePareceMaximo(string nome)
+    {
+        string n = nome.ToLowerInvariant();
+        return n.Contains("max") || n.Contains("maxima") || n.Contains("maximum") || n.Contains("total");
     }
 
     private bool EhTipoNumerico(Type tipo)
