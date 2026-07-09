@@ -3,17 +3,10 @@ using UnityEngine;
 /// <summary>
 /// Suavizador de colisão da câmera em terceira pessoa.
 ///
-/// Diagnóstico real dos logs v2.1.3:
-/// - Os raros saltos restantes aconteciam quando a distância câmera->alvo caía para ~1.0.
-/// - Isso era típico de colisão contra chão/calçada/objetos baixos ou raycast perto do player.
-/// - Visualmente parecia que a câmera estava "encaixando" na cena e puxando para perto do personagem.
-///
-/// Correção:
-/// - Desativa a colisão instantânea da CameraGTAFollowHardcore antes do LateUpdate da câmera.
-/// - Este script assume 100% da colisão da câmera em terceira pessoa.
-/// - Ignora chão/superfícies horizontais na colisão da câmera.
-/// - Impõe uma distância mínima visual para a terceira pessoa, evitando câmera colada no personagem.
-/// - Suaviza apenas aproximação/retorno de parede, sem efeito mola no movimento normal.
+/// Regra atual:
+/// - CameraGTAFollowHardcore continua sendo a autoridade de eixo/rotação/yaw/pitch.
+/// - Este script só ajusta a POSIÇÃO da câmera para colisão suave.
+/// - Não sobrescreve mais a rotação final, evitando pulo de eixo quando o mouse vira rápido.
 /// </summary>
 [DefaultExecutionOrder(32500)]
 public class MiniMarketCameraCollisionSmoother : MonoBehaviour
@@ -36,13 +29,13 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
     public bool suavizarSomenteTerceiraPessoa = true;
 
+    [Header("Rotação")]
+    [Tooltip("Desligado por padrão. A rotação/eixo pertence apenas à CameraGTAFollowHardcore.")]
+    public bool sobrescreverRotacaoDaCamera = false;
+
     [Header("Distância mínima visual")]
-    [Tooltip("Evita que a câmera chegue perto demais do personagem quando a colisão pega chão/parede.")]
     public bool usarDistanciaMinimaVisualTerceiraPessoa = true;
-
     [Min(0.3f)] public float distanciaMinimaVisualTerceiraPessoa = 2.15f;
-
-    [Tooltip("Se a distância normal for menor que esta margem, não força distância mínima visual.")]
     [Min(0f)] public float margemDistanciaNormal = 0.15f;
 
     [Header("Suavização da Distância")]
@@ -56,13 +49,8 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
     [Min(0.01f)] public float raioExtraOverlap = 0.04f;
     public bool ignorarObjetosGrabbable = true;
     public bool ignorarProprioPlayer = true;
-
-    [Tooltip("Ignora chão/calçada/terreno para a câmera não ser puxada para perto quando olha para baixo.")]
     public bool ignorarSuperficiesHorizontais = true;
-
     [Range(0f, 1f)] public float normalYMinimaParaIgnorarComoChao = 0.45f;
-
-    [Tooltip("Ignora colisões muito próximas do foco/personagem, que costumam ser chão ou collider do próprio ambiente perto dos pés.")]
     [Min(0f)] public float distanciaMinimaHitParaConsiderar = 1.25f;
 
     [Header("Debug")]
@@ -213,10 +201,11 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
         distanciaAtual = Mathf.Clamp(distanciaAtual, distanciaMinimaPermitida, distanciaNormal);
         Vector3 novaPosicao = focus + direcao * distanciaAtual;
-        Quaternion novaRotacao = Quaternion.LookRotation(focus - novaPosicao, Vector3.up);
 
         cameraMonitorada.transform.position = novaPosicao;
-        cameraMonitorada.transform.rotation = novaRotacao;
+
+        if (sobrescreverRotacaoDaCamera)
+            cameraMonitorada.transform.rotation = Quaternion.LookRotation(focus - novaPosicao, Vector3.up);
 
         if (desenharDebug)
         {
@@ -254,7 +243,7 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = hits[i];
-            if (DeveIgnorarHit(hit, focus))
+            if (DeveIgnorarHit(hit))
                 continue;
 
             float distanciaHit = Mathf.Max(CalcularDistanciaMinimaPermitida(distanciaNormal), hit.distance - cameraGTA.cameraCollisionOffset);
@@ -265,7 +254,7 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
         return Mathf.Clamp(distanciaSegura, CalcularDistanciaMinimaPermitida(distanciaNormal), distanciaNormal);
     }
 
-    private bool DeveIgnorarHit(RaycastHit hit, Vector3 focus)
+    private bool DeveIgnorarHit(RaycastHit hit)
     {
         if (hit.collider == null || DeveIgnorarCollider(hit.collider))
             return true;
