@@ -2,48 +2,64 @@ using System.Reflection;
 using UnityEngine;
 
 /// <summary>
-/// Estabilizador automático da câmera do MiniMarket.
+/// Estabilizador auxiliar da câmera do MiniMarket.
 ///
-/// Mantém a Main Camera estável, sem auto-align/recenter, sem efeito mola ao apertar S/A/D,
-/// sem suavização residual de mouse, sem pitch extremo que causa colisão no chão,
-/// e com primeira pessoa real pelo botão direito.
+/// Mudança importante:
+/// - por padrão, este script NÃO trava mais os campos do CameraGTAFollowHardcore no Inspector;
+/// - ele só limpa inércia interna/velocidades quando necessário;
+/// - presets seguros só são aplicados se você desligar o Modo Inspector Livre.
+///
+/// Assim você consegue editar normalmente no Inspector:
+/// Anti Tremor, Auto Align, Proteção de Ângulo, Primeira Pessoa Anti-Jumping,
+/// Mira/Zoom, Rotação do Personagem e Colisão da Câmera.
 /// </summary>
 [DefaultExecutionOrder(32000)]
 public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
 {
     public CameraGTAFollowHardcore cameraGTA;
 
-    [Header("Auto")]
-    public bool procurarCameraAutomaticamente = true;
+    [Header("Modo Inspector")]
+    [Tooltip("Ligado: deixa o CameraGTAFollowHardcore editável no Inspector e não força valores em loop.")]
+    public bool modoInspectorLivre = true;
+
+    [Tooltip("Compatibilidade. Só aplica presets se Modo Inspector Livre estiver desligado.")]
     public bool aplicarConfiguracaoAutomaticamente = true;
 
-    [Header("Main Camera - Anti Pulso")]
+    [Tooltip("Só use para diagnóstico pesado. Quando ligado com Modo Inspector Livre desligado, força valores todo frame.")]
+    public bool forcarConfiguracaoContinuamente = false;
+
+    [Header("Auto")]
+    public bool procurarCameraAutomaticamente = true;
+
+    [Header("Preset Seguro - Main Camera")]
     public bool desativarAutoAlignDaCamera = true;
     public bool manterCameraLivreSemRecenter = true;
 
-    [Header("Anti Tremor S/A/D")]
+    [Header("Preset Seguro - Anti Tremor S/A/D")]
     public bool removerEfeitoMolaMovimento = true;
     [Min(0f)] public float positionSmoothTimeTerceiraPessoa = 0f;
     [Min(0f)] public float rotationSmoothTimeTerceiraPessoa = 0f;
     [Min(0f)] public float tremorVerticalIgnorado = 0.01f;
 
-    [Header("Limite vertical seguro")]
-    [Tooltip("Evita olhar extremo para baixo, que fazia a colisão da câmera bater no chão e puxar a câmera para perto do player.")]
+    [Header("Preset Seguro - Limite vertical")]
     public bool forcarLimitesVerticaisSeguros = true;
     public float minPitchSeguro = -40f;
     public float maxPitchSeguro = 60f;
 
-    [Header("Mouse - Sem Arrasto Residual")]
+    [Header("Preset Seguro - Mouse")]
     public bool desligarSuavizacaoMouseTotal = true;
     [Min(0f)] public float mouseSmoothTimeTerceiraPessoa = 0f;
 
-    [Header("Primeira Pessoa - Anti Jumping")]
+    [Header("Limpeza de Inércia")]
+    [Tooltip("Pode ficar ligado. Não altera campos públicos do Inspector; apenas zera inércia interna quando para o mouse.")]
     public bool zerarInerciaMouseQuandoParar = true;
-    public bool permitirCorpoAcompanharCamera = true;
     public bool usarMesmaSensibilidadeDaCameraNormal = true;
     [Min(0f)] public float mouseSmoothTimePrimeiraPessoa = 0f;
     [Min(0f)] public float deadzoneParadaMouse = 0.0015f;
     public bool limparVelocidadesDuranteTransicao = true;
+
+    [Header("Preset Seguro - Primeira Pessoa")]
+    public bool permitirCorpoAcompanharCamera = true;
 
     [Header("Debug")]
     public bool logarEventos;
@@ -56,6 +72,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     private FieldInfo campoPitch;
     private bool ultimoEstadoPrimeiraPessoa;
     private float ultimoLogTempo;
+    private bool presetInicialAplicado;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CriarAutomaticamente()
@@ -80,7 +97,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         DontDestroyOnLoad(gameObject);
         ResolverCamera();
         PrepararReflection();
-        AplicarConfiguracao();
+        AplicarPresetSePermitido(true);
     }
 
     private void LateUpdate()
@@ -90,8 +107,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (cameraGTA == null)
             return;
 
-        if (aplicarConfiguracaoAutomaticamente)
-            AplicarConfiguracao();
+        AplicarPresetSePermitido(false);
 
         bool estadoPrimeiraPessoa = cameraGTA.EstaEmPrimeiraPessoa;
 
@@ -119,8 +135,26 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (cameraGTA != null)
         {
             PrepararReflection();
-            MiniMarketUpgradeLogger.Log("Camera", "CameraGTAFollowHardcore encontrada", "Estabilizador conectado a " + cameraGTA.gameObject.name, "camera-found", 10f);
+            MiniMarketUpgradeLogger.Log("Camera", "CameraGTAFollowHardcore encontrada", "Estabilizador conectado a " + cameraGTA.gameObject.name + ". Modo Inspector Livre=" + modoInspectorLivre, "camera-found", 10f);
         }
+    }
+
+    private void AplicarPresetSePermitido(bool inicial)
+    {
+        if (cameraGTA == null)
+            return;
+
+        if (modoInspectorLivre)
+            return;
+
+        if (!aplicarConfiguracaoAutomaticamente)
+            return;
+
+        if (!forcarConfiguracaoContinuamente && presetInicialAplicado)
+            return;
+
+        AplicarConfiguracao();
+        presetInicialAplicado = true;
     }
 
     private void AplicarConfiguracao()
@@ -191,7 +225,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (logarEventos && Time.unscaledTime - ultimoLogTempo > 10f)
         {
             ultimoLogTempo = Time.unscaledTime;
-            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; efeito mola removido; smooth mouse desligado; pitch seguro " + minPitchSeguro.ToString("0") + "/" + maxPitchSeguro.ToString("0") + ".", "camera-config", 10f);
+            MiniMarketUpgradeLogger.Log("Camera", "Preset seguro aplicado", "Modo Inspector Livre desligado. Valores seguros aplicados no CameraGTA.", "camera-config", 10f);
         }
     }
 
