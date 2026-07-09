@@ -9,23 +9,16 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// Log exclusivo em tempo real para diagnosticar camera.
+/// Log exclusivo em tempo real para diagnosticar câmera.
 ///
-/// O que faz:
-/// - monitora Main Camera em LateUpdate;
-/// - registra amostras leves em CameraRealtimeLog.htm;
-/// - detecta variações bruscas de posição, rotação, FOV e distância do alvo;
-/// - quando detecta uma mudança brusca, salva o log imediatamente, pausa o jogo e mostra uma MessageBox detalhada no Editor.
+/// Modo atual:
+/// - registra incidentes em CameraRealtimeLog.htm;
+/// - NÃO pausa o Play por padrão;
+/// - NÃO abre MessageBox por padrão;
+/// - NÃO envia Warning gigante para o Console por padrão;
+/// - amostras leves ficam desligadas por padrão para evitar IO e travadinhas.
 ///
-/// Arquivos:
-/// - CameraRealtimeLog.htm na raiz do projeto, no Editor;
-/// - Application.persistentDataPath/CameraRealtimeLog.htm como fallback/runtime.
-///
-/// Segurança/performance:
-/// - não usa Find em loop curto;
-/// - não usa AssetDatabase.Refresh;
-/// - limita spam por cooldown;
-/// - salva incidente imediatamente.
+/// Isso evita que o próprio diagnóstico congele stamina/HUD/gameplay.
 /// </summary>
 [DefaultExecutionOrder(33000)]
 public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
@@ -43,49 +36,31 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
     public bool escreverNoPersistentDataPath = true;
 
     [Header("Amostras em Tempo Real")]
-    public bool registrarAmostrasLeves = true;
-    [Min(0.05f)] public float intervaloAmostraLeve = 0.25f;
+    public bool registrarAmostrasLeves = false;
+    [Min(0.05f)] public float intervaloAmostraLeve = 1f;
     [Min(1)] public int maxAmostrasPorFlush = 12;
-    [Min(0.2f)] public float intervaloFlush = 1f;
+    [Min(0.2f)] public float intervaloFlush = 3f;
 
     [Header("Detecção - Mudança Brusca")]
     public bool detectarMudancaBrusca = true;
-
-    [Tooltip("Distância máxima que a câmera pode saltar em um frame antes de pausar.")]
-    [Min(0.01f)] public float limiteSaltoPosicaoFrame = 0.75f;
-
-    [Tooltip("Velocidade brusca da câmera em metros/segundo.")]
-    [Min(0.1f)] public float limiteVelocidadeCamera = 18f;
-
-    [Tooltip("Aceleração brusca da câmera em metros/segundo².")]
-    [Min(1f)] public float limiteAceleracaoCamera = 140f;
-
-    [Tooltip("Graus máximos que a câmera pode girar em um frame antes de pausar.")]
-    [Min(0.1f)] public float limiteSaltoRotacaoFrame = 14f;
-
-    [Tooltip("Velocidade angular brusca em graus/segundo.")]
-    [Min(1f)] public float limiteVelocidadeAngular = 220f;
-
-    [Tooltip("Mudança brusca no FOV em um frame.")]
-    [Min(0.1f)] public float limiteSaltoFovFrame = 4f;
-
-    [Tooltip("Mudança brusca na distância entre câmera e alvo em um frame.")]
-    [Min(0.05f)] public float limiteSaltoDistanciaAlvo = 0.75f;
-
-    [Tooltip("Ignora a detecção durante a transição normal de primeira pessoa para não pausar falsamente.")]
+    [Min(0.01f)] public float limiteSaltoPosicaoFrame = 8f;
+    [Min(0.1f)] public float limiteVelocidadeCamera = 9999f;
+    [Min(1f)] public float limiteAceleracaoCamera = 999999f;
+    [Min(0.1f)] public float limiteSaltoRotacaoFrame = 179f;
+    [Min(1f)] public float limiteVelocidadeAngular = 999999f;
+    [Min(0.1f)] public float limiteSaltoFovFrame = 8f;
+    [Min(0.05f)] public float limiteSaltoDistanciaAlvo = 1.35f;
     public bool ignorarDuranteTransicaoPrimeiraPessoa = true;
-
-    [Tooltip("Tempo de tolerância logo após entrar/sair da primeira pessoa.")]
-    [Min(0f)] public float toleranciaAposTrocaPrimeiraPessoa = 0.18f;
+    [Min(0f)] public float toleranciaAposTrocaPrimeiraPessoa = 0.85f;
 
     [Header("Pausar / MessageBox")]
-    public bool pausarAoDetectar = true;
-    public bool mostrarMessageBoxNoEditor = true;
-    public bool usarTimeScaleZeroAoPausar = true;
+    public bool pausarAoDetectar = false;
+    public bool mostrarMessageBoxNoEditor = false;
+    public bool usarTimeScaleZeroAoPausar = false;
     [Min(0.1f)] public float cooldownEntreIncidentes = 1.5f;
 
     [Header("Debug")]
-    public bool logarNoConsole = true;
+    public bool logarNoConsole = false;
 
     private static MiniMarketCameraRealtimeAnomalyLogger instancia;
 
@@ -119,6 +94,8 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
     private FieldInfo campoPositionVelocity;
     private FieldInfo campoMouseSuavizado;
 
+    private readonly Collider[] _overlaps = new Collider[16];
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CriarAutomaticamente()
     {
@@ -142,7 +119,7 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
         DontDestroyOnLoad(gameObject);
         InicializarArquivo();
         ResolverCamera(true);
-        EscreverEvento("Sistema", "Camera realtime logger iniciado", "Monitoramento em tempo real da câmera iniciado. Incidentes pausam o Play e registram detalhes.", "system");
+        EscreverEvento("Sistema", "Camera realtime logger iniciado", "Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.", "system");
         Flush(true);
     }
 
@@ -276,6 +253,7 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
         {
             ultimoEstadoPrimeiraPessoa = estado;
             ultimoTempoTrocaPrimeiraPessoa = Time.unscaledTime;
+            CapturarBaseline();
             EscreverEvento("Camera", estado ? "Entrou em primeira pessoa" : "Saiu da primeira pessoa", MontarResumoEstadoCamera(), "camera");
         }
     }
@@ -313,7 +291,17 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
 
         if (!dentroToleranciaPrimeiraPessoa)
         {
-            if (deltaPos >= limiteSaltoPosicaoFrame)
+            if (deltaFov >= limiteSaltoFovFrame)
+            {
+                incidente = true;
+                causa = "Mudança brusca de FOV";
+            }
+            else if (deltaDistanciaAlvo >= limiteSaltoDistanciaAlvo)
+            {
+                incidente = true;
+                causa = "Mudança brusca na distância entre câmera e alvo";
+            }
+            else if (deltaPos >= limiteSaltoPosicaoFrame)
             {
                 incidente = true;
                 causa = "Salto brusco de posição da câmera em um único frame";
@@ -337,16 +325,6 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
             {
                 incidente = true;
                 causa = "Velocidade angular brusca da câmera acima do limite";
-            }
-            else if (deltaFov >= limiteSaltoFovFrame)
-            {
-                incidente = true;
-                causa = "Mudança brusca de FOV";
-            }
-            else if (deltaDistanciaAlvo >= limiteSaltoDistanciaAlvo)
-            {
-                incidente = true;
-                causa = "Mudança brusca na distância entre câmera e alvo";
             }
         }
 
@@ -374,7 +352,7 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
         string inferencia = InferirCausaProvavel(causa, deltaPos, deltaRot, deltaDistanciaAlvo);
 
         mensagem.Length = 0;
-        mensagem.AppendLine("O Play foi pausado por mudança brusca detectada na câmera.");
+        mensagem.AppendLine("Mudança brusca detectada na câmera. Registro não bloqueante: o Play NÃO foi pausado.");
         mensagem.AppendLine();
         mensagem.AppendLine("Causa técnica detectada: " + causa);
         mensagem.AppendLine("Causa provável: " + inferencia);
@@ -393,11 +371,11 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
         mensagem.AppendLine();
         mensagem.AppendLine("Arquivo salvo: " + ObterCaminhoPreferencial());
 
-        EscreverEvento("INCIDENTE", "MUDANÇA BRUSCA DETECTADA - PLAY PAUSADO", mensagem.ToString(), "incident");
+        EscreverEvento("INCIDENTE", "MUDANÇA BRUSCA DETECTADA - LOG NÃO BLOQUEANTE", mensagem.ToString(), "incident");
         Flush(true);
 
         if (logarNoConsole)
-            Debug.LogWarning("[CameraRealtimeLog] Mudança brusca detectada. Play pausado. " + causa + " | " + inferencia);
+            Debug.LogWarning("[CameraRealtimeLog] Mudança brusca registrada sem pausar. " + causa + " | " + inferencia);
 
         if (pausarAoDetectar)
             PausarJogoComDialogo("MiniMarket Camera Realtime Log", mensagem.ToString());
@@ -406,32 +384,22 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
     private string InferirCausaProvavel(string causa, float deltaPos, float deltaRot, float deltaDistanciaAlvo)
     {
         bool inputMovimento = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.D);
-        bool inputMovimentoLateralOuTras = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.D);
-        bool botaoDireito = Input.GetMouseButton(1);
-        bool primeiraPessoa = cameraGTA != null && cameraGTA.EstaEmPrimeiraPessoa;
         bool transicionando = cameraGTA != null && cameraGTA.EstaTransicionandoPrimeiraPessoa;
         bool pertoParede = CameraSobrepostaOuPertoDeParede();
-        bool mouseParado = Mathf.Abs(Input.GetAxisRaw("Mouse X")) < 0.001f && Mathf.Abs(Input.GetAxisRaw("Mouse Y")) < 0.001f;
 
         if (transicionando)
-            return "Transição de primeira pessoa/terceira pessoa ainda ativa. Verificar velocidade de transição e troca pelo botão direito.";
+            return "Transição de primeira pessoa/terceira pessoa ainda ativa.";
 
-        if (pertoParede && deltaPos > 0.05f)
-            return "Colisão/anti-parede da câmera ou objeto próximo empurrando a câmera. Verificar Camera Collision Layers, radius e objetos seguráveis.";
+        if (pertoParede && deltaDistanciaAlvo > 0.05f)
+            return "Colisão/anti-parede ou superfície baixa afetando a distância da câmera.";
 
-        if (inputMovimentoLateralOuTras && deltaPos > 0.03f)
-            return "Movimento do personagem com A/S/D gerou deslocamento abrupto no ponto de foco. Verificar suavização/seguimento do alvo e animação do CharacterController.";
-
-        if (primeiraPessoa && botaoDireito && deltaRot > 0.1f && mouseParado)
-            return "Possível rotação residual/recenter na primeira pessoa mesmo com mouse parado. Verificar scripts que alteram rotação do player/camera após LateUpdate.";
-
-        if (inputMovimento)
-            return "Movimento do personagem ativo no frame. Verificar PlayerMove, rotação do corpo e ponto de foco da câmera.";
+        if (inputMovimento && deltaDistanciaAlvo > 0.05f)
+            return "Movimento do personagem com variação de distância câmera-alvo. Verificar collision smoother e superfícies do cenário.";
 
         if (causa.Contains("FOV"))
-            return "Alteração de FOV por zoom/mira/transição. Verificar velocidadeFovMira e estados de primeira pessoa.";
+            return "Alteração de FOV por zoom/mira/transição.";
 
-        return "Causa não conclusiva. Use os valores de yaw/pitch/blend/posição no log para identificar o script que alterou a câmera.";
+        return "Causa não conclusiva. Use yaw/pitch/blend/posição no log.";
     }
 
     private bool CameraSobrepostaOuPertoDeParede()
@@ -458,15 +426,10 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
         return false;
     }
 
-    private readonly Collider[] _overlaps = new Collider[16];
-
     private float CalcularDistanciaAlvo(Vector3 cameraPos)
     {
-        if (alvo == null)
-        {
-            if (cameraGTA != null)
-                alvo = cameraGTA.target;
-        }
+        if (alvo == null && cameraGTA != null)
+            alvo = cameraGTA.target;
 
         if (alvo == null)
             return 0f;
@@ -569,10 +532,7 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
         {
             string titulo = tituloDialogoPendente;
             string texto = mensagemDialogoPendente;
-            EditorApplication.delayCall += () =>
-            {
-                EditorUtility.DisplayDialog(titulo, texto, "OK");
-            };
+            EditorApplication.delayCall += () => EditorUtility.DisplayDialog(titulo, texto, "OK");
         }
 #else
         Debug.LogWarning(mensagemDialogoPendente);
@@ -583,7 +543,7 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
     {
         InicializarArquivo();
 
-        filaHtml.Append("<section class=\"entry ").Append(Html(css)).Append("\">\n");
+        filaHtml.Append("<section class=\"").Append(Html(css)).Append("\">\n");
         filaHtml.Append("<div class=\"meta\"><span>").Append(Html(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"))).Append("</span><span>").Append(Html(categoria)).Append("</span><span>frame ").Append(Time.frameCount).Append("</span></div>\n");
         filaHtml.Append("<h2>").Append(Html(titulo)).Append("</h2>\n");
         filaHtml.Append("<pre>").Append(Html(detalhes)).Append("</pre>\n");
@@ -654,7 +614,7 @@ public class MiniMarketCameraRealtimeAnomalyLogger : MonoBehaviour
 <html lang=""pt-BR""><head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>MiniMarket Camera Realtime Log</title>
 <style>
 :root{--bg:#04070d;--panel:#0f172a;--panel2:#111c31;--line:#30415f;--txt:#e5eefc;--muted:#9fb1d1;--danger:#ff4f5e;--ok:#3df2a4;--cam:#7dd3fc;--warn:#fbbf24}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0,#122842,#04070d 45%,#02040a);color:var(--txt);font-family:Segoe UI,Arial,sans-serif}header{position:sticky;top:0;z-index:10;padding:24px 30px;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(2,6,23,.96));border-bottom:1px solid var(--line);box-shadow:0 12px 30px rgba(0,0,0,.35)}h1{margin:0;color:var(--cam);font-size:28px}.subtitle{margin-top:7px;color:var(--muted);font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:18px 30px 0}.card{background:linear-gradient(180deg,var(--panel),#07101f);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.card b{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.card span{display:block;margin-top:7px;font-size:20px;color:#fff}main{padding:20px 30px 80px}.entry{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-left:6px solid var(--cam);border-radius:14px;margin-bottom:14px;padding:14px 16px;box-shadow:0 10px 24px rgba(0,0,0,.28)}.entry.incident{border-left-color:var(--danger);box-shadow:0 0 0 1px rgba(255,79,94,.25),0 10px 28px rgba(255,79,94,.12)}.entry.system{border-left-color:var(--ok)}.entry.camera{border-left-color:var(--warn)}.entry.sample{opacity:.82}.meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.meta span{font-size:12px;color:#cbd5e1;background:#050b15;border:1px solid #334155;border-radius:999px;padding:3px 9px}h2{font-size:17px;margin:0 0 8px;color:#fff}pre{white-space:pre-wrap;margin:0;color:#dbeafe;line-height:1.45;font-size:13px}.hint{margin:18px 30px 0;padding:13px 16px;border:1px solid #24506d;border-radius:13px;background:rgba(125,211,252,.08);color:#dff6ff}
-</style></head><body><header><h1>MiniMarket Camera Realtime Log</h1><div class=""subtitle"">Monitor exclusivo da câmera. Detecta saltos bruscos, pausa o jogo e registra a causa provável.</div></header><section class=""grid""><div class=""card""><b>Status</b><span>Realtime</span></div><div class=""card""><b>Incidente</b><span>Auto Pause</span></div><div class=""card""><b>Arquivo</b><span>CameraRealtimeLog.htm</span></div><div class=""card""><b>Spam</b><span>Cooldown</span></div></section><div class=""hint"">Quando houver mudança brusca, o Play será pausado e a MessageBox mostrará posição, rotação, FOV, input, estado da primeira pessoa e causa provável.</div><main><!-- CAMERA_LOG_ENTRIES --></main></body></html>";
+</style></head><body><header><h1>MiniMarket Camera Realtime Log</h1><div class=""subtitle"">Monitor exclusivo da câmera em modo não bloqueante.</div></header><section class=""grid""><div class=""card""><b>Status</b><span>Realtime</span></div><div class=""card""><b>Modo</b><span>Não bloqueante</span></div><div class=""card""><b>Arquivo</b><span>CameraRealtimeLog.htm</span></div><div class=""card""><b>Gameplay</b><span>Sem Pause</span></div></section><div class=""hint"">Incidentes são registrados neste arquivo sem pausar o Play, sem MessageBox e sem travar HUD/stamina.</div><main><!-- CAMERA_LOG_ENTRIES --></main></body></html>";
     }
 
     private string Html(string s)
