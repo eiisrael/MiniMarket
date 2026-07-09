@@ -1,106 +1,55 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
-/// Script unico da area de entrada da BuyScene.
-/// Responsabilidades:
-/// - Desenhar a marcacao visual da area da calcada no Game View.
-/// - Detectar o player dentro da area.
-/// - Abrir e fechar a BuyScene com a mesma tecla configuravel no Inspector.
-/// - Sincronizar a cor/status do X da calcada com os terrenos ligados a esta area.
+/// Area de entrada da BuyScene.
 ///
-/// Fluxo recomendado:
-/// Player entra na area -> aperta E -> abre BuyScene.
-/// Player ainda esta na area -> aperta E novamente -> fecha BuyScene.
-/// Quando o terreno for comprado e ficar indisponivel, a marcacao da calcada tambem fica indisponivel.
+/// Correção atual:
+/// - OnValidate não cria GameObject, não usa SetParent e não adiciona LineRenderer.
+/// - Remove spam "SendMessage cannot be called during Awake/OnValidate" visto nos logs.
+/// - Mantém abrir/fechar BuyScene, detecção do player e marcação visual.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Collider))]
 public class BuySceneEntryTrigger : MonoBehaviour
 {
     [Header("CONTROLADOR DA BUYSCENE")]
-    [Tooltip("Arraste aqui o objeto que possui o BuySceneCameraModeController.")]
     public BuySceneCameraModeController controladorBuyScene;
-
-    [Tooltip("Ponto que a camera aerea vai focar. Pode ser um Empty no meio dos terrenos.")]
     public Transform pontoDeFocoDaCamera;
-
-    [Tooltip("Terrenos que devem ser destacados quando o player entrar nessa area.")]
     public BuyableLandAreaMarker[] terrenosDestaArea;
-
-    [Tooltip("Se a lista acima estiver vazia, o script tenta encontrar terrenos proximos automaticamente.")]
     public bool usarTerrenosProximosSeListaVazia = true;
-
-    [Tooltip("Raio usado para buscar terrenos proximos automaticamente.")]
     public float raioBuscaTerrenosProximos = 60f;
 
     [Header("ABRIR / FECHAR")]
-    [Tooltip("Modo recomendado. A mesma tecla abre e fecha a BuyScene enquanto o player estiver na area.")]
     public bool usarTeclaParaAbrirFechar = true;
-
-    [Tooltip("Tecla unica para abrir e fechar a BuyScene. Padrao: E.")]
     public KeyCode teclaAbrirFechar = KeyCode.E;
-
-    [Tooltip("Mantido por compatibilidade. Se Usar Tecla Para Abrir Fechar estiver ligado, este campo nao abre automaticamente.")]
     public bool entrarAutomaticamenteAoPassar = false;
-
-    [Tooltip("LEGADO. Mantido para nao quebrar configuracoes antigas. Prefira Usar Tecla Para Abrir Fechar.")]
     public bool exigirTeclaParaEntrar = true;
-
-    [Tooltip("LEGADO. Mantido para cenas antigas. Prefira Tecla Abrir Fechar.")]
     public KeyCode teclaEntrar = KeyCode.E;
-
-    [Min(0f)]
-    [Tooltip("Evita duplo clique/duplo trigger no mesmo frame ou em sequencia rapida.")]
-    public float intervaloMinimoEntreAtivacoes = 0.25f;
+    [Min(0f)] public float intervaloMinimoEntreAtivacoes = 0.25f;
 
     [Header("DETECCAO DO PLAYER")]
     public string tagDoPlayer = "Player";
-
-    [Tooltip("Opcional. Se arrastar o player aqui, a deteccao fica ainda mais segura.")]
     public Transform jogadorRaizOpcional;
-
     public bool aceitarCharacterController = true;
     public bool aceitarScriptPlayerMove = true;
-
-    [Tooltip("Mantem uma verificacao extra por OverlapBox. Ajuda quando OnTriggerEnter falha.")]
     public bool usarDeteccaoPorOverlapSegura = true;
-
-    [Tooltip("Camadas que podem ser detectadas. Normalmente deixe Everything.")]
     public LayerMask camadasDeteccao = ~0;
-
-    [Tooltip("Margem vertical extra para detectar o player mesmo se o collider estiver baixo na calcada.")]
     public float margemVerticalDeteccao = 2.5f;
 
     [Header("MARCACAO VISUAL DA AREA")]
     public bool mostrarMarcacaoVisual = true;
     public bool mostrarXCentral = true;
-
-    [Tooltip("Cor normal da area da calcada. Usada como fallback quando nao ha terreno associado.")]
     public Color corNormal = new Color(1f, 0.92f, 0f, 1f);
-
-    [Tooltip("Cor quando o player esta dentro da area. Usada apenas se a sincronizacao com o terreno estiver desligada ou nao houver terreno associado.")]
     public Color corPlayerDentro = new Color(0.1f, 1f, 0.1f, 1f);
-
-    [Min(0.01f)]
-    public float larguraLinha = 0.08f;
-
-    [Tooltip("Altura da linha acima do collider. Aumente se a linha ficar dentro da calcada.")]
+    [Min(0.01f)] public float larguraLinha = 0.08f;
     public float alturaAcimaDoCollider = 0.08f;
-
-    [Tooltip("Atualiza as linhas em tempo real enquanto voce move/escala o objeto.")]
     public bool atualizarVisualEmTempoReal = true;
 
     [Header("SINCRONIA COM STATUS DOS TERRENOS")]
-    [Tooltip("Se ligado, o X/borda da calcada usa a mesma cor/status dos terrenos associados.")]
     public bool sincronizarMarcacaoComStatusDosTerrenos = true;
-
-    [Tooltip("Se ligado, a calcada so fica indisponivel quando TODOS os terrenos associados estiverem indisponiveis. Recomendado para uma entrada que mostra varios lotes.")]
     public bool calcadaIndisponivelSomenteQuandoTodosTerrenosIndisponiveis = true;
-
-    [Tooltip("Se ligado, quando todos os terrenos associados forem comprados, a marcacao continua visivel usando a cor Indisponivel do terreno.")]
     public bool manterMarcacaoVisivelQuandoIndisponivel = true;
-
-    [Tooltip("Se a lista Terrenos Desta Area estiver vazia, a sincronizacao usa os mesmos terrenos encontrados automaticamente pelo raio da BuyScene.")]
     public bool sincronizarComTerrenosEncontradosAutomaticamente = true;
 
     [Header("DESTAQUE DOS TERRENOS")]
@@ -117,10 +66,8 @@ public class BuySceneEntryTrigger : MonoBehaviour
     private LineRenderer linhaDiagonalA;
     private LineRenderer linhaDiagonalB;
     private Material materialLinhas;
-
     private bool playerDentro;
     private float ultimoTempoAtivacao = -999f;
-
     private readonly Collider[] resultadosOverlap = new Collider[32];
 
     private const string NomeLinhaBorda = "BuyScene_Entrada_Borda";
@@ -134,6 +81,15 @@ public class BuySceneEntryTrigger : MonoBehaviour
     }
 
     private void Awake()
+    {
+        areaCollider = GetComponent<Collider>();
+        PrepararColliderComoTrigger();
+        ResolverReferencias();
+        CriarRenderizadores();
+        AtualizarVisualCompleto();
+    }
+
+    private void OnEnable()
     {
         areaCollider = GetComponent<Collider>();
         PrepararColliderComoTrigger();
@@ -161,22 +117,54 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
     private void OnValidate()
     {
-        if (larguraLinha < 0.01f)
-            larguraLinha = 0.01f;
+        larguraLinha = Mathf.Max(0.01f, larguraLinha);
+        raioBuscaTerrenosProximos = Mathf.Max(1f, raioBuscaTerrenosProximos);
+        intervaloMinimoEntreAtivacoes = Mathf.Max(0f, intervaloMinimoEntreAtivacoes);
 
-        if (raioBuscaTerrenosProximos < 1f)
-            raioBuscaTerrenosProximos = 1f;
-
-        if (intervaloMinimoEntreAtivacoes < 0f)
-            intervaloMinimoEntreAtivacoes = 0f;
-
-        if (!Application.isPlaying)
-            return;
-
+        // Importante: OnValidate não pode criar GameObject, SetParent ou AddComponent.
+        // Atualiza apenas referências já existentes, evitando SendMessage spam/travadas no Editor.
         areaCollider = GetComponent<Collider>();
-        PrepararColliderComoTrigger();
-        CriarRenderizadores();
-        AtualizarVisualCompleto();
+        AtualizarPosicoesVisual();
+        AtualizarCorVisual();
+        DefinirLinhasAtivas(mostrarMarcacaoVisual);
+    }
+
+    private void PrepararColliderComoTrigger()
+    {
+        if (areaCollider == null)
+            areaCollider = GetComponent<Collider>();
+
+        if (areaCollider != null)
+            areaCollider.isTrigger = true;
+    }
+
+    private void ResolverReferencias()
+    {
+        if (controladorBuyScene == null)
+            controladorBuyScene = Object.FindFirstObjectByType<BuySceneCameraModeController>(FindObjectsInactive.Include);
+
+        if (pontoDeFocoDaCamera == null)
+            pontoDeFocoDaCamera = transform;
+
+        if (jogadorRaizOpcional == null)
+            jogadorRaizOpcional = TentarEncontrarPlayerAutomaticamente();
+    }
+
+    private Transform TentarEncontrarPlayerAutomaticamente()
+    {
+        if (!string.IsNullOrEmpty(tagDoPlayer))
+        {
+            try
+            {
+                GameObject playerPorTag = GameObject.FindGameObjectWithTag(tagDoPlayer);
+                if (playerPorTag != null)
+                    return playerPorTag.transform;
+            }
+            catch { }
+        }
+
+        CharacterController controller = Object.FindFirstObjectByType<CharacterController>(FindObjectsInactive.Include);
+        return controller != null ? controller.transform : null;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -184,8 +172,7 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (!EhPlayer(other))
             return;
 
-        Transform raizPlayer = ObterRaizPlayer(other.transform);
-        RegistrarEntradaDoPlayer(raizPlayer);
+        RegistrarEntradaDoPlayer(ObterRaizPlayer(other.transform));
     }
 
     private void OnTriggerExit(Collider other)
@@ -208,60 +195,11 @@ public class BuySceneEntryTrigger : MonoBehaviour
         {
             if (Input.GetKeyDown(teclaAbrirFechar))
                 AlternarBuyScene();
-
             return;
         }
 
         if (exigirTeclaParaEntrar && Input.GetKeyDown(teclaEntrar))
             TentarEntrarNaBuyScene();
-    }
-
-    private void PrepararColliderComoTrigger()
-    {
-        if (areaCollider == null)
-            areaCollider = GetComponent<Collider>();
-
-        if (areaCollider == null)
-            return;
-
-        areaCollider.isTrigger = true;
-    }
-
-    private void ResolverReferencias()
-    {
-        if (controladorBuyScene == null)
-            controladorBuyScene = FindObjectOfType<BuySceneCameraModeController>();
-
-        if (pontoDeFocoDaCamera == null)
-            pontoDeFocoDaCamera = transform;
-
-        if (jogadorRaizOpcional == null)
-            jogadorRaizOpcional = TentarEncontrarPlayerAutomaticamente();
-    }
-
-    private Transform TentarEncontrarPlayerAutomaticamente()
-    {
-        if (!string.IsNullOrEmpty(tagDoPlayer))
-        {
-            try
-            {
-                GameObject playerPorTag = GameObject.FindGameObjectWithTag(tagDoPlayer);
-
-                if (playerPorTag != null)
-                    return playerPorTag.transform;
-            }
-            catch
-            {
-                // A tag pode nao existir. Nesse caso, tenta pelo CharacterController.
-            }
-        }
-
-        CharacterController characterController = FindObjectOfType<CharacterController>();
-
-        if (characterController != null)
-            return characterController.transform;
-
-        return null;
     }
 
     private void VerificarPlayerPorOverlapSeguro()
@@ -286,57 +224,13 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (jogadorRaizOpcional != null && PontoDentroDaArea(jogadorRaizOpcional.position))
             return jogadorRaizOpcional;
 
-        BoxCollider box = areaCollider as BoxCollider;
-
-        if (box != null)
-        {
-            Vector3 centro = transform.TransformPoint(box.center);
-            Vector3 escala = transform.lossyScale;
-            Vector3 metade = new Vector3(
-                Mathf.Abs(box.size.x * escala.x) * 0.5f,
-                Mathf.Abs(box.size.y * escala.y) * 0.5f + margemVerticalDeteccao,
-                Mathf.Abs(box.size.z * escala.z) * 0.5f
-            );
-
-            int quantidade = Physics.OverlapBoxNonAlloc(
-                centro,
-                metade,
-                resultadosOverlap,
-                transform.rotation,
-                camadasDeteccao,
-                QueryTriggerInteraction.Collide
-            );
-
-            for (int i = 0; i < quantidade; i++)
-            {
-                Collider encontrado = resultadosOverlap[i];
-
-                if (encontrado == null || encontrado == areaCollider)
-                    continue;
-
-                if (EhPlayer(encontrado))
-                    return ObterRaizPlayer(encontrado.transform);
-            }
-
-            return null;
-        }
-
         Bounds bounds = areaCollider.bounds;
         bounds.Expand(new Vector3(0f, margemVerticalDeteccao, 0f));
 
-        int quantidadeBounds = Physics.OverlapBoxNonAlloc(
-            bounds.center,
-            bounds.extents,
-            resultadosOverlap,
-            Quaternion.identity,
-            camadasDeteccao,
-            QueryTriggerInteraction.Collide
-        );
-
-        for (int i = 0; i < quantidadeBounds; i++)
+        int quantidade = Physics.OverlapBoxNonAlloc(bounds.center, bounds.extents, resultadosOverlap, Quaternion.identity, camadasDeteccao, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < quantidade; i++)
         {
             Collider encontrado = resultadosOverlap[i];
-
             if (encontrado == null || encontrado == areaCollider)
                 continue;
 
@@ -351,22 +245,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
     {
         if (areaCollider == null)
             return false;
-
-        BoxCollider box = areaCollider as BoxCollider;
-
-        if (box != null)
-        {
-            Vector3 local = transform.InverseTransformPoint(pontoMundo);
-            Vector3 centro = box.center;
-            Vector3 metade = box.size * 0.5f;
-
-            bool dentroX = local.x >= centro.x - metade.x && local.x <= centro.x + metade.x;
-            bool dentroZ = local.z >= centro.z - metade.z && local.z <= centro.z + metade.z;
-            bool dentroY = local.y >= centro.y - metade.y - margemVerticalDeteccao &&
-                           local.y <= centro.y + metade.y + margemVerticalDeteccao;
-
-            return dentroX && dentroY && dentroZ;
-        }
 
         Bounds bounds = areaCollider.bounds;
         bounds.Expand(new Vector3(0f, margemVerticalDeteccao, 0f));
@@ -387,8 +265,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (destacarTerrenosAoDetectarPlayer)
             DefinirDestaqueTerrenos(true);
 
-        AtualizarCorVisual();
-
         if (logarEventos)
             Debug.Log("[BuySceneEntryTrigger] Player entrou na area de compra: " + gameObject.name);
 
@@ -406,8 +282,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         if (limparDestaqueAoSairDaArea && (controladorBuyScene == null || !controladorBuyScene.ModoCompraAtivo))
             DefinirDestaqueTerrenos(false);
-
-        AtualizarCorVisual();
 
         if (logarEventos)
             Debug.Log("[BuySceneEntryTrigger] Player saiu da area de compra: " + gameObject.name);
@@ -436,10 +310,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
                 DefinirDestaqueTerrenos(playerDentro);
 
             AtualizarCorVisual();
-
-            if (logarEventos)
-                Debug.Log("[BuySceneEntryTrigger] Fechou BuyScene pela tecla: " + teclaAbrirFechar);
-
             return;
         }
 
@@ -450,13 +320,7 @@ public class BuySceneEntryTrigger : MonoBehaviour
     {
         ResolverReferencias();
 
-        if (controladorBuyScene == null)
-        {
-            Debug.LogWarning("[BuySceneEntryTrigger] Nenhum BuySceneCameraModeController foi encontrado na cena.");
-            return;
-        }
-
-        if (controladorBuyScene.ModoCompraAtivo)
+        if (controladorBuyScene == null || controladorBuyScene.ModoCompraAtivo)
             return;
 
         if (Time.time < ultimoTempoAtivacao + intervaloMinimoEntreAtivacoes)
@@ -468,6 +332,9 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
     private void EntrarNaBuySceneSemCooldown()
     {
+        if (controladorBuyScene == null)
+            return;
+
         Transform foco = pontoDeFocoDaCamera != null ? pontoDeFocoDaCamera : transform;
         BuyableLandAreaMarker[] terrenosParaCamera = ObterTerrenosParaCamera(foco.position);
 
@@ -476,9 +343,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         AtualizarCorVisual();
         controladorBuyScene.EntrarNoModoCompra(foco, terrenosParaCamera);
-
-        if (logarEventos)
-            Debug.Log("[BuySceneEntryTrigger] Abriu BuyScene pela area: " + gameObject.name);
     }
 
     private BuyableLandAreaMarker[] ObterTerrenosParaCamera(Vector3 posicaoReferencia)
@@ -489,21 +353,14 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (!usarTerrenosProximosSeListaVazia)
             return terrenosDestaArea;
 
-        BuyableLandAreaMarker[] todos = FindObjectsOfType<BuyableLandAreaMarker>();
-
+        BuyableLandAreaMarker[] todos = Object.FindObjectsByType<BuyableLandAreaMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         if (todos == null || todos.Length == 0)
             return terrenosDestaArea;
 
         int quantidadeProxima = 0;
-
         for (int i = 0; i < todos.Length; i++)
         {
-            if (todos[i] == null)
-                continue;
-
-            float distancia = Vector3.Distance(posicaoReferencia, todos[i].transform.position);
-
-            if (distancia <= raioBuscaTerrenosProximos)
+            if (todos[i] != null && Vector3.Distance(posicaoReferencia, todos[i].transform.position) <= raioBuscaTerrenosProximos)
                 quantidadeProxima++;
         }
 
@@ -512,19 +369,10 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         BuyableLandAreaMarker[] proximos = new BuyableLandAreaMarker[quantidadeProxima];
         int indice = 0;
-
         for (int i = 0; i < todos.Length; i++)
         {
-            if (todos[i] == null)
-                continue;
-
-            float distancia = Vector3.Distance(posicaoReferencia, todos[i].transform.position);
-
-            if (distancia <= raioBuscaTerrenosProximos)
-            {
-                proximos[indice] = todos[i];
-                indice++;
-            }
+            if (todos[i] != null && Vector3.Distance(posicaoReferencia, todos[i].transform.position) <= raioBuscaTerrenosProximos)
+                proximos[indice++] = todos[i];
         }
 
         return proximos;
@@ -542,10 +390,8 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         for (int i = 0; i < terrenos.Length; i++)
         {
-            BuyableLandAreaMarker terreno = terrenos[i];
-
-            if (terreno != null)
-                terreno.DefinirDestaque(destacar);
+            if (terrenos[i] != null)
+                terrenos[i].DefinirDestaque(destacar);
         }
     }
 
@@ -554,17 +400,11 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (other == null)
             return false;
 
-        Transform outroTransform = other.transform;
+        Transform outro = other.transform;
 
         if (jogadorRaizOpcional != null)
         {
-            if (outroTransform == jogadorRaizOpcional)
-                return true;
-
-            if (outroTransform.IsChildOf(jogadorRaizOpcional))
-                return true;
-
-            if (outroTransform.root == jogadorRaizOpcional.root)
+            if (outro == jogadorRaizOpcional || outro.IsChildOf(jogadorRaizOpcional) || outro.root == jogadorRaizOpcional.root)
                 return true;
         }
 
@@ -575,10 +415,7 @@ public class BuySceneEntryTrigger : MonoBehaviour
                 if (other.CompareTag(tagDoPlayer))
                     return true;
             }
-            catch
-            {
-                // Tag inexistente. Ignora e continua os outros metodos.
-            }
+            catch { }
         }
 
         if (aceitarCharacterController && other.GetComponentInParent<CharacterController>() != null)
@@ -599,28 +436,19 @@ public class BuySceneEntryTrigger : MonoBehaviour
             return jogadorRaizOpcional;
 
         CharacterController characterController = origem.GetComponentInParent<CharacterController>();
-
         if (characterController != null)
             return characterController.transform;
 
         MonoBehaviour[] componentes = origem.GetComponentsInParent<MonoBehaviour>(true);
-
         for (int i = 0; i < componentes.Length; i++)
         {
             MonoBehaviour componente = componentes[i];
-
             if (componente == null)
                 continue;
 
             string nomeTipo = componente.GetType().Name;
-
-            if (nomeTipo == "PlayerMove" ||
-                nomeTipo == "Player_Move" ||
-                nomeTipo.Contains("PlayerMove") ||
-                nomeTipo.Contains("Player_Move"))
-            {
+            if (nomeTipo == "PlayerMove" || nomeTipo == "Player_Move" || nomeTipo.Contains("PlayerMove") || nomeTipo.Contains("Player_Move"))
                 return componente.transform;
-            }
         }
 
         return origem.root;
@@ -632,23 +460,15 @@ public class BuySceneEntryTrigger : MonoBehaviour
             return false;
 
         MonoBehaviour[] componentes = origem.GetComponentsInParent<MonoBehaviour>(true);
-
         for (int i = 0; i < componentes.Length; i++)
         {
             MonoBehaviour componente = componentes[i];
-
             if (componente == null)
                 continue;
 
             string nomeTipo = componente.GetType().Name;
-
-            if (nomeTipo == "PlayerMove" ||
-                nomeTipo == "Player_Move" ||
-                nomeTipo.Contains("PlayerMove") ||
-                nomeTipo.Contains("Player_Move"))
-            {
+            if (nomeTipo == "PlayerMove" || nomeTipo == "Player_Move" || nomeTipo.Contains("PlayerMove") || nomeTipo.Contains("Player_Move"))
                 return true;
-            }
         }
 
         return false;
@@ -670,14 +490,12 @@ public class BuySceneEntryTrigger : MonoBehaviour
     {
         Transform existente = transform.Find(nome);
         GameObject objetoLinha = existente != null ? existente.gameObject : new GameObject(nome);
-
         objetoLinha.transform.SetParent(transform, false);
         objetoLinha.transform.localPosition = Vector3.zero;
         objetoLinha.transform.localRotation = Quaternion.identity;
         objetoLinha.transform.localScale = Vector3.one;
 
         LineRenderer linha = objetoLinha.GetComponent<LineRenderer>();
-
         if (linha == null)
             linha = objetoLinha.AddComponent<LineRenderer>();
 
@@ -687,11 +505,10 @@ public class BuySceneEntryTrigger : MonoBehaviour
         linha.widthMultiplier = larguraLinha;
         linha.alignment = LineAlignment.View;
         linha.textureMode = LineTextureMode.Stretch;
-        linha.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        linha.shadowCastingMode = ShadowCastingMode.Off;
         linha.receiveShadows = false;
 
         Material material = ObterMaterialLinhas();
-
         if (material != null)
             linha.material = material;
 
@@ -704,23 +521,14 @@ public class BuySceneEntryTrigger : MonoBehaviour
             return materialLinhas;
 
         Shader shader = Shader.Find("Sprites/Default");
-
-        if (shader == null)
-            shader = Shader.Find("Universal Render Pipeline/Unlit");
-
-        if (shader == null)
-            shader = Shader.Find("Unlit/Color");
-
-        if (shader == null)
-            shader = Shader.Find("Hidden/Internal-Colored");
-
-        if (shader == null)
-            return null;
+        if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null) shader = Shader.Find("Unlit/Color");
+        if (shader == null) shader = Shader.Find("Hidden/Internal-Colored");
+        if (shader == null) return null;
 
         materialLinhas = new Material(shader);
         materialLinhas.name = "BuySceneEntryTrigger_LineMaterial";
         materialLinhas.hideFlags = HideFlags.HideAndDontSave;
-
         return materialLinhas;
     }
 
@@ -735,29 +543,19 @@ public class BuySceneEntryTrigger : MonoBehaviour
         CriarRenderizadores();
         AtualizarPosicoesVisual();
         AtualizarCorVisual();
-
-        if (sincronizarMarcacaoComStatusDosTerrenos && manterMarcacaoVisivelQuandoIndisponivel)
-            DefinirLinhasAtivas(true);
-        else
-            DefinirLinhasAtivas(true);
+        DefinirLinhasAtivas(true);
     }
 
     private void DefinirLinhasAtivas(bool ativo)
     {
-        if (linhaBorda != null)
-            linhaBorda.gameObject.SetActive(ativo);
-
-        if (linhaDiagonalA != null)
-            linhaDiagonalA.gameObject.SetActive(ativo && mostrarXCentral);
-
-        if (linhaDiagonalB != null)
-            linhaDiagonalB.gameObject.SetActive(ativo && mostrarXCentral);
+        if (linhaBorda != null) linhaBorda.gameObject.SetActive(ativo);
+        if (linhaDiagonalA != null) linhaDiagonalA.gameObject.SetActive(ativo && mostrarXCentral);
+        if (linhaDiagonalB != null) linhaDiagonalB.gameObject.SetActive(ativo && mostrarXCentral);
     }
 
     private void AtualizarCorVisual()
     {
         Color corAtual = ObterCorVisualAtual();
-
         AplicarCorNaLinha(linhaBorda, corAtual);
         AplicarCorNaLinha(linhaDiagonalA, corAtual);
         AplicarCorNaLinha(linhaDiagonalB, corAtual);
@@ -769,24 +567,13 @@ public class BuySceneEntryTrigger : MonoBehaviour
             return playerDentro ? corPlayerDentro : corNormal;
 
         BuyableLandAreaMarker terrenoReferencia = ObterTerrenoReferenciaParaCor();
-
         if (terrenoReferencia == null)
             return playerDentro ? corPlayerDentro : corNormal;
 
-        BuyableLandAreaMarker.EstadoDoTerreno estadoAgregado = CalcularEstadoAgregadoDosTerrenos(terrenoReferencia);
-
-        switch (estadoAgregado)
-        {
-            case BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel:
-                return terrenoReferencia.corIndisponivel;
-
-            case BuyableLandAreaMarker.EstadoDoTerreno.Destacado:
-                return terrenoReferencia.corDestacado;
-
-            case BuyableLandAreaMarker.EstadoDoTerreno.Disponivel:
-            default:
-                return terrenoReferencia.corDisponivel;
-        }
+        BuyableLandAreaMarker.EstadoDoTerreno estado = CalcularEstadoAgregadoDosTerrenos(terrenoReferencia);
+        if (estado == BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel) return terrenoReferencia.corIndisponivel;
+        if (estado == BuyableLandAreaMarker.EstadoDoTerreno.Destacado) return terrenoReferencia.corDestacado;
+        return terrenoReferencia.corDisponivel;
     }
 
     private BuyableLandAreaMarker[] ObterTerrenosParaSincronia()
@@ -804,16 +591,13 @@ public class BuySceneEntryTrigger : MonoBehaviour
     private BuyableLandAreaMarker ObterTerrenoReferenciaParaCor()
     {
         BuyableLandAreaMarker[] terrenos = ObterTerrenosParaSincronia();
-
         if (terrenos == null || terrenos.Length == 0)
             return null;
 
         for (int i = 0; i < terrenos.Length; i++)
         {
-            BuyableLandAreaMarker terreno = terrenos[i];
-
-            if (terreno != null && terreno.estadoAtual != BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel)
-                return terreno;
+            if (terrenos[i] != null && terrenos[i].estadoAtual != BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel)
+                return terrenos[i];
         }
 
         for (int i = 0; i < terrenos.Length; i++)
@@ -828,11 +612,9 @@ public class BuySceneEntryTrigger : MonoBehaviour
     private BuyableLandAreaMarker.EstadoDoTerreno CalcularEstadoAgregadoDosTerrenos(BuyableLandAreaMarker terrenoReferencia)
     {
         BuyableLandAreaMarker[] terrenos = ObterTerrenosParaSincronia();
-
         if (terrenos == null || terrenos.Length == 0)
             return terrenoReferencia.estadoAtual;
 
-        bool encontrouValido = false;
         bool todosIndisponiveis = true;
         bool existeDestacado = false;
         bool existeDisponivel = false;
@@ -840,37 +622,22 @@ public class BuySceneEntryTrigger : MonoBehaviour
         for (int i = 0; i < terrenos.Length; i++)
         {
             BuyableLandAreaMarker terreno = terrenos[i];
-
             if (terreno == null)
                 continue;
 
-            encontrouValido = true;
-
             if (terreno.estadoAtual != BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel)
                 todosIndisponiveis = false;
-
             if (terreno.estadoAtual == BuyableLandAreaMarker.EstadoDoTerreno.Destacado)
                 existeDestacado = true;
-
             if (terreno.estadoAtual == BuyableLandAreaMarker.EstadoDoTerreno.Disponivel)
                 existeDisponivel = true;
         }
 
-        if (!encontrouValido)
-            return terrenoReferencia.estadoAtual;
-
         if (calcadaIndisponivelSomenteQuandoTodosTerrenosIndisponiveis)
         {
-            if (todosIndisponiveis)
-                return BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel;
-
-            if (existeDestacado)
-                return BuyableLandAreaMarker.EstadoDoTerreno.Destacado;
-
-            if (existeDisponivel)
-                return BuyableLandAreaMarker.EstadoDoTerreno.Disponivel;
-
-            return terrenoReferencia.estadoAtual;
+            if (todosIndisponiveis) return BuyableLandAreaMarker.EstadoDoTerreno.Indisponivel;
+            if (existeDestacado) return BuyableLandAreaMarker.EstadoDoTerreno.Destacado;
+            if (existeDisponivel) return BuyableLandAreaMarker.EstadoDoTerreno.Disponivel;
         }
 
         return terrenoReferencia.estadoAtual;
@@ -894,50 +661,36 @@ public class BuySceneEntryTrigger : MonoBehaviour
         if (areaCollider == null)
             areaCollider = GetComponent<Collider>();
 
-        if (areaCollider == null)
+        if (areaCollider == null || linhaBorda == null || linhaDiagonalA == null || linhaDiagonalB == null)
             return;
 
-        Vector3 p0;
-        Vector3 p1;
-        Vector3 p2;
-        Vector3 p3;
+        Vector3 p0, p1, p2, p3;
         CalcularCantosSuperiores(out p0, out p1, out p2, out p3);
 
-        if (linhaBorda != null)
-        {
-            linhaBorda.positionCount = 5;
-            linhaBorda.SetPosition(0, p0);
-            linhaBorda.SetPosition(1, p1);
-            linhaBorda.SetPosition(2, p2);
-            linhaBorda.SetPosition(3, p3);
-            linhaBorda.SetPosition(4, p0);
-        }
+        linhaBorda.positionCount = 5;
+        linhaBorda.SetPosition(0, p0);
+        linhaBorda.SetPosition(1, p1);
+        linhaBorda.SetPosition(2, p2);
+        linhaBorda.SetPosition(3, p3);
+        linhaBorda.SetPosition(4, p0);
 
-        if (linhaDiagonalA != null)
-        {
-            linhaDiagonalA.positionCount = 2;
-            linhaDiagonalA.SetPosition(0, p0);
-            linhaDiagonalA.SetPosition(1, p2);
-        }
+        linhaDiagonalA.positionCount = 2;
+        linhaDiagonalA.SetPosition(0, p0);
+        linhaDiagonalA.SetPosition(1, p2);
 
-        if (linhaDiagonalB != null)
-        {
-            linhaDiagonalB.positionCount = 2;
-            linhaDiagonalB.SetPosition(0, p1);
-            linhaDiagonalB.SetPosition(1, p3);
-        }
+        linhaDiagonalB.positionCount = 2;
+        linhaDiagonalB.SetPosition(0, p1);
+        linhaDiagonalB.SetPosition(1, p3);
     }
 
     private void CalcularCantosSuperiores(out Vector3 p0, out Vector3 p1, out Vector3 p2, out Vector3 p3)
     {
         BoxCollider box = areaCollider as BoxCollider;
-
         if (box != null)
         {
             Vector3 centro = box.center;
             Vector3 metade = box.size * 0.5f;
             float y = centro.y + metade.y + alturaAcimaDoCollider;
-
             p0 = transform.TransformPoint(new Vector3(centro.x - metade.x, y, centro.z - metade.z));
             p1 = transform.TransformPoint(new Vector3(centro.x - metade.x, y, centro.z + metade.z));
             p2 = transform.TransformPoint(new Vector3(centro.x + metade.x, y, centro.z + metade.z));
@@ -947,7 +700,6 @@ public class BuySceneEntryTrigger : MonoBehaviour
 
         Bounds b = areaCollider.bounds;
         float topo = b.max.y + alturaAcimaDoCollider;
-
         p0 = new Vector3(b.min.x, topo, b.min.z);
         p1 = new Vector3(b.min.x, topo, b.max.z);
         p2 = new Vector3(b.max.x, topo, b.max.z);
@@ -960,13 +712,11 @@ public class BuySceneEntryTrigger : MonoBehaviour
             return;
 
         Collider col = GetComponent<Collider>();
-
         if (col == null)
             return;
 
         Gizmos.color = corGizmo;
         BoxCollider box = col as BoxCollider;
-
         if (box != null)
         {
             Gizmos.matrix = transform.localToWorldMatrix;
