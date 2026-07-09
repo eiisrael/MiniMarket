@@ -1,38 +1,32 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MiniMarket Upgrade Log</title>
 <style>
-body{margin:0;background:#111827;color:#e5e7eb;font-family:Segoe UI,Arial,sans-serif;}
-header{position:sticky;top:0;background:linear-gradient(90deg,#0f172a,#1e293b);padding:22px 28px;border-bottom:1px solid #334155;z-index:2;}
-h1{margin:0;font-size:26px;color:#facc15;}
-.subtitle{margin-top:6px;color:#cbd5e1;font-size:14px;}
-main{padding:22px 28px 80px;}
-.entry{background:#1f2937;border:1px solid #374151;border-left:5px solid #38bdf8;border-radius:12px;margin:0 0 14px;padding:16px 18px;box-shadow:0 8px 20px rgba(0,0,0,.22);}
-.entry.warn{border-left-color:#f59e0b}.entry.error{border-left-color:#ef4444}.entry.upgrade{border-left-color:#22c55e}.entry.camera{border-left-color:#a78bfa}.entry.grabber{border-left-color:#06b6d4}.entry.log{border-left-color:#facc15}
-.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;color:#94a3b8;font-size:12px;margin-bottom:8px}.tag{background:#0f172a;border:1px solid #475569;border-radius:999px;padding:3px 9px;color:#cbd5e1}.title{font-size:17px;font-weight:700;color:#fff;margin-bottom:8px}.details{white-space:pre-wrap;line-height:1.45;color:#d1d5db}code{color:#facc15}
+:root{--bg:#070b14;--panel:#101827;--panel2:#172033;--line:#2e3b55;--txt:#e8eefc;--muted:#9fb0cf;--yellow:#ffd34d;--green:#36d399;--cyan:#43d9ff;--purple:#b892ff;--red:#ff5d68;--orange:#ffb454}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,#1a2b45 0,#070b14 42%,#05070c 100%);color:var(--txt);font-family:Segoe UI,Arial,sans-serif}header{padding:30px 34px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,rgba(16,24,39,.96),rgba(9,13,24,.94));position:sticky;top:0;z-index:2;backdrop-filter:blur(10px)}h1{margin:0;color:var(--yellow);font-size:30px;letter-spacing:.3px}.subtitle{margin-top:8px;color:var(--muted);font-size:14px}.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;padding:22px 34px 0}.card{background:linear-gradient(180deg,var(--panel),#0b1220);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 14px 28px rgba(0,0,0,.28)}.card b{display:block;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.card span{display:block;margin-top:8px;font-size:21px;color:#fff}main{padding:22px 34px 90px}.entry{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-left:6px solid var(--cyan);border-radius:16px;margin:0 0 16px;padding:17px 20px;box-shadow:0 12px 26px rgba(0,0,0,.26)}.entry:before{content:"";position:absolute;left:-10px;top:22px;width:14px;height:14px;border-radius:50%;background:var(--cyan);box-shadow:0 0 18px var(--cyan)}.entry.warn{border-left-color:var(--orange)}.entry.warn:before{background:var(--orange);box-shadow:0 0 18px var(--orange)}.entry.error{border-left-color:var(--red)}.entry.error:before{background:var(--red);box-shadow:0 0 18px var(--red)}.entry.upgrade{border-left-color:var(--green)}.entry.upgrade:before{background:var(--green);box-shadow:0 0 18px var(--green)}.entry.camera{border-left-color:var(--purple)}.entry.camera:before{background:var(--purple);box-shadow:0 0 18px var(--purple)}.entry.grabber{border-left-color:var(--cyan)}.entry.log{border-left-color:var(--yellow)}.entry.log:before{background:var(--yellow);box-shadow:0 0 18px var(--yellow)}.meta{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px}.tag{font-size:12px;border:1px solid #3b4a67;background:#0a1020;color:#c8d5f2;border-radius:999px;padding:4px 10px}.title{font-size:18px;font-weight:800;color:white;margin-bottom:8px}.details{white-space:pre-wrap;line-height:1.52;color:#d9e2f6;font-size:14px}code{color:var(--yellow)}.hint{margin:18px 34px 0;padding:14px 18px;border:1px solid #365475;border-radius:14px;background:rgba(67,217,255,.08);color:#cfeeff}
 </style>
 </head>
 <body>
-<header><h1>MiniMarket Upgrade Log</h1><div class="subtitle">Registro organizado de alterações, diagnósticos, correções e eventos importantes do projeto.</div></header>
+<header><h1>MiniMarket Upgrade Log</h1><div class="subtitle">Registro profissional de alterações, diagnósticos, correções, warnings e eventos importantes do projeto.</div></header>
+<section class="dashboard"><div class="card"><b>Status</b><span>Ativo</span></div><div class="card"><b>Anti-spam</b><span>Rate limit</span></div><div class="card"><b>Arquivo</b><span>UpgradeLog.htm</span></div><div class="card"><b>Uso</b><span>Diagnóstico</span></div></section>
+<div class="hint">Abra este arquivo no navegador para revisar o histórico. O logger grava em lote para evitar lag e não usa Refresh do AssetDatabase em loop.</div>
 <main>
 <!-- LOG_ENTRIES -->
 <section class="entry log">
-<div class="meta"><span class="tag">2026-07-09</span><span class="tag">Logs</span><span class="tag">Planejamento</span></div>
-<div class="title">UpgradeLog.htm redesignado</div>
-<div class="details">Arquivo HTML remodelado para servir como registro central de alterações do MiniMarket. A partir desta implementação, o script MiniMarketUpgradeLogger registra eventos em tempo de execução com fila, flush em lote e rate limit para evitar spam/lag.</div>
-</section>
-<section class="entry camera">
-<div class="meta"><span class="tag">2026-07-09</span><span class="tag">Camera</span><span class="tag">Correção</span></div>
-<div class="title">Estabilização de câmera e primeira pessoa</div>
-<div class="details">Adicionado estabilizador automático para desativar auto-align/recenter que causa pulsação na Main Camera e remover inércia residual/jumping horizontal da câmera em primeira pessoa.</div>
+<div class="meta"><span class="tag">2026-07-09</span><span class="tag">Logs</span><span class="tag">Design</span></div>
+<div class="title">UpgradeLog.htm redesenhado</div>
+<div class="details">Visual atualizado com dashboard, cards, timeline lateral, categorias por cor e layout mais legível. O logger em runtime grava novas entradas acima deste marcador com fila, flush em lote e rate limit.</div>
 </section>
 <section class="entry grabber">
 <div class="meta"><span class="tag">2026-07-09</span><span class="tag">Grabber</span><span class="tag">Correção</span></div>
-<div class="title">Sistema de pegar/colocar objetos revisado</div>
-<div class="details">Sistema de GetItem/Grabber revisado para seleção mais tolerante, item mais afastado da câmera em primeira pessoa, assistência de câmera lateral na terceira pessoa e encaixe leve em superfície ao soltar.</div>
+<div class="title">Rigidbody, primeira pessoa e encaixe de superfície</div>
+<div class="details">Sistema de pegar objetos ajustado para usar movimento kinematic enquanto segura, voltar Rigidbody dinâmico ao soltar, remover constraints, melhorar visibilidade em primeira pessoa, aplicar camera assist à esquerda e encaixar o objeto suavemente na superfície.</div>
+</section>
+<section class="entry upgrade">
+<div class="meta"><span class="tag">2026-07-09</span><span class="tag">Physics</span><span class="tag">Novo</span></div>
+<div class="title">Player Rigidbody Pusher</div>
+<div class="details">Adicionado empurrador automático para CharacterController conseguir empurrar caixas/produtos com Rigidbody sem ficarem travados no chão.</div>
 </section>
 </main>
 </body>
