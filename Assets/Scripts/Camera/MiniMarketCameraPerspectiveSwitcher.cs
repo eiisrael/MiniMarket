@@ -3,12 +3,16 @@ using UnityEngine;
 /// <summary>
 /// Controlador de perspectiva do MiniMarket.
 ///
-/// Novo comportamento:
-/// - Segurar botão direito: ativa primeira pessoa na própria Main Camera.
-/// - Soltar botão direito: volta para a camera normal/terceira pessoa.
-/// - Não alterna mais por TAB, evitando conflito com menu.
-/// - Mantém a camera secundária desativada para não haver duas cameras brigando.
-/// - Atualiza PlayerMove.cameraTransform sempre para a Main Camera estável.
+/// Responsabilidade atual:
+/// - Segurar botão direito: solicita primeira pessoa na própria Main Camera.
+/// - Soltar botão direito: volta para terceira pessoa.
+/// - Mantém a câmera secundária antiga desativada.
+/// - Atualiza PlayerMove.cameraTransform para a Main Camera.
+///
+/// Importante:
+/// - Este script NÃO rotaciona mais o personagem por padrão.
+/// - A autoridade de yaw/pitch/rotação do corpo fica na CameraGTAFollowHardcore.
+/// - Isso evita duas rotinas brigando pelo eixo em primeira pessoa.
 /// </summary>
 [DefaultExecutionOrder(21000)]
 public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
@@ -47,7 +51,10 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
     [Header("Primeira Pessoa - Personagem")]
     public Transform personagemParaRotacionar;
-    public bool rotacionarPersonagemComCamera = true;
+
+    [Tooltip("Desligado por padrão. Evita duplicar a rotação que já é feita pela CameraGTAFollowHardcore.")]
+    public bool rotacionarPersonagemComCamera = false;
+
     [Min(0.1f)] public float velocidadeRotacaoPersonagem = 18f;
     public bool ocultarRenderersNaPrimeiraPessoa = true;
     public bool encontrarRenderersAutomaticamente = true;
@@ -121,9 +128,10 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
     private void LateUpdate()
     {
-        // Garante que camera secundária antiga não ligue sozinha e não concorra com a Main Camera.
         DesativarCameraPrimeiraPessoaAntiga();
         AtualizarCameraDoPlayerMove();
+
+        // Mantido apenas como opção manual no Inspector. Por padrão fica desligado.
         AtualizarRotacaoPersonagemPrimeiraPessoa();
     }
 
