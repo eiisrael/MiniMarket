@@ -4,8 +4,8 @@ using UnityEngine;
 /// <summary>
 /// Estabilizador automático da câmera do MiniMarket.
 ///
-/// Mantém a Main Camera estável, sem auto-align/recenter, e força a primeira pessoa real
-/// quando o botão direito estiver ativo pelo MiniMarketCameraPerspectiveSwitcher.
+/// Mantém a Main Camera estável, sem auto-align/recenter, sem efeito mola ao apertar S/A/D
+/// e com primeira pessoa real pelo botão direito.
 /// </summary>
 [DefaultExecutionOrder(32000)]
 public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
@@ -19,6 +19,12 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     [Header("Main Camera - Anti Pulso")]
     public bool desativarAutoAlignDaCamera = true;
     public bool manterCameraLivreSemRecenter = true;
+
+    [Header("Anti Tremor S/A/D")]
+    public bool removerEfeitoMolaMovimento = true;
+    [Min(0f)] public float positionSmoothTimeTerceiraPessoa = 0f;
+    [Min(0f)] public float rotationSmoothTimeTerceiraPessoa = 0f;
+    [Min(0f)] public float tremorVerticalIgnorado = 0.01f;
 
     [Header("Primeira Pessoa - Anti Jumping")]
     public bool zerarInerciaMouseQuandoParar = true;
@@ -124,6 +130,18 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
             cameraGTA.bloquearAutoAlignDuranteMira = true;
         }
 
+        if (removerEfeitoMolaMovimento)
+        {
+            cameraGTA.removerEfeitoMolaDaCamera = true;
+            cameraGTA.usarSeguimentoDiretoQuandoNaoEstaTransicionando = true;
+            cameraGTA.positionSmoothTime = positionSmoothTimeTerceiraPessoa;
+            cameraGTA.rotationSmoothTime = rotationSmoothTimeTerceiraPessoa;
+            cameraGTA.positionSmoothTimePrimeiraPessoa = 0f;
+            cameraGTA.rotationSmoothTimePrimeiraPessoa = 0f;
+            cameraGTA.ignorarTremorVerticalMenorQue = tremorVerticalIgnorado;
+            cameraGTA.estabilizarPontoPrimeiraPessoaContraAnimacao = true;
+        }
+
         cameraGTA.usarZoomMiraPorDistancia = false;
         cameraGTA.aplicarColisaoNoZoomMira = false;
         cameraGTA.preservarAnguloAtualNaTransicao = true;
@@ -146,7 +164,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (logarEventos && Time.unscaledTime - ultimoLogTempo > 10f)
         {
             ultimoLogTempo = Time.unscaledTime;
-            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; primeira pessoa real; smooth FP = " + mouseSmoothTimePrimeiraPessoa.ToString("0.###"), "camera-config", 10f);
+            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; efeito mola S/A/D removido; smooth FP = " + mouseSmoothTimePrimeiraPessoa.ToString("0.###"), "camera-config", 10f);
         }
     }
 
