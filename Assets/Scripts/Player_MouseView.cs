@@ -6,7 +6,8 @@ using UnityEngine;
 /// Ajuste atual:
 /// - Botão direito entra em primeira pessoa via SetPrimeiraPessoa(true), soltar volta para terceira pessoa.
 /// - Sem auto-align/recenter automático: remove pulsação/reset de eixo.
-/// - Primeira pessoa usa posição real dos olhos, não zoom atrás da cabeça.
+/// - Remove efeito mola/estabilização da camera ao apertar S/A/D repetidamente.
+/// - Primeira pessoa usa posição estável baseada no corpo, não no balanço da cabeça/Empty.
 /// - Oculta renderers do personagem em primeira pessoa para não ver cabeça/corpo por dentro.
 /// - Colisão da terceira pessoa ignora o próprio player e objetos seguráveis, evitando snap/travadas.
 /// </summary>
@@ -33,7 +34,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
     [Header("Suavização do Mouse")]
     public bool suavizarMouse = true;
-    [Min(0f)] public float mouseSmoothTimeTerceiraPessoa = 0.008f;
+    [Min(0f)] public float mouseSmoothTimeTerceiraPessoa = 0.006f;
     [Min(0f)] public float mouseSmoothTimePrimeiraPessoa = 0f;
     public bool usarMesmaSensibilidadeDaMainCameraNaPrimeiraPessoa = true;
     [Min(0f)] public float mouseDeadZone = 0.001f;
@@ -43,8 +44,23 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     public float maxPitch = 65f;
 
     [Header("Suavização Terceira Pessoa")]
-    [Min(0f)] public float positionSmoothTime = 0.035f;
-    [Min(0f)] public float rotationSmoothTime = 0.025f;
+    [Tooltip("Recomendado 0 para remover o efeito mola/tremor ao apertar S/A/D.")]
+    [Min(0f)] public float positionSmoothTime = 0f;
+    [Tooltip("Recomendado 0 para camera responder fixa, sem oscilação.")]
+    [Min(0f)] public float rotationSmoothTime = 0f;
+
+    [Header("Anti Tremor de Movimento")]
+    [Tooltip("Remove o efeito de estabilização/mola da camera quando não está transicionando.")]
+    public bool removerEfeitoMolaDaCamera = true;
+
+    [Tooltip("Na camera normal e na primeira pessoa, aplica posição/rotação direta para não tremer com S/A/D.")]
+    public bool usarSeguimentoDiretoQuandoNaoEstaTransicionando = true;
+
+    [Tooltip("Ignora micro variações verticais do alvo, evitando tremor por animação/CharacterController.")]
+    [Min(0f)] public float ignorarTremorVerticalMenorQue = 0.01f;
+
+    [Tooltip("Na primeira pessoa, não usa o balanço real do Empty da cabeça; usa altura estável a partir do corpo.")]
+    public bool estabilizarPontoPrimeiraPessoaContraAnimacao = true;
 
     [Header("Auto Alinhar Atrás do Personagem")]
     public bool autoAlignBehindPlayer = false;
@@ -96,8 +112,8 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     [Min(0.1f)] public float velocidadeSaidaPrimeiraPessoa = 14f;
     [Min(0f)] public float positionSmoothTimePrimeiraPessoa = 0f;
     [Min(0f)] public float rotationSmoothTimePrimeiraPessoa = 0f;
-    [Min(0f)] public float positionSmoothTimeSaidaPrimeiraPessoa = 0.035f;
-    [Min(0f)] public float rotationSmoothTimeSaidaPrimeiraPessoa = 0.025f;
+    [Min(0f)] public float positionSmoothTimeSaidaPrimeiraPessoa = 0.02f;
+    [Min(0f)] public float rotationSmoothTimeSaidaPrimeiraPessoa = 0.015f;
 
     [Header("Rotação do Personagem na Mira")]
     public bool rotacionarPersonagemNaPrimeiraPessoa = true;
@@ -138,6 +154,8 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     private Vector2 mouseSuavizado;
     private Vector2 mouseSmoothVelocity;
     private Vector3 lastTargetPosition;
+    private Vector3 ultimoFocusPointEstavel;
+    private bool possuiFocusPointEstavel;
 
     private bool primeiraPessoaSolicitada;
     private float primeiraPessoaBlend;
@@ -169,6 +187,8 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
             pitch = NormalizarPitch(transform.eulerAngles.x, pitch);
             lastTargetPosition = target.position;
+            ultimoFocusPointEstavel = target.position + targetOffset;
+            possuiFocusPointEstavel = true;
         }
 
         if (autoEncontrarRenderersDoTarget && target != null && (renderersParaOcultar == null || renderersParaOcultar.Length == 0))
@@ -204,7 +224,6 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
         AtualizarBlendPrimeiraPessoa();
 
-        // Auto-align fica efetivamente desligado por padrão para impedir pulsação/reset de eixo.
         if (!EstaEmPrimeiraPessoa)
             HandleAutoAlign();
 
@@ -225,6 +244,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         ResetarSuavizacoes();
         yawAutoAlignVelocity = 0f;
         timeWithoutMouse = 0f;
+        possuiFocusPointEstavel = false;
 
         if (!preservarAnguloAtualNaTransicao && primeiraPessoaSolicitada)
         {
@@ -301,7 +321,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
     private void UpdateCameraUnificada()
     {
-        Vector3 focusPoint = target.position + targetOffset;
+        Vector3 focusPoint = CalcularFocusPointEstavel();
         Quaternion orbitRotation = Quaternion.Euler(pitch, yaw, 0f);
 
         Vector3 terceiraPessoaPosition = focusPoint - orbitRotation * Vector3.forward * distance + Vector3.up * height;
@@ -315,20 +335,20 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         Vector3 desiredPosition = Vector3.Lerp(terceiraPessoaPosition, primeiraPessoaPosition, blendSuave);
         Quaternion desiredRotation = Quaternion.Slerp(terceiraPessoaRotation, primeiraPessoaRotation, blendSuave);
 
-        if (primeiraPessoaSolicitada && primeiraPessoaBlend >= 0.98f)
+        bool cameraEmEstadoPuro = blendSuave <= 0.01f || blendSuave >= 0.98f;
+        bool usarDireto = removerEfeitoMolaDaCamera && usarSeguimentoDiretoQuandoNaoEstaTransicionando && cameraEmEstadoPuro;
+
+        if (usarDireto)
         {
             transform.position = desiredPosition;
             transform.rotation = desiredRotation;
+            positionVelocity = Vector3.zero;
+            rotationVelocity = new Quaternion(0f, 0f, 0f, 0f);
         }
         else
         {
-            float smoothPositionAtual = primeiraPessoaSolicitada
-                ? positionSmoothTimePrimeiraPessoa
-                : positionSmoothTimeSaidaPrimeiraPessoa;
-
-            float smoothRotationAtual = primeiraPessoaSolicitada
-                ? rotationSmoothTimePrimeiraPessoa
-                : rotationSmoothTimeSaidaPrimeiraPessoa;
+            float smoothPositionAtual = primeiraPessoaSolicitada ? positionSmoothTimePrimeiraPessoa : positionSmoothTimeSaidaPrimeiraPessoa;
+            float smoothRotationAtual = primeiraPessoaSolicitada ? rotationSmoothTimePrimeiraPessoa : rotationSmoothTimeSaidaPrimeiraPessoa;
 
             if (primeiraPessoaBlend <= 0.01f)
             {
@@ -353,18 +373,45 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         lastTargetPosition = target.position;
     }
 
+    private Vector3 CalcularFocusPointEstavel()
+    {
+        Vector3 atual = target.position + targetOffset;
+
+        if (!removerEfeitoMolaDaCamera)
+            return atual;
+
+        if (!possuiFocusPointEstavel)
+        {
+            ultimoFocusPointEstavel = atual;
+            possuiFocusPointEstavel = true;
+            return atual;
+        }
+
+        if (Mathf.Abs(atual.y - ultimoFocusPointEstavel.y) <= ignorarTremorVerticalMenorQue)
+            atual.y = ultimoFocusPointEstavel.y;
+
+        ultimoFocusPointEstavel = atual;
+        return atual;
+    }
+
     private Vector3 CalcularPosicaoPrimeiraPessoaEstavel()
     {
         if (!usarPosicaoPrimeiraPessoaEstavel && pontoPrimeiraPessoa != null)
             return pontoPrimeiraPessoa.TransformPoint(ajusteLocalPontoPrimeiraPessoa);
 
-        if (pontoPrimeiraPessoa != null)
+        Quaternion yawRotation = Quaternion.Euler(0f, yaw, 0f);
+
+        if (pontoPrimeiraPessoa != null && estabilizarPontoPrimeiraPessoaContraAnimacao)
         {
-            Quaternion yawRotationPonto = Quaternion.Euler(0f, yaw, 0f);
-            return pontoPrimeiraPessoa.position + yawRotationPonto * ajusteLocalPontoPrimeiraPessoa;
+            float alturaOlhos = pontoPrimeiraPessoa.position.y - target.position.y;
+            alturaOlhos = Mathf.Max(0.2f, alturaOlhos);
+            Vector3 offsetPlanoEstavel = new Vector3(ajusteLocalPontoPrimeiraPessoa.x, 0f, ajusteLocalPontoPrimeiraPessoa.z);
+            return target.position + Vector3.up * alturaOlhos + yawRotation * offsetPlanoEstavel;
         }
 
-        Quaternion yawRotation = Quaternion.Euler(0f, yaw, 0f);
+        if (pontoPrimeiraPessoa != null)
+            return pontoPrimeiraPessoa.position + yawRotation * ajusteLocalPontoPrimeiraPessoa;
+
         Vector3 offsetPlano = new Vector3(offsetPrimeiraPessoa.x, 0f, offsetPrimeiraPessoa.z);
         return target.position + Vector3.up * offsetPrimeiraPessoa.y + yawRotation * offsetPlano;
     }
@@ -517,7 +564,6 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         if (colTransform == transform || colTransform.IsChildOf(transform))
             return true;
 
-        // Objetos seguráveis não devem empurrar/rebater a câmera. Isso remove snaps quando a caixa passa perto do foco.
         if (col.GetComponentInParent<GrabbableObjectHardcore>() != null)
             return true;
 
@@ -642,6 +688,11 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         distance = Mathf.Max(0.1f, distance);
         distanciaZoomMira = Mathf.Max(0.15f, distanciaZoomMira);
         distanciaOlharFrenteZoomMira = Mathf.Max(0.5f, distanciaOlharFrenteZoomMira);
+        positionSmoothTime = Mathf.Max(0f, positionSmoothTime);
+        rotationSmoothTime = Mathf.Max(0f, rotationSmoothTime);
+        positionSmoothTimePrimeiraPessoa = Mathf.Max(0f, positionSmoothTimePrimeiraPessoa);
+        rotationSmoothTimePrimeiraPessoa = Mathf.Max(0f, rotationSmoothTimePrimeiraPessoa);
+        ignorarTremorVerticalMenorQue = Mathf.Max(0f, ignorarTremorVerticalMenorQue);
         cameraCollisionRadius = Mathf.Max(0.01f, cameraCollisionRadius);
         cameraCollisionOffset = Mathf.Max(0f, cameraCollisionOffset);
         cameraMinDistanceFromFocus = Mathf.Max(0.05f, cameraMinDistanceFromFocus);
