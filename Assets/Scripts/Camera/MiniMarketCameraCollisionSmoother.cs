@@ -3,14 +3,15 @@ using UnityEngine;
 /// <summary>
 /// Suavizador de colisão da câmera em terceira pessoa.
 ///
-/// Problema diagnosticado no CameraRealtimeLog:
-/// - ao andar para trás/lados perto de parede/objeto, a distância câmera->alvo caiu bruscamente;
-/// - isso acontecia porque a colisão da câmera encurtava a distância instantaneamente;
-/// - visualmente parecia travada/reset/mudança brusca de eixo.
+/// Diagnóstico real dos logs:
+/// - A câmera dava salto de distância quando o anti-parede interno encurtava a câmera de uma vez.
+/// - Isso gerava sensação de travada/mudança brusca de eixo ao usar W/S/A/D perto de parede/objeto.
 ///
-/// Este script roda depois da CameraGTAFollowHardcore e antes do logger,
-/// recalcula a posição segura da terceira pessoa e suaviza SOMENTE a distância de colisão.
-/// Assim mantém a câmera fixa/sem mola no movimento normal, mas impede snap quando encontra parede.
+/// Correção:
+/// - Desativa a colisão interna instantânea da CameraGTAFollowHardcore.
+/// - Este script assume 100% da colisão da câmera em terceira pessoa.
+/// - A distância câmera->alvo é suavizada separadamente da rotação/orbit.
+/// - Se o jogador mexer o mouse, a órbita continua responsiva, mas a aproximação/retorno de parede não dá snap.
 /// </summary>
 [DefaultExecutionOrder(32500)]
 public class MiniMarketCameraCollisionSmoother : MonoBehaviour
@@ -24,20 +25,30 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
     public bool procurarAutomaticamente = true;
     [Min(0.2f)] public float intervaloBusca = 1f;
 
-    [Header("Suavização da Colisão")]
+    [Header("Controle da Colisão")]
+    [Tooltip("Desliga a colisão instantânea dentro da CameraGTAFollowHardcore para evitar dois sistemas brigando.")]
+    public bool desativarColisaoInternaCameraGTA = true;
+
+    [Tooltip("Este script calcula e aplica a colisão suavizada da câmera.")]
+    public bool usarColisaoSuavizada = true;
+
     public bool suavizarSomenteTerceiraPessoa = true;
 
+    [Header("Suavização da Distância")]
     [Tooltip("Velocidade máxima para aproximar a câmera quando parede/objeto aparece atrás dela.")]
-    [Min(0.1f)] public float velocidadeAproximarPorColisao = 9f;
+    [Min(0.1f)] public float velocidadeAproximarPorColisao = 5.5f;
 
     [Tooltip("Velocidade máxima para voltar à distância normal quando sai da parede.")]
-    [Min(0.1f)] public float velocidadeRetornarDistanciaNormal = 6f;
+    [Min(0.1f)] public float velocidadeRetornarDistanciaNormal = 4.0f;
 
-    [Tooltip("Velocidade de emergência se a câmera já estiver sobreposta a uma parede.")]
-    [Min(0.1f)] public float velocidadeEmergenciaQuandoSobreposto = 24f;
+    [Tooltip("Velocidade de emergência se a câmera realmente estiver sobreposta a uma parede.")]
+    [Min(0.1f)] public float velocidadeEmergenciaQuandoSobreposto = 16f;
 
     [Tooltip("Diferenças menores que isso são aplicadas direto para evitar vibração pequena.")]
-    [Min(0f)] public float zonaMortaDistancia = 0.015f;
+    [Min(0f)] public float zonaMortaDistancia = 0.02f;
+
+    [Tooltip("Limita o quanto a distância pode mudar em um único frame. Esse é o anti-snap principal.")]
+    [Min(0.01f)] public float maxDeltaDistanciaPorFrame = 0.18f;
 
     [Header("Colisão")]
     [Min(0.01f)] public float raioExtraOverlap = 0.04f;
@@ -78,6 +89,7 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
         instancia = this;
         DontDestroyOnLoad(gameObject);
         ResolverReferencias(true);
+        AplicarControleNaCameraGTA();
     }
 
     private void LateUpdate()
@@ -93,6 +105,8 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
         if (cameraMonitorada == null || cameraGTA == null || cameraGTA.target == null)
             return;
+
+        AplicarControleNaCameraGTA();
 
         if (suavizarSomenteTerceiraPessoa && cameraGTA.EstaEmPrimeiraPessoa)
         {
@@ -119,6 +133,16 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
         if (cameraMonitorada == null && cameraGTA != null)
             cameraMonitorada = cameraGTA.GetComponent<Camera>();
+    }
+
+    private void AplicarControleNaCameraGTA()
+    {
+        if (cameraGTA == null || !desativarColisaoInternaCameraGTA)
+            return;
+
+        // Evita a colisão instantânea original, que era a fonte do snap.
+        cameraGTA.usarColisaoCamera = false;
+        cameraGTA.corrigirPosicaoFinalSuavizada = false;
     }
 
     private void AplicarSuavizacaoDeColisao()
@@ -161,7 +185,8 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
                 ? velocidadeEmergenciaQuandoSobreposto
                 : (aproximandoPorColisao ? velocidadeAproximarPorColisao : velocidadeRetornarDistanciaNormal);
 
-            distanciaAtual = Mathf.MoveTowards(distanciaAtual, alvoDistancia, velocidade * Time.deltaTime);
+            float passo = Mathf.Min(velocidade * Time.deltaTime, maxDeltaDistanciaPorFrame);
+            distanciaAtual = Mathf.MoveTowards(distanciaAtual, alvoDistancia, passo);
 
             if (logarIncidentes && Time.unscaledTime - ultimoLog > 1f && diferenca > 0.3f)
             {
@@ -186,7 +211,7 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
     private float CalcularDistanciaSegura(Vector3 focus, Vector3 direcao, float distanciaNormal)
     {
-        if (!cameraGTA.usarColisaoCamera)
+        if (!usarColisaoSuavizada)
             return distanciaNormal;
 
         float distanciaSegura = distanciaNormal;
