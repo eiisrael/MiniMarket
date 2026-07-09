@@ -1,16 +1,15 @@
 using UnityEngine;
 
 /// <summary>
-/// Ajusta automaticamente o CameraRealtimeAnomalyLogger para não pausar por movimento normal de mouse/orbit.
+/// Ajusta automaticamente o CameraRealtimeAnomalyLogger antes dele analisar a câmera.
 ///
 /// O log mostrou dois cenários diferentes:
 /// - problema real: distância câmera->alvo muda por colisão/anti-parede;
 /// - falso positivo: órbita normal da câmera por mouse enquanto W/S/A/D está pressionado.
 ///
-/// Este tuner mantém o logger ativo, mas aumenta limites de velocidade/aceleração/rotação
-/// para ele não travar o Play por movimento normal do jogador.
+/// Este tuner roda antes do logger e mantém o diagnóstico ativo sem pausar por movimento normal.
 /// </summary>
-[DefaultExecutionOrder(33100)]
+[DefaultExecutionOrder(32900)]
 public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
 {
     public bool aplicarAutomaticamente = true;
@@ -68,11 +67,24 @@ public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
         Aplicar();
     }
 
+    private void Update()
+    {
+        if (!aplicarAutomaticamente)
+            return;
+
+        BuscarEAplicarSeNecessario();
+    }
+
     private void LateUpdate()
     {
         if (!aplicarAutomaticamente)
             return;
 
+        BuscarEAplicarSeNecessario();
+    }
+
+    private void BuscarEAplicarSeNecessario()
+    {
         if (procurarAutomaticamente && Time.unscaledTime >= proximaBusca)
         {
             proximaBusca = Time.unscaledTime + Mathf.Max(0.25f, intervaloBusca);
@@ -108,7 +120,7 @@ public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
         if (!aplicouUmaVez)
         {
             aplicouUmaVez = true;
-            MiniMarketUpgradeLogger.Log("Camera", "Camera diagnostics tuner aplicado", "Logger ajustado para não pausar por órbita normal/mouse e continuar pegando snap real de distância/colisão.", "camera-diagnostics-tuner", 3f);
+            MiniMarketUpgradeLogger.Log("Camera", "Camera diagnostics tuner aplicado", "Logger ajustado antes da análise para não pausar por órbita normal/mouse e continuar pegando snap real de distância/colisão.", "camera-diagnostics-tuner", 3f);
         }
     }
 }
