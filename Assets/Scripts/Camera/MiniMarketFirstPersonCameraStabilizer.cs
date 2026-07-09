@@ -5,7 +5,8 @@ using UnityEngine;
 /// Estabilizador automático da câmera do MiniMarket.
 ///
 /// Mantém a Main Camera estável, sem auto-align/recenter, sem efeito mola ao apertar S/A/D,
-/// sem suavização residual de mouse e com primeira pessoa real pelo botão direito.
+/// sem suavização residual de mouse, sem pitch extremo que causa colisão no chão,
+/// e com primeira pessoa real pelo botão direito.
 /// </summary>
 [DefaultExecutionOrder(32000)]
 public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
@@ -26,8 +27,13 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     [Min(0f)] public float rotationSmoothTimeTerceiraPessoa = 0f;
     [Min(0f)] public float tremorVerticalIgnorado = 0.01f;
 
+    [Header("Limite vertical seguro")]
+    [Tooltip("Evita olhar extremo para baixo, que fazia a colisão da câmera bater no chão e puxar a câmera para perto do player.")]
+    public bool forcarLimitesVerticaisSeguros = true;
+    public float minPitchSeguro = -40f;
+    public float maxPitchSeguro = 60f;
+
     [Header("Mouse - Sem Arrasto Residual")]
-    [Tooltip("Desliga a suavizacao de mouse para impedir que MouseSuavizado continue girando a camera depois que o mouse para.")]
     public bool desligarSuavizacaoMouseTotal = true;
     [Min(0f)] public float mouseSmoothTimeTerceiraPessoa = 0f;
 
@@ -47,6 +53,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     private FieldInfo campoMouseSmoothVelocity;
     private FieldInfo campoPositionVelocity;
     private FieldInfo campoRotationVelocity;
+    private FieldInfo campoPitch;
     private bool ultimoEstadoPrimeiraPessoa;
     private float ultimoLogTempo;
 
@@ -147,6 +154,13 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
             cameraGTA.estabilizarPontoPrimeiraPessoaContraAnimacao = true;
         }
 
+        if (forcarLimitesVerticaisSeguros)
+        {
+            cameraGTA.minPitch = minPitchSeguro;
+            cameraGTA.maxPitch = maxPitchSeguro;
+            ClampPitchInterno();
+        }
+
         if (desligarSuavizacaoMouseTotal)
         {
             cameraGTA.suavizarMouse = false;
@@ -177,7 +191,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (logarEventos && Time.unscaledTime - ultimoLogTempo > 10f)
         {
             ultimoLogTempo = Time.unscaledTime;
-            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; efeito mola S/A/D removido; smooth mouse desligado.", "camera-config", 10f);
+            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; efeito mola removido; smooth mouse desligado; pitch seguro " + minPitchSeguro.ToString("0") + "/" + maxPitchSeguro.ToString("0") + ".", "camera-config", 10f);
         }
     }
 
@@ -191,6 +205,17 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         campoMouseSmoothVelocity = tipo.GetField("mouseSmoothVelocity", BindingFlags.Instance | BindingFlags.NonPublic);
         campoPositionVelocity = tipo.GetField("positionVelocity", BindingFlags.Instance | BindingFlags.NonPublic);
         campoRotationVelocity = tipo.GetField("rotationVelocity", BindingFlags.Instance | BindingFlags.NonPublic);
+        campoPitch = tipo.GetField("pitch", BindingFlags.Instance | BindingFlags.NonPublic);
+    }
+
+    private void ClampPitchInterno()
+    {
+        if (cameraGTA == null || campoPitch == null)
+            return;
+
+        object valor = campoPitch.GetValue(cameraGTA);
+        if (valor is float pitchAtual)
+            campoPitch.SetValue(cameraGTA, Mathf.Clamp(pitchAtual, minPitchSeguro, maxPitchSeguro));
     }
 
     private void RemoverInerciaResidualDoMouse()
