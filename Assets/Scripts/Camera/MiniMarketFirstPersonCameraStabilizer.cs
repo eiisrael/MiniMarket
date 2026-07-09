@@ -2,13 +2,10 @@ using System.Reflection;
 using UnityEngine;
 
 /// <summary>
-/// Estabilizador automatico da camera do MiniMarket.
+/// Estabilizador automático da câmera do MiniMarket.
 ///
-/// Corrige dois problemas comuns:
-/// - pulso/reset de eixo da Main Camera causado por auto-align;
-/// - jumping/fade-out horizontal da primeira pessoa causado por inercia residual do mouse e suavizacao acumulada.
-///
-/// Ele se cria sozinho ao carregar a cena e aplica ajustes seguros na CameraGTAFollowHardcore.
+/// Mantém a Main Camera estável, sem auto-align/recenter, e força a primeira pessoa real
+/// quando o botão direito estiver ativo pelo MiniMarketCameraPerspectiveSwitcher.
 /// </summary>
 [DefaultExecutionOrder(32000)]
 public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
@@ -20,29 +17,15 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     public bool aplicarConfiguracaoAutomaticamente = true;
 
     [Header("Main Camera - Anti Pulso")]
-    [Tooltip("Desliga o auto-align que puxa a camera para tras do personagem e causa pulso/reset de eixo.")]
     public bool desativarAutoAlignDaCamera = true;
-
-    [Tooltip("Mantem a camera livre, sem recentralizar automaticamente no corpo.")]
     public bool manterCameraLivreSemRecenter = true;
 
     [Header("Primeira Pessoa - Anti Jumping")]
-    [Tooltip("Zera a inercia do mouse quando ele para, removendo o fade out no final do movimento.")]
     public bool zerarInerciaMouseQuandoParar = true;
-
-    [Tooltip("Remove a rotacao do corpo causada diretamente pela camera. O corpo continua podendo virar por outros scripts/movimento.")]
-    public bool desativarRotacaoDoCorpoPelaCamera = true;
-
-    [Tooltip("Forca a mira/primeira pessoa a usar a mesma sensibilidade da camera normal.")]
+    public bool permitirCorpoAcompanharCamera = true;
     public bool usarMesmaSensibilidadeDaCameraNormal = true;
-
-    [Tooltip("Valor aplicado ao smooth do mouse em primeira pessoa. 0 remove completamente a inercia.")]
     [Min(0f)] public float mouseSmoothTimePrimeiraPessoa = 0f;
-
-    [Tooltip("Limite abaixo do qual considera que o mouse parou.")]
     [Min(0f)] public float deadzoneParadaMouse = 0.0015f;
-
-    [Tooltip("Quando entrar/sair da primeira pessoa, limpa as velocidades internas de transicao para nao dar encaixe final.")]
     public bool limparVelocidadesDuranteTransicao = true;
 
     [Header("Debug")]
@@ -105,10 +88,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
 
     private void ResolverCamera()
     {
-        if (!procurarCameraAutomaticamente)
-            return;
-
-        if (cameraGTA != null)
+        if (!procurarCameraAutomaticamente || cameraGTA != null)
             return;
 
         Camera main = Camera.main;
@@ -116,12 +96,12 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
             cameraGTA = main.GetComponent<CameraGTAFollowHardcore>();
 
         if (cameraGTA == null)
-            cameraGTA = FindObjectOfType<CameraGTAFollowHardcore>(true);
+            cameraGTA = Object.FindFirstObjectByType<CameraGTAFollowHardcore>(FindObjectsInactive.Include);
 
         if (cameraGTA != null)
         {
             PrepararReflection();
-            MiniMarketUpgradeLogger.Log("Camera", "CameraGTAFollowHardcore encontrada", "Estabilizador automatico conectado a " + cameraGTA.gameObject.name, "camera-found", 10f);
+            MiniMarketUpgradeLogger.Log("Camera", "CameraGTAFollowHardcore encontrada", "Estabilizador conectado a " + cameraGTA.gameObject.name, "camera-found", 10f);
         }
     }
 
@@ -144,17 +124,16 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
             cameraGTA.bloquearAutoAlignDuranteMira = true;
         }
 
+        cameraGTA.usarZoomMiraPorDistancia = false;
+        cameraGTA.aplicarColisaoNoZoomMira = false;
         cameraGTA.preservarAnguloAtualNaTransicao = true;
         cameraGTA.alinharComFrenteDoPersonagemAoEntrarNaMira = false;
         cameraGTA.corrigirPitchAoEntrarNaMira = false;
         cameraGTA.usarPosicaoPrimeiraPessoaEstavel = true;
         cameraGTA.evitarRealimentacaoRotacaoPersonagemCamera = true;
-
-        if (desativarRotacaoDoCorpoPelaCamera)
-        {
-            cameraGTA.rotacionarPersonagemNaPrimeiraPessoa = false;
-            cameraGTA.sincronizarCorpoSuaveNaPrimeiraPessoa = false;
-        }
+        cameraGTA.rotacionarPersonagemNaPrimeiraPessoa = permitirCorpoAcompanharCamera;
+        cameraGTA.sincronizarCorpoSuaveNaPrimeiraPessoa = permitirCorpoAcompanharCamera;
+        cameraGTA.mouseSmoothTimePrimeiraPessoa = mouseSmoothTimePrimeiraPessoa;
 
         if (usarMesmaSensibilidadeDaCameraNormal)
         {
@@ -164,12 +143,10 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
             cameraGTA.mouseSensitivityYMira = cameraGTA.mouseSensitivityY;
         }
 
-        cameraGTA.mouseSmoothTimePrimeiraPessoa = mouseSmoothTimePrimeiraPessoa;
-
         if (logarEventos && Time.unscaledTime - ultimoLogTempo > 10f)
         {
             ultimoLogTempo = Time.unscaledTime;
-            MiniMarketUpgradeLogger.Log("Camera", "Configuracao anti-jumping aplicada", "Auto-align desligado; primeira pessoa sem recenter/pitch snap; smooth FP = " + mouseSmoothTimePrimeiraPessoa.ToString("0.###"), "camera-config", 10f);
+            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; primeira pessoa real; smooth FP = " + mouseSmoothTimePrimeiraPessoa.ToString("0.###"), "camera-config", 10f);
         }
     }
 
