@@ -18,6 +18,10 @@ using UnityEngine;
 /// Hoje ele grava localmente em Application.persistentDataPath com AES + HMAC.
 /// No futuro multiplayer, os scripts do jogo continuam usando esta mesma API
 /// e esta classe pode ser trocada por chamadas a um servidor/API.
+///
+/// Performance:
+/// - Gold, compra e status de propriedades salvam imediatamente.
+/// - Stamina fica em memoria em tempo real, mas o disco salva com debounce para evitar travadas.
 /// </summary>
 [DefaultExecutionOrder(-10000)]
 [DisallowMultipleComponent]
@@ -39,11 +43,20 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     [Min(1f)] public float staminaMaximaPadrao = 100f;
 
     [Header("Banco local")]
-    [Tooltip("Se ligado, salva automaticamente a cada alteracao relevante.")]
+    [Tooltip("Se ligado, salva automaticamente alteracoes importantes.")]
     public bool salvarAutomaticamente = true;
 
     [Tooltip("Se ligado, usa AES + HMAC. Se houver erro de criptografia, o banco recria de forma segura.")]
     public bool usarCriptografiaLocal = true;
+
+    [Tooltip("Evita gravar no disco varias vezes por segundo. Recomendado ligado para nao causar lag.")]
+    public bool usarSalvamentoDiferido = true;
+
+    [Tooltip("Tempo minimo para gravar dados leves, como stamina, no disco.")]
+    [Min(0.25f)] public float intervaloSalvamentoDiferido = 5f;
+
+    [Tooltip("Forca salvar tudo ao sair do Play, perder foco ou fechar o jogo.")]
+    public bool salvarAoSairOuPerderFoco = true;
 
     [Tooltip("Loga carregamentos/salvamentos e alteracoes importantes.")]
     public bool logarEventos = false;
@@ -51,6 +64,8 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     private MiniMarketPlayerData dados;
     private string caminhoBanco;
     private bool carregado;
+    private bool salvamentoPendente;
+    private float proximoSalvamentoPermitido;
 
     public event Action<MiniMarketPlayerData> OnDatabaseChanged;
 
@@ -68,6 +83,8 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     public float StaminaAtual => Dados.staminaAtual;
     public float StaminaMaxima => Dados.staminaMaxima;
     public int EmpresasCompradas => Dados.empresasCompradas != null ? Dados.empresasCompradas.Count : 0;
+    public bool SalvamentoPendente => salvamentoPendente;
+    public string CaminhoBanco => caminhoBanco;
 
     [Serializable]
     public class MiniMarketPlayerData
@@ -117,6 +134,35 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         GarantirCarregado();
+    }
+
+    private void Update()
+    {
+        ProcessarSalvamentoDiferido();
+    }
+
+    private void OnApplicationPause(bool pause)
+    {
+        if (pause && salvarAoSairOuPerderFoco)
+            SalvarSePendenteOuForcar();
+    }
+
+    private void OnApplicationFocus(bool focus)
+    {
+        if (!focus && salvarAoSairOuPerderFoco)
+            SalvarSePendenteOuForcar();
+    }
+
+    private void OnApplicationQuit()
+    {
+        if (salvarAoSairOuPerderFoco)
+            SalvarSePendenteOuForcar();
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this && salvarAoSairOuPerderFoco)
+            SalvarSePendenteOuForcar();
     }
 
     public static MiniMarketPlayerDatabase ObterOuCriar()
@@ -244,6 +290,9 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
             File.Move(temp, caminhoBanco);
 
+            salvamentoPendente = false;
+            proximoSalvamentoPermitido = Time.unscaledTime + intervaloSalvamentoDiferido;
+
             if (logarEventos)
                 Debug.Log("[MiniMarketPlayerDatabase] Banco salvo: " + caminhoBanco);
         }
@@ -253,16 +302,43 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         }
     }
 
-    private void SalvarSeAutomatico()
+    public void SalvarSePendenteOuForcar()
     {
-        if (salvarAutomaticamente)
+        if (!carregado || dados == null)
+            return;
+
+        if (salvamentoPendente || salvarAutomaticamente)
             Salvar();
     }
 
-    private void NotificarAlteracao()
+    private void MarcarSalvamentoPendente()
+    {
+        salvamentoPendente = true;
+    }
+
+    private void ProcessarSalvamentoDiferido()
+    {
+        if (!salvarAutomaticamente || !usarSalvamentoDiferido || !salvamentoPendente)
+            return;
+
+        if (Time.unscaledTime < proximoSalvamentoPermitido)
+            return;
+
+        Salvar();
+    }
+
+    private void NotificarAlteracao(bool salvarAgora)
     {
         dados.lastUpdatedUnix = ObterUnixAgora();
-        SalvarSeAutomatico();
+
+        if (salvarAutomaticamente)
+        {
+            if (salvarAgora || !usarSalvamentoDiferido)
+                Salvar();
+            else
+                MarcarSalvamentoPendente();
+        }
+
         OnDatabaseChanged?.Invoke(dados);
     }
 
@@ -275,7 +351,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
         dados.gold = Mathf.Max(0, goldInicial);
         dados.goldInicializado = true;
-        NotificarAlteracao();
+        NotificarAlteracao(true);
     }
 
     public int DefinirGold(int novoGold)
@@ -283,7 +359,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         GarantirCarregado();
         dados.gold = Mathf.Max(0, novoGold);
         dados.goldInicializado = true;
-        NotificarAlteracao();
+        NotificarAlteracao(true);
         return dados.gold;
     }
 
@@ -295,7 +371,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
         dados.gold = Mathf.Max(0, dados.gold + quantidade);
         dados.goldInicializado = true;
-        NotificarAlteracao();
+        NotificarAlteracao(true);
         return dados.gold;
     }
 
@@ -310,7 +386,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
         dados.gold -= quantidade;
         dados.goldInicializado = true;
-        NotificarAlteracao();
+        NotificarAlteracao(true);
         return true;
     }
 
@@ -330,24 +406,34 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         dados.staminaMaxima = Mathf.Max(1f, staminaMaximaInicial);
         dados.staminaAtual = Mathf.Clamp(staminaAtualInicial, 0f, dados.staminaMaxima);
         dados.staminaInicializada = true;
-        NotificarAlteracao();
+        NotificarAlteracao(true);
     }
 
     public void DefinirStamina(float atual, float maxima)
+    {
+        DefinirStamina(atual, maxima, false);
+    }
+
+    public void DefinirStamina(float atual, float maxima, bool salvarAgora)
     {
         GarantirCarregado();
         dados.staminaMaxima = Mathf.Max(1f, maxima);
         dados.staminaAtual = Mathf.Clamp(atual, 0f, dados.staminaMaxima);
         dados.staminaInicializada = true;
-        NotificarAlteracao();
+        NotificarAlteracao(salvarAgora);
     }
 
     public void DefinirStaminaAtual(float atual)
     {
+        DefinirStaminaAtual(atual, false);
+    }
+
+    public void DefinirStaminaAtual(float atual, bool salvarAgora)
+    {
         GarantirCarregado();
         dados.staminaAtual = Mathf.Clamp(atual, 0f, Mathf.Max(1f, dados.staminaMaxima));
         dados.staminaInicializada = true;
-        NotificarAlteracao();
+        NotificarAlteracao(salvarAgora);
     }
 
     public void RestaurarStaminaCompleta()
@@ -356,7 +442,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         dados.staminaMaxima = Mathf.Max(1f, dados.staminaMaxima);
         dados.staminaAtual = dados.staminaMaxima;
         dados.staminaInicializada = true;
-        NotificarAlteracao();
+        NotificarAlteracao(true);
     }
 
     public float ObterPercentualStamina01()
@@ -372,7 +458,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     {
         GarantirCarregado();
         dados.nome = string.IsNullOrWhiteSpace(nome) ? nomePadrao : nome.Trim();
-        NotificarAlteracao();
+        NotificarAlteracao(true);
     }
 
     public bool EmpresaJaComprada(string empresaId)
@@ -392,12 +478,12 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
         if (dados.empresasCompradas.Contains(empresaId))
         {
-            NotificarAlteracao();
+            NotificarAlteracao(false);
             return false;
         }
 
         dados.empresasCompradas.Add(empresaId);
-        NotificarAlteracao();
+        NotificarAlteracao(true);
         return true;
     }
 
@@ -428,7 +514,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         propriedade.lastUpdatedUnix = ObterUnixAgora();
 
         RegistrarEmpresaComprada(areaId);
-        NotificarAlteracao();
+        NotificarAlteracao(true);
         return propriedade;
     }
 
@@ -448,9 +534,8 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
         if (comprada)
             RegistrarEmpresaComprada(areaId);
-        else
-            NotificarAlteracao();
 
+        NotificarAlteracao(true);
         return propriedade;
     }
 
@@ -493,11 +578,18 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         return propriedade;
     }
 
+    [ContextMenu("Banco/Salvar Agora")]
+    public void ContextSalvarAgora()
+    {
+        Salvar();
+    }
+
     [ContextMenu("Banco/Resetar banco local")]
     public void ResetarBancoLocal()
     {
         dados = CriarDadosPadrao();
         carregado = true;
+        salvamentoPendente = false;
         Salvar();
         OnDatabaseChanged?.Invoke(dados);
     }
