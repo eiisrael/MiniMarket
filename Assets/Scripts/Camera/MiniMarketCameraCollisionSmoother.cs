@@ -3,15 +3,17 @@ using UnityEngine;
 /// <summary>
 /// Suavizador de colisão da câmera em terceira pessoa.
 ///
-/// Diagnóstico real dos logs:
-/// - A câmera dava salto de distância quando o anti-parede interno encurtava a câmera de uma vez.
-/// - Isso gerava sensação de travada/mudança brusca de eixo ao usar W/S/A/D perto de parede/objeto.
+/// Diagnóstico real dos logs v2.1.3:
+/// - Os raros saltos restantes aconteciam quando a distância câmera->alvo caía para ~1.0.
+/// - Isso era típico de colisão contra chão/calçada/objetos baixos ou raycast perto do player.
+/// - Visualmente parecia que a câmera estava "encaixando" na cena e puxando para perto do personagem.
 ///
 /// Correção:
-/// - Desativa a colisão interna instantânea da CameraGTAFollowHardcore antes do LateUpdate da câmera.
+/// - Desativa a colisão instantânea da CameraGTAFollowHardcore antes do LateUpdate da câmera.
 /// - Este script assume 100% da colisão da câmera em terceira pessoa.
-/// - A distância câmera->alvo é suavizada separadamente da rotação/orbit.
-/// - Se o jogador mexer o mouse, a órbita continua responsiva, mas a aproximação/retorno de parede não dá snap.
+/// - Ignora chão/superfícies horizontais na colisão da câmera.
+/// - Impõe uma distância mínima visual para a terceira pessoa, evitando câmera colada no personagem.
+/// - Suaviza apenas aproximação/retorno de parede, sem efeito mola no movimento normal.
 /// </summary>
 [DefaultExecutionOrder(32500)]
 public class MiniMarketCameraCollisionSmoother : MonoBehaviour
@@ -34,26 +36,34 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
     public bool suavizarSomenteTerceiraPessoa = true;
 
+    [Header("Distância mínima visual")]
+    [Tooltip("Evita que a câmera chegue perto demais do personagem quando a colisão pega chão/parede.")]
+    public bool usarDistanciaMinimaVisualTerceiraPessoa = true;
+
+    [Min(0.3f)] public float distanciaMinimaVisualTerceiraPessoa = 2.15f;
+
+    [Tooltip("Se a distância normal for menor que esta margem, não força distância mínima visual.")]
+    [Min(0f)] public float margemDistanciaNormal = 0.15f;
+
     [Header("Suavização da Distância")]
-    [Tooltip("Velocidade máxima para aproximar a câmera quando parede/objeto aparece atrás dela.")]
-    [Min(0.1f)] public float velocidadeAproximarPorColisao = 5.5f;
-
-    [Tooltip("Velocidade máxima para voltar à distância normal quando sai da parede.")]
-    [Min(0.1f)] public float velocidadeRetornarDistanciaNormal = 4.0f;
-
-    [Tooltip("Velocidade de emergência se a câmera realmente estiver sobreposta a uma parede.")]
-    [Min(0.1f)] public float velocidadeEmergenciaQuandoSobreposto = 16f;
-
-    [Tooltip("Diferenças menores que isso são aplicadas direto para evitar vibração pequena.")]
-    [Min(0f)] public float zonaMortaDistancia = 0.02f;
-
-    [Tooltip("Limita o quanto a distância pode mudar em um único frame. Esse é o anti-snap principal.")]
-    [Min(0.01f)] public float maxDeltaDistanciaPorFrame = 0.18f;
+    [Min(0.1f)] public float velocidadeAproximarPorColisao = 4.2f;
+    [Min(0.1f)] public float velocidadeRetornarDistanciaNormal = 3.6f;
+    [Min(0.1f)] public float velocidadeEmergenciaQuandoSobreposto = 10f;
+    [Min(0f)] public float zonaMortaDistancia = 0.025f;
+    [Min(0.01f)] public float maxDeltaDistanciaPorFrame = 0.10f;
 
     [Header("Colisão")]
     [Min(0.01f)] public float raioExtraOverlap = 0.04f;
     public bool ignorarObjetosGrabbable = true;
     public bool ignorarProprioPlayer = true;
+
+    [Tooltip("Ignora chão/calçada/terreno para a câmera não ser puxada para perto quando olha para baixo.")]
+    public bool ignorarSuperficiesHorizontais = true;
+
+    [Range(0f, 1f)] public float normalYMinimaParaIgnorarComoChao = 0.45f;
+
+    [Tooltip("Ignora colisões muito próximas do foco/personagem, que costumam ser chão ou collider do próprio ambiente perto dos pés.")]
+    [Min(0f)] public float distanciaMinimaHitParaConsiderar = 1.25f;
 
     [Header("Debug")]
     public bool logarIncidentes;
@@ -103,7 +113,6 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
             ResolverReferencias(false);
         }
 
-        // Roda em Update para garantir que a CameraGTA já chegue no LateUpdate com colisão interna desligada.
         AplicarControleNaCameraGTA();
     }
 
@@ -168,17 +177,16 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
         direcao /= distanciaNormal;
         float distanciaSegura = CalcularDistanciaSegura(focus, direcao, distanciaNormal);
+        float distanciaMinimaPermitida = CalcularDistanciaMinimaPermitida(distanciaNormal);
 
         if (!possuiDistanciaAtual)
         {
             distanciaAtual = Mathf.Min(Vector3.Distance(cameraMonitorada.transform.position, focus), distanciaNormal);
-            if (distanciaAtual <= 0.001f)
-                distanciaAtual = distanciaSegura;
-
+            distanciaAtual = Mathf.Clamp(distanciaAtual, distanciaMinimaPermitida, distanciaNormal);
             possuiDistanciaAtual = true;
         }
 
-        float alvoDistancia = distanciaSegura;
+        float alvoDistancia = Mathf.Clamp(distanciaSegura, distanciaMinimaPermitida, distanciaNormal);
         float diferenca = Mathf.Abs(alvoDistancia - distanciaAtual);
 
         if (diferenca <= zonaMortaDistancia)
@@ -199,11 +207,11 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
             if (logarIncidentes && Time.unscaledTime - ultimoLog > 1f && diferenca > 0.3f)
             {
                 ultimoLog = Time.unscaledTime;
-                MiniMarketUpgradeLogger.Log("Camera", "Colisão suavizada", "Distância normal=" + distanciaNormal.ToString("0.000") + " segura=" + distanciaSegura.ToString("0.000") + " atual=" + distanciaAtual.ToString("0.000"), "camera-collision-smooth", 1f, LogType.Warning);
+                MiniMarketUpgradeLogger.Log("Camera", "Colisão suavizada", "Distância normal=" + distanciaNormal.ToString("0.000") + " segura=" + distanciaSegura.ToString("0.000") + " atual=" + distanciaAtual.ToString("0.000") + " minima=" + distanciaMinimaPermitida.ToString("0.000"), "camera-collision-smooth", 1f, LogType.Warning);
             }
         }
 
-        distanciaAtual = Mathf.Clamp(distanciaAtual, cameraGTA.cameraMinDistanceFromFocus, distanciaNormal);
+        distanciaAtual = Mathf.Clamp(distanciaAtual, distanciaMinimaPermitida, distanciaNormal);
         Vector3 novaPosicao = focus + direcao * distanciaAtual;
         Quaternion novaRotacao = Quaternion.LookRotation(focus - novaPosicao, Vector3.up);
 
@@ -215,6 +223,16 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
             Debug.DrawLine(focus, posicaoNormal, Color.red);
             Debug.DrawLine(focus, novaPosicao, Color.green);
         }
+    }
+
+    private float CalcularDistanciaMinimaPermitida(float distanciaNormal)
+    {
+        float minima = cameraGTA != null ? cameraGTA.cameraMinDistanceFromFocus : 0.85f;
+
+        if (usarDistanciaMinimaVisualTerceiraPessoa && distanciaNormal > distanciaMinimaVisualTerceiraPessoa + margemDistanciaNormal)
+            minima = Mathf.Max(minima, distanciaMinimaVisualTerceiraPessoa);
+
+        return Mathf.Clamp(minima, 0.05f, distanciaNormal);
     }
 
     private float CalcularDistanciaSegura(Vector3 focus, Vector3 direcao, float distanciaNormal)
@@ -236,15 +254,29 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
         for (int i = 0; i < count; i++)
         {
             RaycastHit hit = hits[i];
-            if (DeveIgnorarCollider(hit.collider))
+            if (DeveIgnorarHit(hit, focus))
                 continue;
 
-            float distanciaHit = Mathf.Max(cameraGTA.cameraMinDistanceFromFocus, hit.distance - cameraGTA.cameraCollisionOffset);
+            float distanciaHit = Mathf.Max(CalcularDistanciaMinimaPermitida(distanciaNormal), hit.distance - cameraGTA.cameraCollisionOffset);
             if (distanciaHit < distanciaSegura)
                 distanciaSegura = distanciaHit;
         }
 
-        return Mathf.Clamp(distanciaSegura, cameraGTA.cameraMinDistanceFromFocus, distanciaNormal);
+        return Mathf.Clamp(distanciaSegura, CalcularDistanciaMinimaPermitida(distanciaNormal), distanciaNormal);
+    }
+
+    private bool DeveIgnorarHit(RaycastHit hit, Vector3 focus)
+    {
+        if (hit.collider == null || DeveIgnorarCollider(hit.collider))
+            return true;
+
+        if (hit.distance < distanciaMinimaHitParaConsiderar)
+            return true;
+
+        if (ignorarSuperficiesHorizontais && hit.normal.y >= normalYMinimaParaIgnorarComoChao)
+            return true;
+
+        return false;
     }
 
     private bool CameraEstaSobreposta(Vector3 posicao)
