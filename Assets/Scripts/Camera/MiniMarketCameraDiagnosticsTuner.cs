@@ -3,15 +3,17 @@ using UnityEngine;
 /// <summary>
 /// Ajusta automaticamente o CameraRealtimeAnomalyLogger antes dele analisar a câmera.
 ///
-/// Diagnóstico dos logs v2.1.2:
-/// - os travamentos restantes eram pausas falsas do logger;
-/// - em primeira pessoa, RMB=True e Mouse Raw alto indicam movimento normal do jogador;
-/// - o logger estava interpretando esse giro normal como salto brusco de rotação.
+/// Diagnóstico dos logs v2.1.3:
+/// - Os raros "travamentos" restantes estavam associados à própria pausa/MessageBox do logger.
+/// - Quando o logger pausava, a stamina parecia travar também porque o Play ficava pausado/congelado.
+/// - Logs grandes no Console também alimentavam o UpgradeLog e causavam overhead.
 ///
 /// Correção:
-/// - rotação/velocidade/aceleração deixam de pausar o Play por movimento normal;
-/// - o logger continua sensível para o que realmente importa: snap de distância câmera->alvo,
-///   FOV anormal e colisão/anti-parede.
+/// - O logger continua gravando incidente no CameraRealtimeLog.htm.
+/// - Mas não pausa mais o Play automaticamente.
+/// - Não abre MessageBox durante gameplay.
+/// - Não escreve Warning gigante no Console.
+/// - Amostras leves ficam desligadas por padrão para evitar IO constante.
 /// </summary>
 [DefaultExecutionOrder(32900)]
 public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
@@ -21,37 +23,27 @@ public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
     public float intervaloBusca = 0.25f;
 
     [Header("Limites anti falso positivo")]
-    [Tooltip("Alto de propósito: movimento normal do player/camera não deve pausar o Play.")]
     public float limiteSaltoPosicaoFrame = 8f;
-
-    [Tooltip("Alto de propósito: velocidade normal da câmera em órbita/primeira pessoa não é bug.")]
     public float limiteVelocidadeCamera = 9999f;
-
-    [Tooltip("Alto de propósito: evita pausa falsa por aceleração calculada em frames de FPS baixo.")]
     public float limiteAceleracaoCamera = 999999f;
-
-    [Tooltip("Alto de propósito: olhar com o mouse em primeira pessoa pode girar muitos graus em um frame.")]
     public float limiteSaltoRotacaoFrame = 179f;
-
-    [Tooltip("Alto de propósito: velocidade angular por input do mouse não é travamento.")]
     public float limiteVelocidadeAngular = 999999f;
-
-    [Tooltip("Mantém detecção de mudança brusca de FOV.")]
     public float limiteSaltoFovFrame = 8f;
 
     [Header("Detecção real que deve continuar ativa")]
-    [Tooltip("Continua sensível para snap real de colisão/distância. Se passar disso, é provável anti-parede/colisão.")]
-    public float limiteSaltoDistanciaAlvo = 0.95f;
+    public float limiteSaltoDistanciaAlvo = 1.35f;
+    public float toleranciaAposTrocaPrimeiraPessoa = 0.85f;
 
-    public float toleranciaAposTrocaPrimeiraPessoa = 0.65f;
-
-    [Header("Pausa")]
-    [Tooltip("No Editor, EditorApplication.isPaused já pausa. Não usar TimeScale 0 evita congelar Time.time e confundir logs.")]
+    [Header("Modo não bloqueante")]
+    public bool pausarAoDetectar = false;
+    public bool mostrarMessageBoxNoEditor = false;
     public bool usarTimeScaleZeroAoPausar = false;
+    public bool logarNoConsole = false;
 
-    [Header("Amostras")]
-    public float intervaloAmostraLeve = 0.35f;
-    public float intervaloFlush = 1.2f;
+    [Header("Amostras / IO")]
+    public bool registrarAmostrasLeves = false;
+    public float intervaloAmostraLeve = 1.0f;
+    public float intervaloFlush = 3.0f;
 
     private static MiniMarketCameraDiagnosticsTuner instancia;
     private MiniMarketCameraRealtimeAnomalyLogger logger;
@@ -129,14 +121,18 @@ public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
         logger.limiteSaltoFovFrame = limiteSaltoFovFrame;
         logger.limiteSaltoDistanciaAlvo = limiteSaltoDistanciaAlvo;
         logger.toleranciaAposTrocaPrimeiraPessoa = toleranciaAposTrocaPrimeiraPessoa;
+        logger.pausarAoDetectar = pausarAoDetectar;
+        logger.mostrarMessageBoxNoEditor = mostrarMessageBoxNoEditor;
         logger.usarTimeScaleZeroAoPausar = usarTimeScaleZeroAoPausar;
+        logger.logarNoConsole = logarNoConsole;
+        logger.registrarAmostrasLeves = registrarAmostrasLeves;
         logger.intervaloAmostraLeve = intervaloAmostraLeve;
         logger.intervaloFlush = intervaloFlush;
 
         if (!aplicouUmaVez)
         {
             aplicouUmaVez = true;
-            MiniMarketUpgradeLogger.Log("Camera", "Camera diagnostics tuner aplicado", "Pausas falsas por rotação/mouse normal foram bloqueadas. O logger continua detectando snap real de distância/FOV/colisão.", "camera-diagnostics-tuner-v2", 3f);
+            MiniMarketUpgradeLogger.Log("Camera", "Camera diagnostics tuner aplicado", "Logger em modo não bloqueante: sem pausa, sem MessageBox, sem Warning gigante e sem amostras leves constantes.", "camera-diagnostics-nonblocking", 3f);
         }
     }
 }
