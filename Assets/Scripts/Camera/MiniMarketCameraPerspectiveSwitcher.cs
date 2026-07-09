@@ -9,10 +9,8 @@ using UnityEngine;
 /// - Mantém a câmera secundária antiga desativada.
 /// - Atualiza PlayerMove.cameraTransform para a Main Camera.
 ///
-/// Importante:
-/// - Este script NÃO rotaciona mais o personagem por padrão.
-/// - A autoridade de yaw/pitch/rotação do corpo fica na CameraGTAFollowHardcore.
-/// - Isso evita duas rotinas brigando pelo eixo em primeira pessoa.
+/// Por padrão, este script NÃO força mais valores do CameraGTAFollowHardcore,
+/// para deixar o Inspector livre para ajuste fino.
 /// </summary>
 [DefaultExecutionOrder(21000)]
 public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
@@ -22,6 +20,10 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
     [Tooltip("Compatibilidade: se existir uma camera antiga de primeira pessoa, ela será desativada para evitar snap/jumping.")]
     public Camera cameraPrimeiraPessoa;
+
+    [Header("Modo Inspector")]
+    [Tooltip("Ligado: não força AutoAlign/Zoom/PrimeiraPessoa no CameraGTAFollowHardcore.")]
+    public bool modoInspectorLivre = true;
 
     [Header("Primeira Pessoa")]
     public bool usarBotaoDireitoComoPrimeiraPessoa = true;
@@ -46,7 +48,7 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     public PlayerMove playerMove;
     public bool atualizarCameraTransformDoPlayerMove = true;
     public bool desativarAutoAlignCameraGTA = true;
-    public bool reforcarEstabilizacaoInicial = true;
+    public bool reforcarEstabilizacaoInicial = false;
     [Min(0.1f)] public float tempoReforcoEstabilizacao = 3f;
 
     [Header("Primeira Pessoa - Personagem")]
@@ -86,14 +88,14 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         ResolverReferencias();
         usandoPrimeiraPessoa = false;
         AplicarEstadoInicial();
-        EstabilizarCameraGTA();
+        EstabilizarCameraGTASePermitido();
     }
 
     private void Start()
     {
         ResolverReferencias();
         AplicarEstadoInicial();
-        EstabilizarCameraGTA();
+        EstabilizarCameraGTASePermitido();
     }
 
     private void OnDisable()
@@ -106,8 +108,8 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     {
         ResolverReferenciasLeve();
 
-        if (reforcarEstabilizacaoInicial && Time.unscaledTime - tempoInicio <= tempoReforcoEstabilizacao)
-            EstabilizarCameraGTA();
+        if (!modoInspectorLivre && reforcarEstabilizacaoInicial && Time.unscaledTime - tempoInicio <= tempoReforcoEstabilizacao)
+            EstabilizarCameraGTASePermitido();
 
         if (!usarBotaoDireitoComoPrimeiraPessoa)
             return;
@@ -130,8 +132,6 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     {
         DesativarCameraPrimeiraPessoaAntiga();
         AtualizarCameraDoPlayerMove();
-
-        // Mantido apenas como opção manual no Inspector. Por padrão fica desligado.
         AtualizarRotacaoPersonagemPrimeiraPessoa();
     }
 
@@ -287,6 +287,14 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         Quaternion rotacaoAlvo = Quaternion.LookRotation(forward.normalized, Vector3.up);
         float t = 1f - Mathf.Exp(-velocidadeRotacaoPersonagem * Time.deltaTime);
         alvo.rotation = Quaternion.Slerp(alvo.rotation, rotacaoAlvo, t);
+    }
+
+    private void EstabilizarCameraGTASePermitido()
+    {
+        if (modoInspectorLivre)
+            return;
+
+        EstabilizarCameraGTA();
     }
 
     private void EstabilizarCameraGTA()
