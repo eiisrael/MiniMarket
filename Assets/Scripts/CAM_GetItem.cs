@@ -2,27 +2,27 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Sistema profissional de pegar/soltar objetos pela mira.
+/// Sistema profissional e funcional de pegar, mover e soltar objetos pela mira.
 ///
-/// Regras principais:
-/// - So permite pegar enquanto segura a mira/zoom no botao direito.
-/// - Click esquerdo segura o objeto; soltar o click esquerdo coloca/solta.
-/// - Respeita massa, tamanho, altura, distancia e colisao.
-/// - Usa fisica por forca/velocidade, sem teletransporte duro.
-/// - Objetos pesados ficam mais lentos, mais proximos e podem falhar se excederem o limite.
+/// Fluxo:
+/// - Segure botão direito para entrar no modo mira/zoom.
+/// - Aponte para o objeto.
+/// - Segure botão esquerdo para pegar e mover.
+/// - Solte botão esquerdo para colocar/soltar.
+///
+/// O script prepara automaticamente objetos permitidos com Collider, Rigidbody e GrabbableObjectHardcore.
+/// Usa APIs novas do Unity 6/7: linearVelocity, linearDamping e angularDamping.
 /// </summary>
+[DefaultExecutionOrder(12000)]
 public class PlayerObjectGrabberHardcore : MonoBehaviour
 {
     [Header("Referencias")]
     public Camera cameraDoPlayer;
 
-    [Tooltip("Arraste aqui o Character01 para evitar que o raycast selecione o proprio personagem.")]
+    [Tooltip("Arraste aqui o Character 01 para evitar selecionar o proprio player.")]
     public Transform raizDoPlayer;
 
-    [Tooltip("Opcional. Pode arrastar o script CrosshairAim aqui.")]
     public CrosshairAim crosshairAim;
-
-    [Tooltip("Opcional. Script da camera principal. Usado para garantir que so pega no modo mira/zoom.")]
     public CameraGTAFollowHardcore cameraGTA;
 
     [Header("Input")]
@@ -30,111 +30,93 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     [Range(0, 2)] public int botaoDePegar = 0;
 
     [Header("Modo Mira Obrigatorio")]
-    [Tooltip("So permite selecionar e pegar enquanto segura o botao direito/mira.")]
     public bool selecionarApenasEnquantoMira = true;
-
-    [Tooltip("Se ligado, alem do botao direito, aceita o estado EstaMirando do CrosshairAim.")]
     public bool aceitarEstadoDoCrosshairAim = true;
-
-    [Tooltip("Se ligado, aceita tambem EstaEmPrimeiraPessoa/zoom da CameraGTA.")]
     public bool aceitarEstadoZoomCameraGTA = true;
 
     [Header("Selecao")]
-    [Min(0.1f)] public float distanciaSelecao = 5f;
+    [Min(0.1f)] public float distanciaSelecao = 6f;
+    [Min(0.001f)] public float raioSelecao = 0.12f;
     public LayerMask layersSelecionaveis = ~0;
 
-    [Tooltip("Raio pequeno no centro da mira. Ajuda a pegar objetos pequenos sem precisar acertar pixel perfeito.")]
-    [Min(0.001f)] public float raioSelecao = 0.08f;
+    [Tooltip("Se o raycast nao bater perfeitamente, tenta selecionar objeto permitido proximo ao centro da tela.")]
+    public bool usarFallbackPorCentroDaTela = true;
+
+    [Tooltip("Raio visual em viewport usado no fallback. 0.08 = perto do centro da mira.")]
+    [Range(0.01f, 0.35f)] public float raioViewportFallback = 0.10f;
 
     [Header("Objetos Permitidos")]
     public bool usarListaDeObjetosPermitidos = true;
     public List<GameObject> objetosPermitidos = new List<GameObject>();
-    public bool adicionarComponenteAutomaticamenteNosPermitidos = true;
     public bool permitirQualquerObjetoComGrabbable = false;
 
-    [Header("Fisica Realista - Peso / Tamanho")]
-    [Tooltip("Objetos com massa acima deste valor nao podem ser pegos, salvo override no MiniMarketObjectPhysicsProfile.")]
-    [Min(0.01f)] public float massaMaximaParaPegar = 25f;
+    [Header("Preparacao Automatica")]
+    public bool adicionarComponenteAutomaticamenteNosPermitidos = true;
+    public bool adicionarRigidbodyAutomaticamente = true;
+    public bool adicionarColliderAutomaticamente = true;
 
-    [Tooltip("Massa usada quando o objeto nao possui Rigidbody e o script cria um automaticamente.")]
+    [Tooltip("Massa aplicada quando o objeto nao possui Rigidbody nem perfil proprio.")]
     [Min(0.01f)] public float massaPadraoSemRigidbody = 1f;
 
-    [Tooltip("Adiciona Rigidbody automaticamente se o objeto permitido ainda nao tiver.")]
-    public bool adicionarRigidbodyAutomaticamente = true;
+    [Header("Limites Fisicos")]
+    [Min(0.01f)] public float massaMaximaParaPegar = 35f;
+    [Min(0.05f)] public float alturaMaximaObjeto = 3f;
+    [Min(0.05f)] public float larguraMaximaObjeto = 3.5f;
+    [Min(0.05f)] public float comprimentoMaximoObjeto = 3.5f;
 
-    [Tooltip("Objetos acima desta altura nao podem ser pegos.")]
-    [Min(0.05f)] public float alturaMaximaObjeto = 2.2f;
+    [Header("Segurar / Mover")]
+    [Min(0.3f)] public float distanciaSegurando = 2.1f;
+    [Min(0.3f)] public float distanciaMinimaSegurando = 0.9f;
+    [Min(0.3f)] public float distanciaMaximaSegurando = 4f;
+    public Vector2 offsetSegurando = new Vector2(0f, -0.10f);
 
-    [Tooltip("Objetos acima desta largura nao podem ser pegos.")]
-    [Min(0.05f)] public float larguraMaximaObjeto = 2.4f;
-
-    [Tooltip("Objetos acima deste comprimento nao podem ser pegos.")]
-    [Min(0.05f)] public float comprimentoMaximoObjeto = 2.4f;
-
-    [Tooltip("Se o objeto for grande, segura um pouco mais longe para nao entrar na camera/personagem.")]
-    public bool ajustarDistanciaPeloTamanho = true;
-
-    [Tooltip("Quanto o peso reduz a forca de segurar. 0 = peso quase nao influencia, 1 = influencia bastante.")]
-    [Range(0f, 1f)] public float influenciaPesoNaForca = 0.65f;
-
-    [Tooltip("Quanto o peso reduz a distancia maxima enquanto segura.")]
-    [Range(0f, 1f)] public float influenciaPesoNaDistancia = 0.45f;
-
-    [Header("Pegar / Segurar")]
-    [Min(0.3f)] public float distanciaSegurando = 2.2f;
-    public Vector2 offsetSegurando = new Vector2(0f, -0.15f);
-
-    [Tooltip("Forca base da mola fisica que puxa o objeto ate o ponto de segurar.")]
-    [Min(1f)] public float forcaSegurar = 180f;
-
-    [Tooltip("Amortecimento para o objeto nao ficar tremendo.")]
-    [Min(0f)] public float amortecimentoSegurar = 28f;
-
-    [Tooltip("Velocidade maxima fisica do objeto enquanto esta sendo puxado.")]
-    [Min(0.1f)] public float velocidadeMaximaObjeto = 8f;
-
-    [Tooltip("Forca maxima aplicada no objeto. Evita explosoes fisicas.")]
-    [Min(1f)] public float forcaMaximaSegurar = 650f;
-
-    public bool limitarDistanciaSegurando = true;
-    [Min(0.3f)] public float distanciaMinimaSegurando = 1.1f;
-    [Min(0.3f)] public float distanciaMaximaSegurando = 3.5f;
-
-    [Tooltip("Permite ajustar a distancia do objeto com o scroll enquanto segura.")]
+    [Tooltip("Permite aproximar/afastar o objeto com scroll enquanto segura.")]
     public bool permitirScrollDistancia = true;
-    [Min(0.05f)] public float velocidadeScrollDistancia = 0.28f;
+    [Min(0.05f)] public float velocidadeScrollDistancia = 0.35f;
 
-    [Tooltip("Se o objeto se afastar demais do ponto de segurar, solta automaticamente.")]
-    public bool soltarSeFicarMuitoLonge = true;
-    [Min(0.5f)] public float distanciaMaximaErroAntesDeSoltar = 2.2f;
+    [Tooltip("Forca/resposta do objeto indo para o ponto da mira. Maior = mais firme.")]
+    [Min(1f)] public float rigidezSegurar = 18f;
 
-    [Header("Gravidade / Arrasto enquanto segura")]
-    public bool usarGravidadeEnquantoSegura = true;
-    [Min(0f)] public float dragEnquantoSegura = 4f;
-    [Min(0f)] public float angularDragEnquantoSegura = 6f;
-    [Min(0.05f)] public float maxAngularVelocityEnquantoSegura = 8f;
+    [Tooltip("Suaviza a velocidade para nao tremer.")]
+    [Range(0.01f, 1f)] public float suavizacaoVelocidade = 0.42f;
 
-    [Header("Colisao / Parede")]
+    [Tooltip("Velocidade maxima permitida enquanto segura.")]
+    [Min(0.5f)] public float velocidadeMaximaObjeto = 12f;
+
+    [Tooltip("Objetos pesados respondem mais devagar.")]
+    [Range(0f, 1f)] public float influenciaPesoNaResposta = 0.45f;
+
+    [Tooltip("Objetos pesados ficam um pouco mais perto do jogador.")]
+    [Range(0f, 1f)] public float influenciaPesoNaDistancia = 0.35f;
+
+    [Header("Fisica Enquanto Segura")]
+    [Tooltip("Recomendado desligado para ficar funcional. Ligue se quiser peso puxando para baixo.")]
+    public bool usarGravidadeEnquantoSegura = false;
+
+    [Min(0f)] public float linearDampingEnquantoSegura = 7f;
+    [Min(0f)] public float angularDampingEnquantoSegura = 9f;
+    [Min(0.05f)] public float maxAngularVelocityEnquantoSegura = 6f;
+
+    [Header("Colisao")]
     public bool impedirAtravessarParede = true;
     public LayerMask layersBloqueioObjeto = ~0;
-    [Min(0.01f)] public float multiplicadorRaioColisao = 0.85f;
-    [Min(0f)] public float margemParede = 0.12f;
+    [Min(0.01f)] public float multiplicadorRaioColisao = 0.65f;
+    [Min(0f)] public float margemParede = 0.15f;
+
+    [Tooltip("Se o objeto ficar muito longe do ponto alvo, solta automaticamente.")]
+    public bool soltarSeFicarMuitoLonge = true;
+    [Min(0.5f)] public float distanciaMaximaErroAntesDeSoltar = 3f;
 
     [Header("Rotacao do Objeto")]
     public bool manterRotacaoOriginalAoPegar = true;
     public bool alinharObjetoComCamera = false;
-    [Min(0.1f)] public float velocidadeRotacaoObjeto = 10f;
+    [Min(0.1f)] public float velocidadeRotacaoObjeto = 12f;
 
     [Header("Soltar / Colocar")]
-    [Tooltip("Quanto da velocidade fisica fica ao soltar. 0 = para seco, 1 = natural.")]
-    [Range(0f, 1.5f)] public float multiplicadorVelocidadeAoSoltar = 0.65f;
-
-    [Tooltip("Quanto da rotacao fisica fica ao soltar.")]
-    [Range(0f, 1.5f)] public float multiplicadorRotacaoAoSoltar = 0.65f;
-
-    [Tooltip("Ao soltar, faz uma pequena checagem para evitar deixar o objeto dentro do player.")]
+    [Range(0f, 1.5f)] public float multiplicadorVelocidadeAoSoltar = 0.45f;
+    [Range(0f, 1.5f)] public float multiplicadorRotacaoAoSoltar = 0.45f;
     public bool afastarDoPlayerAoSoltar = true;
-    [Min(0.05f)] public float distanciaMinimaDoPlayerAoSoltar = 0.65f;
+    [Min(0.05f)] public float distanciaMinimaDoPlayerAoSoltar = 0.75f;
 
     [Header("Debug")]
     public bool desenharRaycast = true;
@@ -147,19 +129,20 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
     private Quaternion rotacaoOriginalObjeto;
     private float distanciaAtualSegurando;
-    private float massaAtual;
-    private float raioObjetoAtual;
+    private float massaAtual = 1f;
+    private float raioObjetoAtual = 0.25f;
 
-    private bool rbTinhaGravidade;
-    private float rbDragOriginal;
-    private float rbAngularDragOriginal;
+    private bool rbUseGravityOriginal;
+    private bool rbIsKinematicOriginal;
+    private float rbLinearDampingOriginal;
+    private float rbAngularDampingOriginal;
     private float rbMaxAngularVelocityOriginal;
     private CollisionDetectionMode rbCollisionOriginal;
     private RigidbodyInterpolation rbInterpolationOriginal;
     private RigidbodyConstraints rbConstraintsOriginal;
 
-    private readonly RaycastHit[] hitsSelecao = new RaycastHit[32];
-    private readonly RaycastHit[] hitsBloqueio = new RaycastHit[32];
+    private readonly RaycastHit[] hitsSelecao = new RaycastHit[48];
+    private readonly RaycastHit[] hitsBloqueio = new RaycastHit[48];
     private readonly List<Collider> collidersObjetoPegando = new List<Collider>();
 
     private void Awake()
@@ -175,6 +158,12 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         PrepararObjetosPermitidos();
     }
 
+    private void OnDisable()
+    {
+        SoltarObjeto();
+        LimparSelecao();
+    }
+
     private void Update()
     {
         ResolverReferenciasLeves();
@@ -183,7 +172,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
             return;
 
         bool segurandoMira = EstaSegurandoMira();
-        bool segurandoPegar = EstaSegurandoPegar();
+        bool segurandoPegar = Input.GetMouseButton(botaoDePegar);
 
         if (!segurandoMira)
         {
@@ -246,42 +235,12 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
             cameraGTA = cameraDoPlayer.GetComponent<CameraGTAFollowHardcore>();
     }
 
-    private void PrepararObjetosPermitidos()
-    {
-        if (!adicionarComponenteAutomaticamenteNosPermitidos)
-            return;
-
-        if (objetosPermitidos == null)
-            return;
-
-        for (int i = 0; i < objetosPermitidos.Count; i++)
-        {
-            GameObject objeto = objetosPermitidos[i];
-            if (objeto == null)
-                continue;
-
-            if (objeto.GetComponent<GrabbableObjectHardcore>() == null)
-                objeto.AddComponent<GrabbableObjectHardcore>();
-
-            if (adicionarRigidbodyAutomaticamente && objeto.GetComponent<Rigidbody>() == null)
-            {
-                Rigidbody rb = objeto.AddComponent<Rigidbody>();
-                MiniMarketObjectPhysicsProfile perfil = objeto.GetComponent<MiniMarketObjectPhysicsProfile>();
-                rb.mass = perfil != null ? Mathf.Max(0.01f, perfil.massaVirtual) : massaPadraoSemRigidbody;
-                rb.interpolation = RigidbodyInterpolation.Interpolate;
-                rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            }
-        }
-    }
-
     private bool EstaSegurandoMira()
     {
         if (!selecionarApenasEnquantoMira)
             return true;
 
-        bool botaoDireito = Input.GetMouseButton(botaoDeMira);
-
-        if (botaoDireito)
+        if (Input.GetMouseButton(botaoDeMira))
             return true;
 
         if (aceitarEstadoDoCrosshairAim && crosshairAim != null && crosshairAim.EstaMirando)
@@ -293,20 +252,66 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         return false;
     }
 
-    private bool EstaSegurandoPegar()
+    private void PrepararObjetosPermitidos()
     {
-        return Input.GetMouseButton(botaoDePegar);
+        if (!adicionarComponenteAutomaticamenteNosPermitidos || objetosPermitidos == null)
+            return;
+
+        for (int i = 0; i < objetosPermitidos.Count; i++)
+        {
+            PrepararObjetoPermitido(objetosPermitidos[i]);
+        }
+    }
+
+    private void PrepararObjetoPermitido(GameObject objeto)
+    {
+        if (objeto == null)
+            return;
+
+        if (objeto.GetComponent<GrabbableObjectHardcore>() == null)
+            objeto.AddComponent<GrabbableObjectHardcore>();
+
+        if (adicionarColliderAutomaticamente && objeto.GetComponentsInChildren<Collider>(true).Length == 0)
+            AdicionarBoxColliderPorBounds(objeto);
+
+        if (adicionarRigidbodyAutomaticamente && objeto.GetComponent<Rigidbody>() == null)
+        {
+            MiniMarketObjectPhysicsProfile perfil = objeto.GetComponent<MiniMarketObjectPhysicsProfile>();
+            Rigidbody rb = objeto.AddComponent<Rigidbody>();
+            rb.mass = perfil != null ? Mathf.Max(0.01f, perfil.massaVirtual) : massaPadraoSemRigidbody;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.linearDamping = 0.1f;
+            rb.angularDamping = 0.1f;
+        }
+    }
+
+    private void AdicionarBoxColliderPorBounds(GameObject objeto)
+    {
+        Bounds bounds = CalcularBoundsObjeto(objeto.transform, out bool temBounds);
+        BoxCollider box = objeto.AddComponent<BoxCollider>();
+
+        if (!temBounds)
+        {
+            box.size = Vector3.one;
+            box.center = Vector3.zero;
+            return;
+        }
+
+        box.center = objeto.transform.InverseTransformPoint(bounds.center);
+        Vector3 tamanhoLocal = objeto.transform.InverseTransformVector(bounds.size);
+        box.size = new Vector3(Mathf.Abs(tamanhoLocal.x), Mathf.Abs(tamanhoLocal.y), Mathf.Abs(tamanhoLocal.z));
     }
 
     private void AtualizarSelecao()
     {
-        GrabbableObjectHardcore novoSelecionado = ProcurarObjetoNaMira();
+        GrabbableObjectHardcore novo = ProcurarObjetoNaMira();
 
-        if (novoSelecionado == objetoSelecionado)
+        if (novo == objetoSelecionado)
             return;
 
         LimparSelecao();
-        objetoSelecionado = novoSelecionado;
+        objetoSelecionado = novo;
 
         if (objetoSelecionado != null)
             objetoSelecionado.Selecionar(true);
@@ -325,135 +330,136 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
             QueryTriggerInteraction.Ignore
         );
 
-        if (hitCount <= 0)
-            return null;
-
         OrdenarHitsPorDistancia(hitsSelecao, hitCount);
 
         for (int i = 0; i < hitCount; i++)
         {
             RaycastHit hit = hitsSelecao[i];
-
-            if (hit.collider == null)
-                continue;
-
-            if (DeveIgnorarCollider(hit.collider))
+            if (hit.collider == null || DeveIgnorarCollider(hit.collider))
                 continue;
 
             GrabbableObjectHardcore grabbable = ResolverGrabbable(hit.collider);
+            if (ObjetoPodeSerSelecionado(grabbable, out string motivo))
+                return grabbable;
 
-            if (grabbable == null)
-                continue;
-
-            if (!grabbable.podeSerPego)
-                continue;
-
-            if (!PodePegarFisicamente(grabbable, out string motivo))
-            {
-                if (logarMotivoNaoPegou)
-                    Debug.Log("[PlayerObjectGrabberHardcore] Nao pegou " + grabbable.name + ": " + motivo);
-                continue;
-            }
-
-            return grabbable;
+            if (logarMotivoNaoPegou && grabbable != null)
+                Debug.Log("[PlayerObjectGrabberHardcore] Nao selecionou " + grabbable.name + ": " + motivo);
         }
+
+        if (usarFallbackPorCentroDaTela)
+            return ProcurarObjetoPermitidoPeloCentroDaTela();
 
         return null;
     }
 
-    private void OrdenarHitsPorDistancia(RaycastHit[] hits, int count)
+    private GrabbableObjectHardcore ProcurarObjetoPermitidoPeloCentroDaTela()
     {
-        for (int i = 0; i < count - 1; i++)
+        if (objetosPermitidos == null || objetosPermitidos.Count == 0)
+            return null;
+
+        GrabbableObjectHardcore melhor = null;
+        float melhorScore = float.MaxValue;
+
+        for (int i = 0; i < objetosPermitidos.Count; i++)
         {
-            for (int j = i + 1; j < count; j++)
+            GameObject objeto = objetosPermitidos[i];
+            if (objeto == null)
+                continue;
+
+            GrabbableObjectHardcore grabbable = objeto.GetComponent<GrabbableObjectHardcore>();
+            if (!ObjetoPodeSerSelecionado(grabbable, out _))
+                continue;
+
+            Vector3 ponto = ObterCentroObjeto(grabbable.transform);
+            Vector3 viewport = cameraDoPlayer.WorldToViewportPoint(ponto);
+
+            if (viewport.z < 0f || viewport.z > distanciaSelecao)
+                continue;
+
+            Vector2 delta = new Vector2(viewport.x - 0.5f, viewport.y - 0.5f);
+            float distanciaCentro = delta.magnitude;
+
+            if (distanciaCentro > raioViewportFallback)
+                continue;
+
+            if (!TemLinhaDeVisaoParaObjeto(grabbable, ponto))
+                continue;
+
+            float score = distanciaCentro * 10f + viewport.z * 0.02f;
+            if (score < melhorScore)
             {
-                if (hits[j].distance < hits[i].distance)
-                {
-                    RaycastHit temp = hits[i];
-                    hits[i] = hits[j];
-                    hits[j] = temp;
-                }
+                melhorScore = score;
+                melhor = grabbable;
             }
         }
+
+        return melhor;
+    }
+
+    private bool TemLinhaDeVisaoParaObjeto(GrabbableObjectHardcore grabbable, Vector3 ponto)
+    {
+        Vector3 origem = cameraDoPlayer.transform.position;
+        Vector3 direcao = ponto - origem;
+        float distancia = direcao.magnitude;
+
+        if (distancia <= 0.001f)
+            return true;
+
+        direcao /= distancia;
+
+        if (!Physics.Raycast(origem, direcao, out RaycastHit hit, distanciaSelecao, layersSelecionaveis, QueryTriggerInteraction.Ignore))
+            return true;
+
+        if (hit.collider == null)
+            return true;
+
+        return hit.collider.transform == grabbable.transform || hit.collider.transform.IsChildOf(grabbable.transform);
+    }
+
+    private bool ObjetoPodeSerSelecionado(GrabbableObjectHardcore grabbable, out string motivo)
+    {
+        motivo = string.Empty;
+
+        if (grabbable == null)
+        {
+            motivo = "sem GrabbableObjectHardcore";
+            return false;
+        }
+
+        if (!grabbable.podeSerPego)
+        {
+            motivo = "podeSerPego desligado";
+            return false;
+        }
+
+        if (usarListaDeObjetosPermitidos && !ObjetoEstaNaLista(grabbable.gameObject) && !permitirQualquerObjetoComGrabbable)
+        {
+            motivo = "fora da lista de objetos permitidos";
+            return false;
+        }
+
+        return PodePegarFisicamente(grabbable, out motivo);
     }
 
     private GrabbableObjectHardcore ResolverGrabbable(Collider collider)
     {
+        if (collider == null)
+            return null;
+
         GrabbableObjectHardcore grabbable = collider.GetComponentInParent<GrabbableObjectHardcore>();
 
         if (grabbable != null)
-        {
-            if (permitirQualquerObjetoComGrabbable)
-                return grabbable;
-
-            if (!usarListaDeObjetosPermitidos)
-                return grabbable;
-
-            if (ObjetoEstaNaLista(grabbable.gameObject))
-                return grabbable;
-        }
-
-        if (!usarListaDeObjetosPermitidos)
             return grabbable;
 
-        GameObject objetoPermitido = EncontrarObjetoPermitidoPeloCollider(collider);
-
-        if (objetoPermitido == null)
+        GameObject permitido = EncontrarObjetoPermitidoPeloCollider(collider);
+        if (permitido == null)
             return null;
 
-        grabbable = objetoPermitido.GetComponent<GrabbableObjectHardcore>();
-
+        grabbable = permitido.GetComponent<GrabbableObjectHardcore>();
         if (grabbable == null && adicionarComponenteAutomaticamenteNosPermitidos)
-            grabbable = objetoPermitido.AddComponent<GrabbableObjectHardcore>();
+            grabbable = permitido.AddComponent<GrabbableObjectHardcore>();
 
         return grabbable;
-    }
-
-    private bool ObjetoEstaNaLista(GameObject objeto)
-    {
-        if (objeto == null || objetosPermitidos == null)
-            return false;
-
-        for (int i = 0; i < objetosPermitidos.Count; i++)
-        {
-            GameObject permitido = objetosPermitidos[i];
-            if (permitido == null)
-                continue;
-
-            if (objeto == permitido)
-                return true;
-
-            if (objeto.transform.IsChildOf(permitido.transform))
-                return true;
-
-            if (permitido.transform.IsChildOf(objeto.transform))
-                return true;
-        }
-
-        return false;
-    }
-
-    private GameObject EncontrarObjetoPermitidoPeloCollider(Collider collider)
-    {
-        if (collider == null || objetosPermitidos == null)
-            return null;
-
-        Transform hitTransform = collider.transform;
-
-        for (int i = 0; i < objetosPermitidos.Count; i++)
-        {
-            GameObject permitido = objetosPermitidos[i];
-            if (permitido == null)
-                continue;
-
-            if (hitTransform == permitido.transform)
-                return permitido;
-
-            if (hitTransform.IsChildOf(permitido.transform))
-                return permitido;
-        }
-
-        return null;
     }
 
     private bool PodePegarFisicamente(GrabbableObjectHardcore objeto, out string motivo)
@@ -469,17 +475,17 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         MiniMarketObjectPhysicsProfile perfil = objeto.GetComponent<MiniMarketObjectPhysicsProfile>();
         if (perfil != null && !perfil.podeSerPego)
         {
-            motivo = "profile bloqueou";
+            motivo = "perfil bloqueou";
             return false;
         }
 
         Rigidbody rb = ResolverRigidbody(objeto, perfil);
         float massa = rb != null ? Mathf.Max(0.01f, rb.mass) : (perfil != null ? perfil.massaVirtual : massaPadraoSemRigidbody);
-
         float limiteMassa = perfil != null && perfil.sobrescreverLimitesGlobais ? perfil.massaMaximaParaPegar : massaMaximaParaPegar;
+
         if (massa > limiteMassa)
         {
-            motivo = "massa " + massa.ToString("0.0") + " maior que limite " + limiteMassa.ToString("0.0");
+            motivo = "massa acima do limite";
             return false;
         }
 
@@ -492,13 +498,13 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
             if (bounds.size.y > limiteAltura)
             {
-                motivo = "altura maior que limite";
+                motivo = "altura acima do limite";
                 return false;
             }
 
             if (bounds.size.x > limiteLargura || bounds.size.z > limiteComprimento)
             {
-                motivo = "largura/comprimento maior que limite";
+                motivo = "largura/comprimento acima do limite";
                 return false;
             }
         }
@@ -512,7 +518,6 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
             return null;
 
         Rigidbody rb = objeto.RigidbodyDoObjeto;
-
         if (rb == null)
             rb = objeto.GetComponent<Rigidbody>();
 
@@ -529,10 +534,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
     private void PegarObjeto(GrabbableObjectHardcore objeto)
     {
-        if (objeto == null)
-            return;
-
-        if (!PodePegarFisicamente(objeto, out string motivo))
+        if (objeto == null || !ObjetoPodeSerSelecionado(objeto, out string motivo))
         {
             if (logarMotivoNaoPegou)
                 Debug.Log("[PlayerObjectGrabberHardcore] Falha ao pegar: " + motivo);
@@ -543,13 +545,14 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         objetoSelecionado = null;
         perfilPegando = objetoPegando.GetComponent<MiniMarketObjectPhysicsProfile>();
         rbPegando = ResolverRigidbody(objetoPegando, perfilPegando);
-
-        objetoPegando.ComecarPegar();
+        massaAtual = rbPegando != null ? Mathf.Max(0.01f, rbPegando.mass) : massaPadraoSemRigidbody;
+        raioObjetoAtual = CalcularRaioObjeto(objetoPegando.transform);
         rotacaoOriginalObjeto = objetoPegando.transform.rotation;
         distanciaAtualSegurando = CalcularDistanciaInicialSegurando();
 
         CacheCollidersObjetoPegando();
         PrepararRigidbodyParaSegurar();
+        objetoPegando.ComecarPegar();
     }
 
     private void PrepararRigidbodyParaSegurar()
@@ -557,21 +560,21 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (rbPegando == null)
             return;
 
-        massaAtual = Mathf.Max(0.01f, rbPegando.mass);
-        raioObjetoAtual = CalcularRaioObjeto(objetoPegando.transform);
-
-        rbTinhaGravidade = rbPegando.useGravity;
-        rbDragOriginal = rbPegando.drag;
-        rbAngularDragOriginal = rbPegando.angularDrag;
+        rbUseGravityOriginal = rbPegando.useGravity;
+        rbIsKinematicOriginal = rbPegando.isKinematic;
+        rbLinearDampingOriginal = rbPegando.linearDamping;
+        rbAngularDampingOriginal = rbPegando.angularDamping;
         rbMaxAngularVelocityOriginal = rbPegando.maxAngularVelocity;
         rbCollisionOriginal = rbPegando.collisionDetectionMode;
         rbInterpolationOriginal = rbPegando.interpolation;
         rbConstraintsOriginal = rbPegando.constraints;
 
-        bool gravidadeSegurando = perfilPegando != null ? perfilPegando.usarGravidadeEnquantoSegura : usarGravidadeEnquantoSegura;
-        rbPegando.useGravity = gravidadeSegurando;
-        rbPegando.drag = dragEnquantoSegura;
-        rbPegando.angularDrag = angularDragEnquantoSegura;
+        bool gravidade = perfilPegando != null ? perfilPegando.usarGravidadeEnquantoSegura : usarGravidadeEnquantoSegura;
+
+        rbPegando.isKinematic = false;
+        rbPegando.useGravity = gravidade;
+        rbPegando.linearDamping = linearDampingEnquantoSegura;
+        rbPegando.angularDamping = angularDampingEnquantoSegura;
         rbPegando.maxAngularVelocity = maxAngularVelocityEnquantoSegura;
         rbPegando.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rbPegando.interpolation = RigidbodyInterpolation.Interpolate;
@@ -581,26 +584,15 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     private float CalcularDistanciaInicialSegurando()
     {
         float distancia = distanciaSegurando;
-
-        if (ajustarDistanciaPeloTamanho && objetoPegando != null)
-            distancia += CalcularRaioObjeto(objetoPegando.transform) * 0.35f;
+        distancia += raioObjetoAtual * 0.25f;
 
         if (perfilPegando != null)
             distancia *= perfilPegando.multiplicadorDistanciaSegurar;
 
-        return CalcularDistanciaPermitidaPorPeso(distancia);
-    }
-
-    private float CalcularDistanciaPermitidaPorPeso(float distancia)
-    {
-        float massa = rbPegando != null ? Mathf.Max(0.01f, rbPegando.mass) : massaPadraoSemRigidbody;
-        float peso01 = Mathf.InverseLerp(0.5f, Mathf.Max(0.6f, massaMaximaParaPegar), massa);
-        float distanciaMaxPeso = Mathf.Lerp(distanciaMaximaSegurando, Mathf.Max(distanciaMinimaSegurando, distanciaMaximaSegurando * 0.65f), peso01 * influenciaPesoNaDistancia);
-
-        if (limitarDistanciaSegurando)
-            distancia = Mathf.Clamp(distancia, distanciaMinimaSegurando, distanciaMaxPeso);
-
-        return distancia;
+        float massaLimite = Mathf.Max(0.1f, massaMaximaParaPegar);
+        float peso01 = Mathf.InverseLerp(0.5f, massaLimite, massaAtual);
+        float maxPorPeso = Mathf.Lerp(distanciaMaximaSegurando, Mathf.Max(distanciaMinimaSegurando, distanciaMaximaSegurando * 0.65f), peso01 * influenciaPesoNaDistancia);
+        return Mathf.Clamp(distancia, distanciaMinimaSegurando, maxPorPeso);
     }
 
     private void AtualizarScrollDistancia()
@@ -613,7 +605,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
             return;
 
         distanciaAtualSegurando += scroll * velocidadeScrollDistancia;
-        distanciaAtualSegurando = CalcularDistanciaPermitidaPorPeso(distanciaAtualSegurando);
+        distanciaAtualSegurando = Mathf.Clamp(distanciaAtualSegurando, distanciaMinimaSegurando, distanciaMaximaSegurando);
     }
 
     private void MoverObjetoPegandoFisico()
@@ -621,45 +613,31 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (objetoPegando == null)
             return;
 
-        Vector3 destinoCentroMassa = CalcularPontoSegurandoSeguro();
+        Vector3 alvo = CalcularPontoSegurandoSeguro();
 
-        if (rbPegando != null)
+        if (rbPegando == null)
         {
-            Vector3 centroAtual = rbPegando.worldCenterOfMass;
-            Vector3 erro = destinoCentroMassa - centroAtual;
-
-            if (soltarSeFicarMuitoLonge && erro.magnitude > distanciaMaximaErroAntesDeSoltar)
-            {
-                SoltarObjeto();
-                return;
-            }
-
-            float multiplicadorPerfil = perfilPegando != null ? perfilPegando.multiplicadorForcaSegurar : 1f;
-            float peso01 = Mathf.InverseLerp(0.5f, Mathf.Max(0.6f, massaMaximaParaPegar), massaAtual);
-            float forcaPeso = Mathf.Lerp(1f, 0.38f, peso01 * influenciaPesoNaForca);
-
-            Vector3 velocidadeAlvo = erro * forcaSegurar * forcaPeso * multiplicadorPerfil * Time.fixedDeltaTime;
-            velocidadeAlvo = Vector3.ClampMagnitude(velocidadeAlvo, velocidadeMaximaObjeto);
-
-            Vector3 aceleracaoDesejada = (velocidadeAlvo - rbPegando.velocity) * amortecimentoSegurar;
-            Vector3 forca = aceleracaoDesejada * massaAtual;
-            forca = Vector3.ClampMagnitude(forca, forcaMaximaSegurar * multiplicadorPerfil);
-
-            rbPegando.AddForce(forca, ForceMode.Force);
-            AplicarRotacaoObjetoFisica();
-        }
-        else
-        {
-            float suavizacao = CalcularSuavizacao(Mathf.Max(1f, forcaSegurar * 0.06f), Time.fixedDeltaTime);
-            objetoPegando.transform.position = Vector3.Lerp(objetoPegando.transform.position, destinoCentroMassa, suavizacao);
-            objetoPegando.transform.rotation = Quaternion.Slerp(objetoPegando.transform.rotation, CalcularRotacaoObjeto(), CalcularSuavizacao(velocidadeRotacaoObjeto, Time.fixedDeltaTime));
-        }
-    }
-
-    private void AplicarRotacaoObjetoFisica()
-    {
-        if (rbPegando == null || objetoPegando == null)
+            objetoPegando.transform.position = Vector3.Lerp(objetoPegando.transform.position, alvo, CalcularSuavizacao(rigidezSegurar, Time.fixedDeltaTime));
             return;
+        }
+
+        Vector3 posAtual = rbPegando.worldCenterOfMass;
+        Vector3 erro = alvo - posAtual;
+
+        if (soltarSeFicarMuitoLonge && erro.magnitude > distanciaMaximaErroAntesDeSoltar)
+        {
+            SoltarObjeto();
+            return;
+        }
+
+        float peso01 = Mathf.InverseLerp(0.5f, Mathf.Max(0.6f, massaMaximaParaPegar), massaAtual);
+        float respostaPeso = Mathf.Lerp(1f, 0.45f, peso01 * influenciaPesoNaResposta);
+        float multiplicadorPerfil = perfilPegando != null ? perfilPegando.multiplicadorForcaSegurar : 1f;
+
+        Vector3 velocidadeDesejada = erro * rigidezSegurar * respostaPeso * multiplicadorPerfil;
+        velocidadeDesejada = Vector3.ClampMagnitude(velocidadeDesejada, velocidadeMaximaObjeto);
+
+        rbPegando.linearVelocity = Vector3.Lerp(rbPegando.linearVelocity, velocidadeDesejada, suavizacaoVelocidade);
 
         Quaternion rotacaoAlvo = CalcularRotacaoObjeto();
         Quaternion novaRotacao = Quaternion.Slerp(rbPegando.rotation, rotacaoAlvo, CalcularSuavizacao(velocidadeRotacaoObjeto, Time.fixedDeltaTime));
@@ -669,44 +647,27 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     private Vector3 CalcularPontoSegurandoSeguro()
     {
         Transform cam = cameraDoPlayer.transform;
-
-        Vector3 destino = cam.position
-            + cam.forward * distanciaAtualSegurando
-            + cam.right * offsetSegurando.x
-            + cam.up * offsetSegurando.y;
+        Vector3 destino = cam.position + cam.forward * distanciaAtualSegurando + cam.right * offsetSegurando.x + cam.up * offsetSegurando.y;
 
         if (!impedirAtravessarParede)
             return destino;
 
         Vector3 direcao = destino - cam.position;
         float distancia = direcao.magnitude;
-
         if (distancia <= 0.001f)
             return destino;
 
         direcao /= distancia;
         float raio = Mathf.Max(0.03f, raioObjetoAtual * multiplicadorRaioColisao);
 
-        int hitCount = Physics.SphereCastNonAlloc(
-            cam.position,
-            raio,
-            direcao,
-            hitsBloqueio,
-            distancia,
-            layersBloqueioObjeto,
-            QueryTriggerInteraction.Ignore
-        );
-
+        int hitCount = Physics.SphereCastNonAlloc(cam.position, raio, direcao, hitsBloqueio, distancia, layersBloqueioObjeto, QueryTriggerInteraction.Ignore);
         float menorDistancia = distancia;
         bool bloqueado = false;
 
         for (int i = 0; i < hitCount; i++)
         {
             RaycastHit hit = hitsBloqueio[i];
-            if (hit.collider == null)
-                continue;
-
-            if (DeveIgnorarCollider(hit.collider))
+            if (hit.collider == null || DeveIgnorarCollider(hit.collider))
                 continue;
 
             if (hit.distance < menorDistancia)
@@ -730,7 +691,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (manterRotacaoOriginalAoPegar)
             return rotacaoOriginalObjeto;
 
-        if (alinharObjetoComCamera)
+        if (alinharObjetoComCamera && cameraDoPlayer != null)
             return Quaternion.LookRotation(cameraDoPlayer.transform.forward, Vector3.up);
 
         return objetoPegando != null ? objetoPegando.transform.rotation : Quaternion.identity;
@@ -749,12 +710,13 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
             float multVel = perfilPegando != null ? perfilPegando.multiplicadorVelocidadeAoSoltar : multiplicadorVelocidadeAoSoltar;
             float multRot = perfilPegando != null ? perfilPegando.multiplicadorRotacaoAoSoltar : multiplicadorRotacaoAoSoltar;
 
-            rbPegando.velocity *= multVel;
+            rbPegando.linearVelocity *= multVel;
             rbPegando.angularVelocity *= multRot;
 
-            rbPegando.useGravity = rbTinhaGravidade;
-            rbPegando.drag = rbDragOriginal;
-            rbPegando.angularDrag = rbAngularDragOriginal;
+            rbPegando.useGravity = rbUseGravityOriginal;
+            rbPegando.isKinematic = rbIsKinematicOriginal;
+            rbPegando.linearDamping = rbLinearDampingOriginal;
+            rbPegando.angularDamping = rbAngularDampingOriginal;
             rbPegando.maxAngularVelocity = rbMaxAngularVelocityOriginal;
             rbPegando.collisionDetectionMode = rbCollisionOriginal;
             rbPegando.interpolation = rbInterpolationOriginal;
@@ -783,8 +745,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (distancia >= distanciaMinimaDoPlayerAoSoltar || distancia <= 0.001f)
             return;
 
-        Vector3 direcao = plano.normalized;
-        Vector3 novaPosicao = playerPos + direcao * distanciaMinimaDoPlayerAoSoltar;
+        Vector3 novaPosicao = playerPos + plano.normalized * distanciaMinimaDoPlayerAoSoltar;
         novaPosicao.y = objetoPos.y;
         rbPegando.position = novaPosicao;
     }
@@ -801,15 +762,14 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     private void CacheCollidersObjetoPegando()
     {
         collidersObjetoPegando.Clear();
-
         if (objetoPegando == null)
             return;
 
-        Collider[] colliders = objetoPegando.GetComponentsInChildren<Collider>(true);
-        for (int i = 0; i < colliders.Length; i++)
+        Collider[] cols = objetoPegando.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < cols.Length; i++)
         {
-            if (colliders[i] != null)
-                collidersObjetoPegando.Add(colliders[i]);
+            if (cols[i] != null)
+                collidersObjetoPegando.Add(cols[i]);
         }
     }
 
@@ -821,11 +781,8 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (raizDoPlayer != null && col.transform.IsChildOf(raizDoPlayer))
             return true;
 
-        if (objetoPegando != null)
-        {
-            if (col.transform == objetoPegando.transform || col.transform.IsChildOf(objetoPegando.transform))
-                return true;
-        }
+        if (objetoPegando != null && (col.transform == objetoPegando.transform || col.transform.IsChildOf(objetoPegando.transform)))
+            return true;
 
         for (int i = 0; i < collidersObjetoPegando.Count; i++)
         {
@@ -834,6 +791,43 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         }
 
         return false;
+    }
+
+    private bool ObjetoEstaNaLista(GameObject objeto)
+    {
+        if (objeto == null || objetosPermitidos == null)
+            return false;
+
+        for (int i = 0; i < objetosPermitidos.Count; i++)
+        {
+            GameObject permitido = objetosPermitidos[i];
+            if (permitido == null)
+                continue;
+
+            if (objeto == permitido || objeto.transform.IsChildOf(permitido.transform) || permitido.transform.IsChildOf(objeto.transform))
+                return true;
+        }
+
+        return false;
+    }
+
+    private GameObject EncontrarObjetoPermitidoPeloCollider(Collider collider)
+    {
+        if (collider == null || objetosPermitidos == null)
+            return null;
+
+        Transform hitTransform = collider.transform;
+        for (int i = 0; i < objetosPermitidos.Count; i++)
+        {
+            GameObject permitido = objetosPermitidos[i];
+            if (permitido == null)
+                continue;
+
+            if (hitTransform == permitido.transform || hitTransform.IsChildOf(permitido.transform))
+                return permitido;
+        }
+
+        return null;
     }
 
     private Bounds CalcularBoundsObjeto(Transform raiz, out bool temBounds)
@@ -865,22 +859,28 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         Renderer[] renderers = raiz.GetComponentsInChildren<Renderer>(true);
         for (int i = 0; i < renderers.Length; i++)
         {
-            Renderer renderer = renderers[i];
-            if (renderer == null || !renderer.enabled)
+            Renderer r = renderers[i];
+            if (r == null || !r.enabled)
                 continue;
 
             if (!temBounds)
             {
-                bounds = renderer.bounds;
+                bounds = r.bounds;
                 temBounds = true;
             }
             else
             {
-                bounds.Encapsulate(renderer.bounds);
+                bounds.Encapsulate(r.bounds);
             }
         }
 
         return bounds;
+    }
+
+    private Vector3 ObterCentroObjeto(Transform raiz)
+    {
+        Bounds bounds = CalcularBoundsObjeto(raiz, out bool temBounds);
+        return temBounds ? bounds.center : raiz.position;
     }
 
     private float CalcularRaioObjeto(Transform raiz)
@@ -892,6 +892,22 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         return Mathf.Clamp(Mathf.Max(bounds.extents.x, bounds.extents.y, bounds.extents.z), 0.08f, 2.5f);
     }
 
+    private void OrdenarHitsPorDistancia(RaycastHit[] hits, int count)
+    {
+        for (int i = 0; i < count - 1; i++)
+        {
+            for (int j = i + 1; j < count; j++)
+            {
+                if (hits[j].distance < hits[i].distance)
+                {
+                    RaycastHit tmp = hits[i];
+                    hits[i] = hits[j];
+                    hits[j] = tmp;
+                }
+            }
+        }
+    }
+
     private float CalcularSuavizacao(float velocidade, float deltaTime)
     {
         return 1f - Mathf.Exp(-velocidade * deltaTime);
@@ -899,30 +915,25 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
     private void OnValidate()
     {
-        massaMaximaParaPegar = Mathf.Max(0.01f, massaMaximaParaPegar);
+        distanciaSelecao = Mathf.Max(0.1f, distanciaSelecao);
+        raioSelecao = Mathf.Max(0.001f, raioSelecao);
         massaPadraoSemRigidbody = Mathf.Max(0.01f, massaPadraoSemRigidbody);
+        massaMaximaParaPegar = Mathf.Max(0.01f, massaMaximaParaPegar);
         alturaMaximaObjeto = Mathf.Max(0.05f, alturaMaximaObjeto);
         larguraMaximaObjeto = Mathf.Max(0.05f, larguraMaximaObjeto);
         comprimentoMaximoObjeto = Mathf.Max(0.05f, comprimentoMaximoObjeto);
-
-        distanciaSelecao = Mathf.Max(0.1f, distanciaSelecao);
-        raioSelecao = Mathf.Max(0.001f, raioSelecao);
         distanciaSegurando = Mathf.Max(0.3f, distanciaSegurando);
         distanciaMinimaSegurando = Mathf.Max(0.3f, distanciaMinimaSegurando);
         distanciaMaximaSegurando = Mathf.Max(distanciaMinimaSegurando, distanciaMaximaSegurando);
         velocidadeScrollDistancia = Mathf.Max(0.05f, velocidadeScrollDistancia);
-
-        forcaSegurar = Mathf.Max(1f, forcaSegurar);
-        amortecimentoSegurar = Mathf.Max(0f, amortecimentoSegurar);
-        velocidadeMaximaObjeto = Mathf.Max(0.1f, velocidadeMaximaObjeto);
-        forcaMaximaSegurar = Mathf.Max(1f, forcaMaximaSegurar);
-        distanciaMaximaErroAntesDeSoltar = Mathf.Max(0.5f, distanciaMaximaErroAntesDeSoltar);
-        dragEnquantoSegura = Mathf.Max(0f, dragEnquantoSegura);
-        angularDragEnquantoSegura = Mathf.Max(0f, angularDragEnquantoSegura);
+        rigidezSegurar = Mathf.Max(1f, rigidezSegurar);
+        velocidadeMaximaObjeto = Mathf.Max(0.5f, velocidadeMaximaObjeto);
+        linearDampingEnquantoSegura = Mathf.Max(0f, linearDampingEnquantoSegura);
+        angularDampingEnquantoSegura = Mathf.Max(0f, angularDampingEnquantoSegura);
         maxAngularVelocityEnquantoSegura = Mathf.Max(0.05f, maxAngularVelocityEnquantoSegura);
         multiplicadorRaioColisao = Mathf.Max(0.01f, multiplicadorRaioColisao);
         margemParede = Mathf.Max(0f, margemParede);
-        distanciaMinimaDoPlayerAoSoltar = Mathf.Max(0.05f, distanciaMinimaDoPlayerAoSoltar);
+        distanciaMaximaErroAntesDeSoltar = Mathf.Max(0.5f, distanciaMaximaErroAntesDeSoltar);
     }
 
     private void OnDrawGizmos()
