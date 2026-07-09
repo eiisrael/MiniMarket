@@ -19,6 +19,9 @@ using UnityEngine.UI;
 /// - Atualiza o texto se solicitado.
 /// - Liga os eventos dos botoes.
 /// - Garante EventSystem/GraphicRaycaster para os botoes clicarem.
+///
+/// Correção atual:
+/// - Remove usos obsoletos de FindObjectOfType no Unity 6/7.
 /// </summary>
 public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 {
@@ -354,7 +357,7 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
 
     private void GarantirEventSystemNaCena()
     {
-        if (FindObjectOfType<EventSystem>() != null)
+        if (UnityEngine.Object.FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include) != null)
             return;
 
         new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
@@ -371,7 +374,7 @@ public class BuyScenePurchaseConfirmationPanel : MonoBehaviour
             canvas = transform.GetComponentInParent<Canvas>(true);
 
         if (canvas == null)
-            canvas = FindObjectOfType<Canvas>();
+            canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>(FindObjectsInactive.Include);
 
         if (canvas == null)
             return;
