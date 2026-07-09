@@ -1,26 +1,28 @@
 using UnityEngine;
 
 /// <summary>
-/// Garante em runtime que apenas a CameraGTAFollowHardcore controle o eixo/rotação da Main Camera.
+/// Estabilizador opcional de autoridade da câmera.
 ///
-/// Este script corrige valores serializados antigos da cena que podem continuar ligados mesmo após
-/// alteração dos defaults no código:
-/// - FrameSpikeGuard fica somente diagnóstico;
-/// - CollisionSmoother não sobrescreve rotação;
-/// - PerspectiveSwitcher não rotaciona o personagem por conta própria;
-/// - Grabber não desloca a Main Camera lateralmente.
+/// Mudança importante:
+/// - por padrão fica em Modo Inspector Livre;
+/// - não força valores continuamente;
+/// - só aplica regras se você desligar Modo Inspector Livre.
 ///
-/// Objetivo: remover o efeito de "pulo/encaixe" quando o jogador vira o mouse rápido.
+/// Isso evita que campos do Inspector pareçam travados durante o Play.
 /// </summary>
 [DefaultExecutionOrder(34000)]
 public class MiniMarketCameraAuthorityStabilizer : MonoBehaviour
 {
+    [Header("Modo Inspector")]
+    [Tooltip("Ligado: não altera valores de outros scripts. Use assim para configurar tudo manualmente no Inspector.")]
+    public bool modoInspectorLivre = true;
+
     [Header("Ativação")]
     public bool ativo = true;
-    public bool aplicarContinuamente = true;
+    public bool aplicarContinuamente = false;
     [Min(0.1f)] public float intervaloAplicacao = 0.5f;
 
-    [Header("Autoridade da Camera")]
+    [Header("Autoridade da Camera - Preset Opcional")]
     public bool garantirFrameSpikeSomenteDiagnostico = true;
     public bool impedirCollisionSmootherDeRotacionar = true;
     public bool impedirPerspectiveSwitcherDeRotacionarPersonagem = true;
@@ -54,7 +56,7 @@ public class MiniMarketCameraAuthorityStabilizer : MonoBehaviour
 
         instancia = this;
         DontDestroyOnLoad(gameObject);
-        AplicarRegras();
+        AplicarRegrasSePermitido();
     }
 
     private void LateUpdate()
@@ -66,6 +68,14 @@ public class MiniMarketCameraAuthorityStabilizer : MonoBehaviour
             return;
 
         proximaAplicacao = Time.unscaledTime + intervaloAplicacao;
+        AplicarRegrasSePermitido();
+    }
+
+    private void AplicarRegrasSePermitido()
+    {
+        if (modoInspectorLivre)
+            return;
+
         AplicarRegras();
     }
 
