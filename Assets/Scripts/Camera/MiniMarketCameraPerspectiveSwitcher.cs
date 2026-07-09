@@ -1,3 +1,4 @@
+using System.Reflection;
 using UnityEngine;
 
 /// <summary>
@@ -8,6 +9,7 @@ using UnityEngine;
 /// - Assim, scripts de camera/mouse que estiverem na Main Camera continuam rodando.
 /// - A camera de primeira pessoa copia a rotacao da camera normal e segue um ponto nos olhos/cabeca.
 /// - Em primeira pessoa, pode rotacionar o personagem junto com a camera e ocultar renderers para nao ver a cabeca por dentro.
+/// - Estabiliza o PlayerMove para sempre usar a camera ativa como referencia de movimento.
 /// </summary>
 [DefaultExecutionOrder(20000)]
 public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
@@ -23,7 +25,7 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     [Tooltip("Empty no personagem, posicionado nos olhos/cabeca. A camera de primeira pessoa segue este ponto.")]
     public Transform pontoPrimeiraPessoa;
 
-    [Tooltip("Usado se pontoPrimeiraPessoa estiver vazio. Arraste o Character 01 aqui.")]
+    [Tooltip("Usado se pontoPrimeiraPessoa estiver vazio. Arraste o Character 01 aqui. Se vazio, encontra o PlayerMove automaticamente.")]
     public Transform alvoFallback;
 
     [Tooltip("Offset local usado quando seguir o alvoFallback.")]
@@ -45,8 +47,24 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     [Tooltip("Mantem o cursor travado durante a troca de camera.")]
     public bool manterCursorTravado = true;
 
+    [Header("Estabilidade / Compatibilidade")]
+    [Tooltip("PlayerMove do personagem. Se vazio, encontra automaticamente.")]
+    public PlayerMove playerMove;
+
+    [Tooltip("Atualiza o cameraTransform do PlayerMove para a camera ativa. Evita movimento/camera brigando quando troca POV.")]
+    public bool atualizarCameraTransformDoPlayerMove = true;
+
+    [Tooltip("Desativa via reflection o autoAlignBehindPlayer de scripts de camera GTA, evitando puxao/reset automatico de yaw.")]
+    public bool desativarAutoAlignCameraGTA = true;
+
+    [Tooltip("Executa a estabilizacao varias vezes nos primeiros segundos para pegar scripts que inicializam depois.")]
+    public bool reforcarEstabilizacaoInicial = true;
+
+    [Tooltip("Tempo maximo para reforcar estabilizacao apos iniciar a cena.")]
+    [Min(0.1f)] public float tempoReforcoEstabilizacao = 3f;
+
     [Header("Primeira Pessoa - Personagem")]
-    [Tooltip("Objeto principal do personagem que deve virar junto com a camera. Se vazio, usa Alvo Fallback.")]
+    [Tooltip("Objeto principal do personagem que deve virar junto com a camera. Se vazio, usa PlayerMove/alvoFallback.")]
     public Transform personagemParaRotacionar;
 
     [Tooltip("Se ligado, em primeira pessoa o personagem vira para o mesmo Yaw da camera.")]
@@ -77,6 +95,8 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     public bool logarEventos = true;
 
     private bool usandoPrimeiraPessoa;
+    private bool autoAlignEstabilizado;
+    private float tempoInicio;
     private AudioListener audioNormal;
     private AudioListener audioPrimeiraPessoa;
 
@@ -84,14 +104,17 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
     private void Awake()
     {
+        tempoInicio = Time.unscaledTime;
         ResolverReferencias();
         usandoPrimeiraPessoa = !iniciarNaCameraNormal;
+        EstabilizarScriptsDeCameraGTA();
         AplicarEstadoDasCameras();
     }
 
     private void Start()
     {
         ResolverReferencias();
+        EstabilizarScriptsDeCameraGTA();
         AplicarEstadoDasCameras();
     }
 
@@ -102,6 +125,9 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
     private void Update()
     {
+        if (reforcarEstabilizacaoInicial && Time.unscaledTime - tempoInicio <= tempoReforcoEstabilizacao)
+            EstabilizarScriptsDeCameraGTA();
+
         if (Input.GetKeyDown(teclaAlternar))
         {
             if (AlgumMenuBloqueando())
@@ -115,6 +141,7 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     {
         AtualizarCameraPrimeiraPessoa();
         AtualizarRotacaoPersonagemPrimeiraPessoa();
+        AtualizarCameraDoPlayerMove();
     }
 
     public void AlternarCamera()
@@ -155,8 +182,19 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         if (cameraPrimeiraPessoa != null && audioPrimeiraPessoa == null)
             audioPrimeiraPessoa = cameraPrimeiraPessoa.GetComponent<AudioListener>();
 
+        if (playerMove == null)
+            playerMove = FindObjectOfType<PlayerMove>(true);
+
+        if (alvoFallback == null && playerMove != null)
+            alvoFallback = playerMove.transform;
+
         if (personagemParaRotacionar == null)
-            personagemParaRotacionar = alvoFallback;
+        {
+            if (playerMove != null)
+                personagemParaRotacionar = playerMove.transform;
+            else
+                personagemParaRotacionar = alvoFallback;
+        }
 
         if (encontrarRenderersAutomaticamente && (renderersDoPersonagem == null || renderersDoPersonagem.Length == 0))
         {
@@ -185,6 +223,7 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         AplicarVisibilidadeRenderers(!usandoPrimeiraPessoa || !ocultarRenderersNaPrimeiraPessoa);
         AtualizarCameraPrimeiraPessoa();
         AtualizarRotacaoPersonagemPrimeiraPessoa(true);
+        AtualizarCameraDoPlayerMove();
     }
 
     private void AtualizarCameraPrimeiraPessoa()
@@ -208,6 +247,19 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
         if (copiarFOVDaCameraNormal && cameraNormal != null)
             cameraPrimeiraPessoa.fieldOfView = cameraNormal.fieldOfView;
+    }
+
+    private void AtualizarCameraDoPlayerMove()
+    {
+        if (!atualizarCameraTransformDoPlayerMove)
+            return;
+
+        if (playerMove == null)
+            return;
+
+        Camera ativa = usandoPrimeiraPessoa && cameraPrimeiraPessoa != null ? cameraPrimeiraPessoa : cameraNormal;
+        if (ativa != null)
+            playerMove.cameraTransform = ativa.transform;
     }
 
     private void AtualizarRotacaoPersonagemPrimeiraPessoa(bool instantaneo = false)
@@ -242,6 +294,53 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
         float t = 1f - Mathf.Exp(-velocidadeRotacaoPersonagem * Time.deltaTime);
         alvo.rotation = Quaternion.Slerp(alvo.rotation, rotacaoAlvo, t);
+    }
+
+    private void EstabilizarScriptsDeCameraGTA()
+    {
+        if (!desativarAutoAlignCameraGTA)
+            return;
+
+        if (cameraNormal == null)
+            return;
+
+        bool alterouAlgo = false;
+        MonoBehaviour[] scripts = cameraNormal.GetComponents<MonoBehaviour>();
+
+        for (int i = 0; i < scripts.Length; i++)
+        {
+            MonoBehaviour script = scripts[i];
+            if (script == null || script == this)
+                continue;
+
+            System.Type tipo = script.GetType();
+            string nomeTipo = tipo.Name.ToLowerInvariant();
+
+            FieldInfo autoAlignField = tipo.GetField("autoAlignBehindPlayer", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (autoAlignField == null || autoAlignField.FieldType != typeof(bool))
+                continue;
+
+            bool valorAtual = (bool)autoAlignField.GetValue(script);
+            if (valorAtual)
+            {
+                autoAlignField.SetValue(script, false);
+                alterouAlgo = true;
+            }
+
+            FieldInfo delayField = tipo.GetField("autoAlignDelay", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (delayField != null && delayField.FieldType == typeof(float))
+            {
+                float delayAtual = (float)delayField.GetValue(script);
+                if (delayAtual < 999f)
+                    delayField.SetValue(script, 999f);
+            }
+
+            if (logarEventos && !autoAlignEstabilizado && nomeTipo.Contains("camera"))
+                Debug.Log("[MiniMarketCameraPerspectiveSwitcher] Auto-align estabilizado em: " + tipo.Name);
+        }
+
+        if (alterouAlgo)
+            autoAlignEstabilizado = true;
     }
 
     private void AplicarVisibilidadeRenderers(bool visivel)
