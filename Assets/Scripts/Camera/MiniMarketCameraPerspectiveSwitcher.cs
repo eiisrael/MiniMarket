@@ -7,6 +7,7 @@ using UnityEngine;
 /// - Nao desativa o GameObject da Main Camera, apenas o componente Camera/AudioListener.
 /// - Assim, scripts de camera/mouse que estiverem na Main Camera continuam rodando.
 /// - A camera de primeira pessoa copia a rotacao da camera normal e segue um ponto nos olhos/cabeca.
+/// - Em primeira pessoa, pode rotacionar o personagem junto com a camera e ocultar renderers para nao ver a cabeca por dentro.
 /// </summary>
 [DefaultExecutionOrder(20000)]
 public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
@@ -44,6 +45,24 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     [Tooltip("Mantem o cursor travado durante a troca de camera.")]
     public bool manterCursorTravado = true;
 
+    [Header("Primeira Pessoa - Personagem")]
+    [Tooltip("Objeto principal do personagem que deve virar junto com a camera. Se vazio, usa Alvo Fallback.")]
+    public Transform personagemParaRotacionar;
+
+    [Tooltip("Se ligado, em primeira pessoa o personagem vira para o mesmo Yaw da camera.")]
+    public bool rotacionarPersonagemComCamera = true;
+
+    [Tooltip("Velocidade de suavizacao para o personagem acompanhar a camera.")]
+    [Min(0.1f)] public float velocidadeRotacaoPersonagem = 18f;
+
+    [Tooltip("Oculta renderers do personagem em primeira pessoa para nao ver cabeca/corpo por dentro.")]
+    public bool ocultarRenderersNaPrimeiraPessoa = true;
+
+    [Tooltip("Se vazio, encontra automaticamente renderers dentro do personagem.")]
+    public bool encontrarRenderersAutomaticamente = true;
+
+    public Renderer[] renderersDoPersonagem;
+
     [Header("Bloqueio por Menu")]
     [Tooltip("Se um menu estiver aberto, evita alternar camera.")]
     public bool bloquearAlternanciaComMenuAberto = true;
@@ -76,6 +95,11 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         AplicarEstadoDasCameras();
     }
 
+    private void OnDisable()
+    {
+        AplicarVisibilidadeRenderers(true);
+    }
+
     private void Update()
     {
         if (Input.GetKeyDown(teclaAlternar))
@@ -90,6 +114,7 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     private void LateUpdate()
     {
         AtualizarCameraPrimeiraPessoa();
+        AtualizarRotacaoPersonagemPrimeiraPessoa();
     }
 
     public void AlternarCamera()
@@ -129,6 +154,16 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
         if (cameraPrimeiraPessoa != null && audioPrimeiraPessoa == null)
             audioPrimeiraPessoa = cameraPrimeiraPessoa.GetComponent<AudioListener>();
+
+        if (personagemParaRotacionar == null)
+            personagemParaRotacionar = alvoFallback;
+
+        if (encontrarRenderersAutomaticamente && (renderersDoPersonagem == null || renderersDoPersonagem.Length == 0))
+        {
+            Transform raiz = personagemParaRotacionar != null ? personagemParaRotacionar : alvoFallback;
+            if (raiz != null)
+                renderersDoPersonagem = raiz.GetComponentsInChildren<Renderer>(true);
+        }
     }
 
     private void AplicarEstadoDasCameras()
@@ -147,7 +182,9 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         if (audioPrimeiraPessoa != null)
             audioPrimeiraPessoa.enabled = usandoPrimeiraPessoa;
 
+        AplicarVisibilidadeRenderers(!usandoPrimeiraPessoa || !ocultarRenderersNaPrimeiraPessoa);
         AtualizarCameraPrimeiraPessoa();
+        AtualizarRotacaoPersonagemPrimeiraPessoa(true);
     }
 
     private void AtualizarCameraPrimeiraPessoa()
@@ -171,6 +208,52 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
         if (copiarFOVDaCameraNormal && cameraNormal != null)
             cameraPrimeiraPessoa.fieldOfView = cameraNormal.fieldOfView;
+    }
+
+    private void AtualizarRotacaoPersonagemPrimeiraPessoa(bool instantaneo = false)
+    {
+        if (!usandoPrimeiraPessoa)
+            return;
+
+        if (!rotacionarPersonagemComCamera)
+            return;
+
+        Transform alvo = personagemParaRotacionar != null ? personagemParaRotacionar : alvoFallback;
+        if (alvo == null)
+            return;
+
+        Camera referencia = cameraPrimeiraPessoa != null ? cameraPrimeiraPessoa : cameraNormal;
+        if (referencia == null)
+            return;
+
+        Vector3 forward = referencia.transform.forward;
+        forward.y = 0f;
+
+        if (forward.sqrMagnitude < 0.0001f)
+            return;
+
+        Quaternion rotacaoAlvo = Quaternion.LookRotation(forward.normalized, Vector3.up);
+
+        if (instantaneo)
+        {
+            alvo.rotation = rotacaoAlvo;
+            return;
+        }
+
+        float t = 1f - Mathf.Exp(-velocidadeRotacaoPersonagem * Time.deltaTime);
+        alvo.rotation = Quaternion.Slerp(alvo.rotation, rotacaoAlvo, t);
+    }
+
+    private void AplicarVisibilidadeRenderers(bool visivel)
+    {
+        if (renderersDoPersonagem == null)
+            return;
+
+        for (int i = 0; i < renderersDoPersonagem.Length; i++)
+        {
+            if (renderersDoPersonagem[i] != null)
+                renderersDoPersonagem[i].enabled = visivel;
+        }
     }
 
     private bool AlgumMenuBloqueando()
