@@ -3,11 +3,11 @@ using UnityEngine;
 /// <summary>
 /// Ajusta automaticamente o PlayerObjectGrabberHardcore em runtime sem depender do Inspector.
 ///
-/// Objetivo:
-/// - centralizar o objeto na primeira pessoa;
-/// - impedir camera assist na primeira pessoa;
-/// - manter seleção tolerante e fluida;
-/// - evitar buscar objetos todo frame.
+/// Ajuste importante de câmera:
+/// - desativa a assistência lateral que movia diretamente camera.transform.position;
+/// - essa assistência usava camera.right em LateUpdate e podia causar pulo/eixo estranho
+///   quando o jogador virava o mouse rápido;
+/// - o objeto continua podendo ser selecionado/pego normalmente.
 /// </summary>
 [DefaultExecutionOrder(31000)]
 public class MiniMarketGrabberRuntimeStabilizer : MonoBehaviour
@@ -27,9 +27,13 @@ public class MiniMarketGrabberRuntimeStabilizer : MonoBehaviour
     public float tempoMemoriaSelecao = 0.25f;
 
     [Header("Camera Assist")]
+    [Tooltip("Desligado por padrão. Não mover a Main Camera diretamente pelo sistema de pegar objetos.")]
     public bool aplicarAssistenciaNaPrimeiraPessoa = false;
-    public bool cameraAssistNaTerceiraPessoa = true;
-    public float deslocamentoCameraEsquerda = 1.05f;
+
+    [Tooltip("Desligado por padrão. Evita deslocamento lateral da câmera quando há objeto selecionado/segurando.")]
+    public bool cameraAssistNaTerceiraPessoa = false;
+
+    public float deslocamentoCameraEsquerda = 0f;
 
     private static MiniMarketGrabberRuntimeStabilizer instancia;
     private PlayerObjectGrabberHardcore[] grabbers;
@@ -96,6 +100,8 @@ public class MiniMarketGrabberRuntimeStabilizer : MonoBehaviour
             grabber.raioSelecao = raioSelecao;
             grabber.raioViewportFallback = raioViewportFallback;
             grabber.tempoMemoriaSelecao = tempoMemoriaSelecao;
+
+            // Correção principal: o grabber não deve mais empurrar a Main Camera.
             grabber.aplicarAssistenciaCameraNaPrimeiraPessoa = aplicarAssistenciaNaPrimeiraPessoa;
             grabber.puxarCameraParaEsquerdaAoMirarOuSegurar = cameraAssistNaTerceiraPessoa;
             grabber.deslocamentoCameraEsquerda = deslocamentoCameraEsquerda;
