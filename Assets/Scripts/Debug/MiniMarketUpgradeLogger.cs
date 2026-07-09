@@ -4,10 +4,6 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
-
 /// <summary>
 /// Logger global leve para registrar alteracoes, correcoes e eventos importantes do MiniMarket.
 ///
@@ -21,7 +17,8 @@ using UnityEditor;
 /// - entradas passam por fila;
 /// - flush por intervalo;
 /// - rate limit por chave;
-/// - captura warnings/erros do Unity sem loop infinito.
+/// - captura warnings/erros do Unity sem loop infinito;
+/// - nao chama AssetDatabase.Refresh em loop para evitar travadas no Editor.
 /// </summary>
 [DefaultExecutionOrder(-20000)]
 public class MiniMarketUpgradeLogger : MonoBehaviour
@@ -32,9 +29,9 @@ public class MiniMarketUpgradeLogger : MonoBehaviour
     public bool escreverTambemNoPersistentDataPath = true;
 
     [Header("Performance / Anti Spam")]
-    [Min(0.25f)] public float intervaloFlush = 2f;
-    [Min(1)] public int maxEntradasPorFlush = 30;
-    [Min(10)] public int maxEntradasEmMemoria = 300;
+    [Min(0.5f)] public float intervaloFlush = 3f;
+    [Min(1)] public int maxEntradasPorFlush = 25;
+    [Min(10)] public int maxFila = 500;
     public bool capturarWarningsErrosUnity = true;
     public bool ignorarLogsNormaisUnity = true;
 
@@ -177,7 +174,7 @@ public class MiniMarketUpgradeLogger : MonoBehaviour
         inicializado = true;
         proximoFlush = Time.unscaledTime + intervaloFlush;
 
-        Log("Sistema", "UpgradeLogger iniciado", "Projeto: " + (string.IsNullOrEmpty(caminhoProjeto) ? "N/A" : caminhoProjeto) + " | Runtime: " + caminhoPersistent, "logger-start", 2f);
+        Log("Sistema", "UpgradeLogger iniciado", "Projeto: " + (string.IsNullOrEmpty(caminhoProjeto) ? "N/A" : caminhoProjeto) + "\nRuntime: " + caminhoPersistent, "logger-start", 2f);
 
         if (logarCaminhoNoConsole)
             Debug.Log("[MiniMarketUpgradeLogger] " + (string.IsNullOrEmpty(caminhoProjeto) ? caminhoPersistent : caminhoProjeto));
@@ -196,7 +193,7 @@ public class MiniMarketUpgradeLogger : MonoBehaviour
         string titulo = type == LogType.Error || type == LogType.Exception ? "Unity Error" : "Unity Warning";
         string detalhes = condition;
 
-        if (type == LogType.Exception && !string.IsNullOrEmpty(stackTrace))
+        if ((type == LogType.Exception || type == LogType.Error) && !string.IsNullOrEmpty(stackTrace))
             detalhes += "\n" + stackTrace;
 
         Log("Unity", titulo, detalhes, "unity-" + condition.GetHashCode(), 2f, type);
@@ -212,6 +209,9 @@ public class MiniMarketUpgradeLogger : MonoBehaviour
 
         lock (sync)
         {
+            while (fila.Count > maxFila)
+                fila.Dequeue();
+
             int count = forcar ? fila.Count : Mathf.Min(maxEntradasPorFlush, fila.Count);
             for (int i = 0; i < count; i++)
                 entradas.Add(fila.Dequeue());
@@ -229,11 +229,6 @@ public class MiniMarketUpgradeLogger : MonoBehaviour
 
         if (escreverTambemNoPersistentDataPath)
             AcrescentarAntesDoFim(caminhoPersistent, html);
-
-#if UNITY_EDITOR
-        if (escreverNaRaizDoProjetoNoEditor && !string.IsNullOrEmpty(caminhoProjeto))
-            AssetDatabase.Refresh();
-#endif
     }
 
     private void GarantirArquivo(string path)
@@ -253,7 +248,25 @@ public class MiniMarketUpgradeLogger : MonoBehaviour
 
     private string CriarHtmlBase()
     {
-        return "<!doctype html>\n<html lang=\"pt-BR\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>MiniMarket Upgrade Log</title>\n<style>\nbody{margin:0;background:#111827;color:#e5e7eb;font-family:Segoe UI,Arial,sans-serif;}\nheader{position:sticky;top:0;background:linear-gradient(90deg,#0f172a,#1e293b);padding:22px 28px;border-bottom:1px solid #334155;z-index:2;}\nh1{margin:0;font-size:26px;color:#facc15;}\n.subtitle{margin-top:6px;color:#cbd5e1;font-size:14px;}\nmain{padding:22px 28px 80px;}\n.entry{background:#1f2937;border:1px solid #374151;border-left:5px solid #38bdf8;border-radius:12px;margin:0 0 14px;padding:16px 18px;box-shadow:0 8px 20px rgba(0,0,0,.22);}\n.entry.warn{border-left-color:#f59e0b}.entry.error{border-left-color:#ef4444}.entry.upgrade{border-left-color:#22c55e}.entry.camera{border-left-color:#a78bfa}.entry.grabber{border-left-color:#06b6d4}\n.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;color:#94a3b8;font-size:12px;margin-bottom:8px}.tag{background:#0f172a;border:1px solid #475569;border-radius:999px;padding:3px 9px;color:#cbd5e1}.title{font-size:17px;font-weight:700;color:#fff;margin-bottom:8px}.details{white-space:pre-wrap;line-height:1.45;color:#d1d5db}code{color:#facc15}\n</style>\n</head>\n<body>\n<header><h1>MiniMarket Upgrade Log</h1><div class=\"subtitle\">Registro organizado de alteracoes, diagnosticos, correcoes e eventos importantes do projeto.</div></header>\n<main>\n<!-- LOG_ENTRIES -->\n</main>\n</body>\n</html>\n";
+        return @"<!doctype html>
+<html lang=""pt-BR"">
+<head>
+<meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width, initial-scale=1"">
+<title>MiniMarket Upgrade Log</title>
+<style>
+:root{--bg:#070b14;--panel:#101827;--panel2:#172033;--line:#2e3b55;--txt:#e8eefc;--muted:#9fb0cf;--yellow:#ffd34d;--green:#36d399;--cyan:#43d9ff;--purple:#b892ff;--red:#ff5d68;--orange:#ffb454}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,#1a2b45 0,#070b14 42%,#05070c 100%);color:var(--txt);font-family:Segoe UI,Arial,sans-serif}header{padding:30px 34px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,rgba(16,24,39,.96),rgba(9,13,24,.94));position:sticky;top:0;z-index:2;backdrop-filter:blur(10px)}h1{margin:0;color:var(--yellow);font-size:30px;letter-spacing:.3px}.subtitle{margin-top:8px;color:var(--muted);font-size:14px}.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;padding:22px 34px 0}.card{background:linear-gradient(180deg,var(--panel),#0b1220);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 14px 28px rgba(0,0,0,.28)}.card b{display:block;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.card span{display:block;margin-top:8px;font-size:21px;color:#fff}main{padding:22px 34px 90px}.entry{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-left:6px solid var(--cyan);border-radius:16px;margin:0 0 16px;padding:17px 20px;box-shadow:0 12px 26px rgba(0,0,0,.26)}.entry:before{content:"";position:absolute;left:-10px;top:22px;width:14px;height:14px;border-radius:50%;background:var(--cyan);box-shadow:0 0 18px var(--cyan)}.entry.warn{border-left-color:var(--orange)}.entry.warn:before{background:var(--orange);box-shadow:0 0 18px var(--orange)}.entry.error{border-left-color:var(--red)}.entry.error:before{background:var(--red);box-shadow:0 0 18px var(--red)}.entry.upgrade{border-left-color:var(--green)}.entry.upgrade:before{background:var(--green);box-shadow:0 0 18px var(--green)}.entry.camera{border-left-color:var(--purple)}.entry.camera:before{background:var(--purple);box-shadow:0 0 18px var(--purple)}.entry.grabber{border-left-color:var(--cyan)}.entry.log{border-left-color:var(--yellow)}.entry.log:before{background:var(--yellow);box-shadow:0 0 18px var(--yellow)}.meta{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px}.tag{font-size:12px;border:1px solid #3b4a67;background:#0a1020;color:#c8d5f2;border-radius:999px;padding:4px 10px}.title{font-size:18px;font-weight:800;color:white;margin-bottom:8px}.details{white-space:pre-wrap;line-height:1.52;color:#d9e2f6;font-size:14px}code{color:var(--yellow)}.hint{margin:18px 34px 0;padding:14px 18px;border:1px solid #365475;border-radius:14px;background:rgba(67,217,255,.08);color:#cfeeff}
+</style>
+</head>
+<body>
+<header><h1>MiniMarket Upgrade Log</h1><div class=""subtitle"">Registro profissional de alterações, diagnósticos, correções, warnings e eventos importantes do projeto.</div></header>
+<section class=""dashboard""><div class=""card""><b>Status</b><span>Ativo</span></div><div class=""card""><b>Anti-spam</b><span>Rate limit</span></div><div class=""card""><b>Arquivo</b><span>UpgradeLog.htm</span></div><div class=""card""><b>Uso</b><span>Diagnóstico</span></div></section>
+<div class=""hint"">Abra este arquivo no navegador para revisar o histórico. O logger grava em lote para evitar lag e não usa Refresh do AssetDatabase em loop.</div>
+<main>
+<!-- LOG_ENTRIES -->
+</main>
+</body>
+</html>
+";
     }
 
     private string MontarHtmlEntradas(List<LogEntry> entries)
@@ -287,6 +300,7 @@ public class MiniMarketUpgradeLogger : MonoBehaviour
         if (c.Contains("camera")) return "camera";
         if (c.Contains("grab") || c.Contains("item")) return "grabber";
         if (c.Contains("upgrade")) return "upgrade";
+        if (c.Contains("log")) return "log";
         return string.Empty;
     }
 
