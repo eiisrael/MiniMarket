@@ -4,14 +4,11 @@ using UnityEngine;
 /// <summary>
 /// Correção runtime segura para o modo de stamina segmentada 5/5.
 ///
-/// Objetivo:
-/// - Manter o funcionamento antigo da corrida: o personagem continua correndo enquanto houver energia.
-/// - No modo segmentado, ignorar o limite minimo antigo da barra ativa para que ela possa chegar ate 0.
-/// - Quando a barra chega em 0, o PlayerMove consome 1 segmento e recarrega a barra para 100%.
-/// - So bloquear corrida quando os segmentos chegarem em 0/5.
-/// - Em 0/5, se a barra ja estiver regenerando, pressionar Shift NAO zera a barra instantaneamente.
-///
-/// Este script se cria automaticamente ao iniciar a cena. Nao precisa arrastar no Inspector.
+/// Regra final:
+/// - 5/5 até 1/5: cada barra esvazia normalmente; ao zerar, recarrega 100% e decrementa.
+/// - 0/5 com barra parcialmente carregada: Shift funciona e gasta a barra na mesma velocidade.
+/// - 0/5 com barra zerada: corrida desativa.
+/// - Visualmente o HUD continua mostrando 0/5 durante a barra final temporária.
 /// </summary>
 [DefaultExecutionOrder(-5000)]
 public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
@@ -21,14 +18,16 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
     public PlayerMove playerMove;
 
     [Header("Ajuste Segmentado")]
-    [Tooltip("Valor aplicado ao limite minimo de corrida enquanto o modo 5/5 estiver ativo. Negativo para permitir a barra chegar em 0 antes de bloquear.")]
     public float limiteMinimoSegmentado = -0.01f;
-
-    [Tooltip("Enquanto ainda houver cargas, remove o bloqueio antigo de cansaço.")]
     public bool destravarEnquantoHouverSegmentos = true;
-
-    [Tooltip("Desliga a trava que zerava instantaneamente a barra parcial no 0/5 ao segurar Shift.")]
     public bool impedirDrenoInstantaneoNoZero = true;
+
+    [Header("Barra Final 0/5")]
+    [Tooltip("Permite correr no 0/5 se a barra tiver energia parcial. Visualmente continua 0/5.")]
+    public bool permitirCorrerComBarraParcialNoZero = true;
+
+    [Tooltip("Quando a barra final 0/5 zerar segurando Shift, a corrida fica desativada até soltar Shift.")]
+    public bool exigirSoltarShiftAposZerarFinal = true;
 
     [Header("Performance")]
     [Min(0.02f)] public float intervaloBusca = 0.5f;
@@ -36,15 +35,27 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
     [Header("Debug")]
     public bool logarEventos;
 
+    public static bool ForcarHudZeroNoSegmentoFantasma { get; private set; }
+
     private static MiniMarketSegmentedStaminaRuntimeGuard instancia;
+
     private float proximaBusca;
     private float limiteMinimoOriginal;
     private bool limiteOriginalCapturado;
+
+    private bool segmentoFantasmaAtivo;
+    private bool bloqueadoAteSoltarShift;
+
     private FieldInfo campoUsarStaminaSegmentada;
     private FieldInfo campoCorridaBloqueada;
     private FieldInfo campoTravarNoZeroEnquantoShift;
+    private FieldInfo campoStaminaSegmentosAtuais;
+    private FieldInfo campoStaminaAtual;
+
     private bool valorOriginalTravarNoZero;
     private bool valorOriginalTravarNoZeroCapturado;
+
+    private const float EpsilonStamina = 0.001f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CriarAutomaticamente()
@@ -91,6 +102,9 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
         }
         else
         {
+            ForcarHudZeroNoSegmentoFantasma = false;
+            segmentoFantasmaAtivo = false;
+            bloqueadoAteSoltarShift = false;
             RestaurarLimiteOriginalSeNecessario();
             RestaurarTravaZeroOriginalSeNecessario();
         }
@@ -114,11 +128,18 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
             return;
 
         playerMove = encontrado;
+
         limiteOriginalCapturado = false;
         valorOriginalTravarNoZeroCapturado = false;
+        segmentoFantasmaAtivo = false;
+        bloqueadoAteSoltarShift = false;
+        ForcarHudZeroNoSegmentoFantasma = false;
+
         campoUsarStaminaSegmentada = null;
         campoCorridaBloqueada = null;
         campoTravarNoZeroEnquantoShift = null;
+        campoStaminaSegmentosAtuais = null;
+        campoStaminaAtual = null;
 
         if (logarEventos)
             Debug.Log("[MiniMarketSegmentedStaminaRuntimeGuard] PlayerMove encontrado: " + playerMove.gameObject.name);
@@ -148,22 +169,163 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
         if (playerMove == null)
             return;
 
-        // A trava antiga era: se staminaAtual <= staminaMinimaParaCorrer, para de correr.
-        // No modo 5/5, isso impede a barra de chegar em zero e de consumir o próximo segmento.
-        // Por isso deixamos o limite levemente negativo apenas enquanto o modo segmentado está ativo.
         if (playerMove.staminaMinimaParaCorrer > limiteMinimoSegmentado)
             playerMove.staminaMinimaParaCorrer = limiteMinimoSegmentado;
 
         if (impedirDrenoInstantaneoNoZero)
             DesativarTravaInstantaneaNoZero();
 
+        if (permitirCorrerComBarraParcialNoZero)
+            AtualizarSegmentoFantasmaDoZero();
+
         if (!destravarEnquantoHouverSegmentos)
             return;
 
-        if (playerMove.StaminaSegmentosAtuais <= 0)
+        if (bloqueadoAteSoltarShift)
+        {
+            DefinirCorridaBloqueada(true);
+            return;
+        }
+
+        if (playerMove.StaminaSegmentosAtuais > 0 || segmentoFantasmaAtivo)
+            DefinirCorridaBloqueada(false);
+    }
+
+    private void AtualizarSegmentoFantasmaDoZero()
+    {
+        bool segurandoShift = Input.GetKey(playerMove.runKey);
+        float staminaAtual = playerMove.StaminaAtual;
+        float staminaMaxima = Mathf.Max(1f, playerMove.StaminaMaxima);
+        int segmentos = LerSegmentosInternos();
+
+        if (bloqueadoAteSoltarShift)
+        {
+            if (!segurandoShift)
+            {
+                bloqueadoAteSoltarShift = false;
+                DefinirCorridaBloqueada(false);
+            }
+            else
+            {
+                DefinirSegmentosInternos(0);
+                DefinirStaminaAtualInterna(0f);
+                ForcarHudZeroNoSegmentoFantasma = false;
+                DefinirCorridaBloqueada(true);
+                return;
+            }
+        }
+
+        // Caso principal: 0/5, mas a barra já carregou um pouco.
+        // Internamente colocamos 1 segmento temporário para o PlayerMove permitir correr.
+        // O HUD continua mostrando 0/5.
+        if (segmentos <= 0 && staminaAtual > EpsilonStamina)
+        {
+            DefinirSegmentosInternos(1);
+            segmentoFantasmaAtivo = true;
+            ForcarHudZeroNoSegmentoFantasma = true;
+            DefinirCorridaBloqueada(false);
+            return;
+        }
+
+        if (!segmentoFantasmaAtivo)
+        {
+            ForcarHudZeroNoSegmentoFantasma = false;
+            return;
+        }
+
+        staminaAtual = playerMove.StaminaAtual;
+        segmentos = LerSegmentosInternos();
+
+        // A barra final zerou: agora realmente desativa a corrida.
+        if (staminaAtual <= EpsilonStamina)
+        {
+            DefinirSegmentosInternos(0);
+            segmentoFantasmaAtivo = false;
+            ForcarHudZeroNoSegmentoFantasma = false;
+            DefinirCorridaBloqueada(true);
+
+            if (exigirSoltarShiftAposZerarFinal && segurandoShift)
+                bloqueadoAteSoltarShift = true;
+
+            return;
+        }
+
+        // Se parou de correr e a barra final encheu completamente, vira 1/5 de verdade.
+        if (!segurandoShift && staminaAtual >= staminaMaxima - 0.05f)
+        {
+            segmentoFantasmaAtivo = false;
+            ForcarHudZeroNoSegmentoFantasma = false;
+            DefinirSegmentosInternos(1);
+            DefinirCorridaBloqueada(false);
+            return;
+        }
+
+        // Mantém o segmento interno temporário enquanto a barra parcial 0/5 está sendo usada.
+        if (segmentos < 1)
+            DefinirSegmentosInternos(1);
+
+        ForcarHudZeroNoSegmentoFantasma = true;
+        DefinirCorridaBloqueada(false);
+    }
+
+    private int LerSegmentosInternos()
+    {
+        if (playerMove == null)
+            return 0;
+
+        if (campoStaminaSegmentosAtuais == null)
+        {
+            campoStaminaSegmentosAtuais = typeof(PlayerMove).GetField(
+                "staminaSegmentosAtuais",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+        }
+
+        if (campoStaminaSegmentosAtuais == null || campoStaminaSegmentosAtuais.FieldType != typeof(int))
+            return playerMove.StaminaSegmentosAtuais;
+
+        return (int)campoStaminaSegmentosAtuais.GetValue(playerMove);
+    }
+
+    private void DefinirSegmentosInternos(int valor)
+    {
+        if (playerMove == null)
             return;
 
-        DefinirCorridaBloqueada(false);
+        if (campoStaminaSegmentosAtuais == null)
+        {
+            campoStaminaSegmentosAtuais = typeof(PlayerMove).GetField(
+                "staminaSegmentosAtuais",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+        }
+
+        if (campoStaminaSegmentosAtuais == null || campoStaminaSegmentosAtuais.FieldType != typeof(int))
+            return;
+
+        campoStaminaSegmentosAtuais.SetValue(
+            playerMove,
+            Mathf.Clamp(valor, 0, Mathf.Max(1, playerMove.StaminaSegmentosMaximos))
+        );
+    }
+
+    private void DefinirStaminaAtualInterna(float valor)
+    {
+        if (playerMove == null)
+            return;
+
+        if (campoStaminaAtual == null)
+        {
+            campoStaminaAtual = typeof(PlayerMove).GetField(
+                "staminaAtual",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+        }
+
+        if (campoStaminaAtual == null || campoStaminaAtual.FieldType != typeof(float))
+            return;
+
+        campoStaminaAtual.SetValue(playerMove, Mathf.Clamp(valor, 0f, playerMove.StaminaMaxima));
     }
 
     private void DesativarTravaInstantaneaNoZero()
@@ -188,8 +350,6 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
             valorOriginalTravarNoZeroCapturado = true;
         }
 
-        // Esta opção, quando ligada, fazia a barra parcial do 0/5 virar 0 imediatamente ao segurar Shift.
-        // Mantemos desligada no modo segmentado para carga/descarga terem a mesma velocidade.
         if ((bool)campoTravarNoZeroEnquantoShift.GetValue(playerMove))
             campoTravarNoZeroEnquantoShift.SetValue(playerMove, false);
     }
