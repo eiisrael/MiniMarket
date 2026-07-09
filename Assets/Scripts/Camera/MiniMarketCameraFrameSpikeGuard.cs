@@ -1,15 +1,15 @@
 using UnityEngine;
 
 /// <summary>
-/// Guarda final contra pulos raros de câmera causados por frame spike.
+/// Diagnóstico leve de frame spike da câmera.
 ///
-/// Logs v2.1.3 mostraram FPS aproximado 1~2 no momento dos incidentes.
-/// Quando o frame demora demais, qualquer movimento normal do player/mouse vira um salto visual.
-/// Este script roda depois da câmera e do suavizador de colisão, mas antes do logger,
-/// limitando apenas o deslocamento/rotação máxima visível em frames ruins.
+/// Antes este script corrigia transform.position/transform.rotation da Main Camera depois da CameraGTA.
+/// Isso podia deixar a rotação visual diferente do yaw/pitch interno e gerar o efeito de "pulo",
+/// "encaixe" ou câmera indo para trás do personagem e depois voltando.
 ///
-/// Ele não cria efeito mola contínuo: só atua quando o deltaTime fica alto ou quando a câmera dá
-/// um salto acima do limite configurado.
+/// Agora ele NÃO altera mais a câmera. Apenas detecta e registra, quando habilitado.
+/// A regra passa a ser: CameraGTAFollowHardcore é a autoridade de rotação/eixo da câmera;
+/// outros scripts não devem sobrescrever rotação final.
 /// </summary>
 [DefaultExecutionOrder(32800)]
 public class MiniMarketCameraFrameSpikeGuard : MonoBehaviour
@@ -23,28 +23,21 @@ public class MiniMarketCameraFrameSpikeGuard : MonoBehaviour
     public bool procurarAutomaticamente = true;
     [Min(0.2f)] public float intervaloBusca = 1f;
 
+    [Header("Modo Seguro")]
+    [Tooltip("Mantido ligado. Nunca altera position/rotation da câmera, apenas registra diagnóstico.")]
+    public bool somenteDiagnostico = true;
+
     [Header("Detecção")]
-    [Tooltip("Aciona proteção quando o frame demora mais que isso. 0.12 = abaixo de ~8 FPS.")]
     [Min(0.02f)] public float deltaTimeFrameRuim = 0.12f;
+    [Min(0.05f)] public float saltoPosicaoParaRegistrar = 1.4f;
+    [Min(1f)] public float saltoRotacaoParaRegistrar = 55f;
 
-    [Tooltip("Também aciona se a câmera mudar de posição mais que isso em um frame.")]
-    [Min(0.05f)] public float saltoPosicaoParaCorrigir = 0.85f;
-
-    [Tooltip("Também aciona se a câmera girar mais que isso em um frame.")]
-    [Min(1f)] public float saltoRotacaoParaCorrigir = 35f;
-
-    [Header("Correção suave")]
-    [Min(0.05f)] public float maxMovimentoPorFrameRuim = 0.45f;
-    [Min(1f)] public float maxRotacaoPorFrameRuim = 18f;
-
-    [Tooltip("Não corrige durante transição normal de primeira pessoa para não atrapalhar o botão direito.")]
+    [Header("Transição")]
     public bool ignorarDuranteTransicaoPrimeiraPessoa = true;
-
-    [Tooltip("Ao trocar primeira pessoa/terceira pessoa, reseta baseline para não puxar a câmera de volta.")]
     public bool resetarAoTrocarPerspectiva = true;
 
     [Header("Debug")]
-    public bool logarCorrecoes;
+    public bool logarCorrecoes = false;
 
     private static MiniMarketCameraFrameSpikeGuard instancia;
     private Vector3 ultimaPosicao;
@@ -118,33 +111,22 @@ public class MiniMarketCameraFrameSpikeGuard : MonoBehaviour
         float deltaPos = Vector3.Distance(posAtual, ultimaPosicao);
         float deltaRot = Quaternion.Angle(ultimaRotacao, rotAtual);
         bool frameRuim = Time.unscaledDeltaTime >= deltaTimeFrameRuim;
-        bool salto = deltaPos >= saltoPosicaoParaCorrigir || deltaRot >= saltoRotacaoParaCorrigir;
+        bool salto = deltaPos >= saltoPosicaoParaRegistrar || deltaRot >= saltoRotacaoParaRegistrar;
 
-        if (frameRuim || salto)
+        if ((frameRuim || salto) && logarCorrecoes && Time.unscaledTime - ultimoLog > 1f)
         {
-            Vector3 posCorrigida = posAtual;
-            Quaternion rotCorrigida = rotAtual;
-
-            if (deltaPos > maxMovimentoPorFrameRuim)
-            {
-                Vector3 direcao = posAtual - ultimaPosicao;
-                if (direcao.sqrMagnitude > 0.000001f)
-                    posCorrigida = ultimaPosicao + direcao.normalized * maxMovimentoPorFrameRuim;
-            }
-
-            if (deltaRot > maxRotacaoPorFrameRuim)
-                rotCorrigida = Quaternion.RotateTowards(ultimaRotacao, rotAtual, maxRotacaoPorFrameRuim);
-
-            cameraMonitorada.transform.position = posCorrigida;
-            cameraMonitorada.transform.rotation = rotCorrigida;
-            posAtual = posCorrigida;
-            rotAtual = rotCorrigida;
-
-            if (logarCorrecoes && Time.unscaledTime - ultimoLog > 1f)
-            {
-                ultimoLog = Time.unscaledTime;
-                MiniMarketUpgradeLogger.Log("Camera", "Frame spike suavizado", "deltaTime=" + Time.unscaledDeltaTime.ToString("0.000") + " deltaPos=" + deltaPos.ToString("0.000") + " deltaRot=" + deltaRot.ToString("0.0"), "camera-frame-spike", 1f, LogType.Warning);
-            }
+            ultimoLog = Time.unscaledTime;
+            MiniMarketUpgradeLogger.Log(
+                "Camera",
+                "Frame spike detectado sem corrigir câmera",
+                "deltaTime=" + Time.unscaledDeltaTime.ToString("0.000") +
+                " deltaPos=" + deltaPos.ToString("0.000") +
+                " deltaRot=" + deltaRot.ToString("0.0") +
+                " | Modo seguro: nenhuma alteração em transform.position/rotation.",
+                "camera-frame-spike-diagnostic",
+                1f,
+                LogType.Warning
+            );
         }
 
         ultimaPosicao = posAtual;
