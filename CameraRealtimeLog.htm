@@ -1,7 +1,3390 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MiniMarket Camera Realtime Log</title>
 <style>
 :root{--bg:#04070d;--panel:#0f172a;--panel2:#111c31;--line:#30415f;--txt:#e5eefc;--muted:#9fb1d1;--danger:#ff4f5e;--ok:#3df2a4;--cam:#7dd3fc;--warn:#fbbf24}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0,#122842,#04070d 45%,#02040a);color:var(--txt);font-family:Segoe UI,Arial,sans-serif}header{position:sticky;top:0;z-index:10;padding:24px 30px;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(2,6,23,.96));border-bottom:1px solid var(--line);box-shadow:0 12px 30px rgba(0,0,0,.35)}h1{margin:0;color:var(--cam);font-size:28px}.subtitle{margin-top:7px;color:var(--muted);font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:18px 30px 0}.card{background:linear-gradient(180deg,var(--panel),#07101f);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.card b{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.card span{display:block;margin-top:7px;font-size:20px;color:#fff}main{padding:20px 30px 80px}.entry{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-left:6px solid var(--cam);border-radius:14px;margin-bottom:14px;padding:14px 16px;box-shadow:0 10px 24px rgba(0,0,0,.28)}.entry.incident{border-left-color:var(--danger);box-shadow:0 0 0 1px rgba(255,79,94,.25),0 10px 28px rgba(255,79,94,.12)}.entry.system{border-left-color:var(--ok)}.entry.camera{border-left-color:var(--warn)}.entry.sample{opacity:.82}.meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.meta span{font-size:12px;color:#cbd5e1;background:#050b15;border:1px solid #334155;border-radius:999px;padding:3px 9px}h2{font-size:17px;margin:0 0 8px;color:#fff}pre{white-space:pre-wrap;margin:0;color:#dbeafe;line-height:1.45;font-size:13px}.hint{margin:18px 30px 0;padding:13px 16px;border:1px solid #24506d;border-radius:13px;background:rgba(125,211,252,.08);color:#dff6ff}
 </style></head><body><header><h1>MiniMarket Camera Realtime Log</h1><div class="subtitle">Monitor exclusivo da câmera. Detecta saltos bruscos, pausa o jogo e registra a causa provável.</div></header><section class="grid"><div class="card"><b>Status</b><span>Realtime</span></div><div class="card"><b>Incidente</b><span>Auto Pause</span></div><div class="card"><b>Arquivo</b><span>CameraRealtimeLog.htm</span></div><div class="card"><b>Spam</b><span>Cooldown</span></div></section><div class="hint">Quando houver mudança brusca, o Play será pausado e a MessageBox mostrará posição, rotação, FOV, input, estado da primeira pessoa e causa provável.</div><main><!-- CAMERA_LOG_ENTRIES -->
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:30:33.721</span><span>Sistema</span><span>frame 883</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:08.528</span><span>Sample</span><span>frame 881</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 881 | Time: 10,012 | Unscaled: 10,129
+Camera: Main Camera
+Pos: (175,987, 2,568, 141,798) | Rot Euler: (23,959, 341,306, 0,000) | FOV: 59,96
+Alvo: Character 01 | Distância Alvo: 2,914
+Input: W=False A=False S=True D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=-18,694 | Pitch=-4,789 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,035)
+FPS aprox: 47
+</pre>
+</section>
+<section class="entry incident">
+<div class="meta"><span>2026-07-09 02:29:08.559</span><span>INCIDENTE</span><span>frame 883</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - PLAY PAUSADO</h2>
+<pre>Frame: 883 | Time: 10,043 | Unscaled: 10,160
+Camera: Main Camera
+Pos: (175,596, 2,028, 142,941) | Rot Euler: (23,706, 341,605, 0,000) | FOV: 59,97
+Alvo: Character 01 | Distância Alvo: 1,883
+Input: W=False A=False S=True D=False RMB=False LMB=False
+Mouse Raw: X=0,150 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=-18,395 | Pitch=-5,103 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,105, 0,124)
+FPS aprox: 61
+Frame: 883 | Time: 10,043 | Unscaled: 10,160
+Camera: Main Camera
+Pos: (175,596, 2,028, 142,941) | Rot Euler: (23,706, 341,605, 0,000) | FOV: 59,97
+Alvo: Character 01 | Distância Alvo: 1,883
+Input: W=False A=False S=True D=False RMB=False LMB=False
+Mouse Raw: X=0,150 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=-18,395 | Pitch=-5,103 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,105, 0,124)
+FPS aprox: 61
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:07.497</span><span>Sample</span><span>frame 814</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 814 | Time: 8,981 | Unscaled: 9,098
+Camera: Main Camera
+Pos: (178,092, 2,435, 141,718) | Rot Euler: (20,807, 301,639, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,637
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=-58,361 | Pitch=-8,665 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 77
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:07.748</span><span>Sample</span><span>frame 833</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 833 | Time: 9,233 | Unscaled: 9,350
+Camera: Main Camera
+Pos: (176,889, 2,679, 141,872) | Rot Euler: (26,748, 320,148, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,913
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,750 Y=-0,350
+CameraGTA: FP=False | Transição=False | Yaw=-39,852 | Pitch=-1,286 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,858, -0,410)
+FPS aprox: 78
+</pre>
+</section>
+<section class="entry camera">
+<div class="meta"><span>2026-07-09 02:29:07.808</span><span>Camera</span><span>frame 837</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 837 | Time: 9,292 | Unscaled: 9,409
+Camera: Main Camera
+Pos: (176,743, 2,698, 141,978) | Rot Euler: (26,822, 320,256, 0,000) | FOV: 58,55
+Alvo: Character 01 | Distância Alvo: 2,922
+Input: W=False A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,250 Y=-0,050
+CameraGTA: FP=True | Transição=True | Yaw=-36,819 | Pitch=-0,518 | Blend=0,082
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 51
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:08.008</span><span>Sample</span><span>frame 850</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 850 | Time: 9,493 | Unscaled: 9,610
+Camera: Main Camera
+Pos: (175,848, 2,185, 143,464) | Rot Euler: (2,089, 330,830, 0,000) | FOV: 52,57
+Alvo: Character 01 | Distância Alvo: 1,912
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,450 Y=0,350
+CameraGTA: FP=True | Transição=True | Yaw=-28,232 | Pitch=-2,911 | Blend=0,721
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,042, 0,038, -0,165) | MouseSuavizado=(0,450, 0,350)
+FPS aprox: 66
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:08.265</span><span>Sample</span><span>frame 866</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 866 | Time: 9,749 | Unscaled: 9,867
+Camera: Main Camera
+Pos: (175,889, 2,273, 143,059) | Rot Euler: (9,478, 338,896, 359,979) | FOV: 59,43
+Alvo: Character 01 | Distância Alvo: 2,067
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,350 Y=-0,100
+CameraGTA: FP=True | Transição=True | Yaw=-20,810 | Pitch=-5,110 | Blend=0,311
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,469, 0,659, -3,017) | MouseSuavizado=(0,350, -0,100)
+FPS aprox: 47
+</pre>
+</section>
+<section class="entry camera">
+<div class="meta"><span>2026-07-09 02:29:08.375</span><span>Camera</span><span>frame 872</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 872 | Time: 9,859 | Unscaled: 9,977
+Camera: Main Camera
+Pos: (175,896, 2,356, 142,688) | Rot Euler: (15,187, 342,015, 359,978) | FOV: 59,81
+Alvo: Character 01 | Distância Alvo: 2,268
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=-18,694 | Pitch=-4,714 | Blend=0,135
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 74
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:06.458</span><span>Sample</span><span>frame 734</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 734 | Time: 7,942 | Unscaled: 8,060
+Camera: Main Camera
+Pos: (174,839, 2,069, 137,158) | Rot Euler: (14,970, 344,724, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,623
+Input: W=False A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=-0,600 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=-15,276 | Pitch=-15,591 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,557, -0,037)
+FPS aprox: 51
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:06.719</span><span>Sample</span><span>frame 754</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 754 | Time: 8,203 | Unscaled: 8,321
+Camera: Main Camera
+Pos: (176,529, 2,143, 137,777) | Rot Euler: (16,936, 325,865, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,596
+Input: W=True A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=-0,200 Y=-0,100
+CameraGTA: FP=False | Transição=False | Yaw=-34,135 | Pitch=-13,295 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,301, -0,070)
+FPS aprox: 82
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:06.974</span><span>Sample</span><span>frame 774</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 774 | Time: 8,458 | Unscaled: 8,575
+Camera: Main Camera
+Pos: (177,367, 2,154, 138,881) | Rot Euler: (17,235, 324,184, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,599
+Input: W=False A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=-35,816 | Pitch=-12,943 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 92
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:07.234</span><span>Sample</span><span>frame 793</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 793 | Time: 8,718 | Unscaled: 8,836
+Camera: Main Camera
+Pos: (178,119, 2,353, 140,202) | Rot Euler: (18,722, 319,004, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,625
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,600 Y=-0,200
+CameraGTA: FP=False | Transição=False | Yaw=-40,997 | Pitch=-11,177 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,551, -0,209)
+FPS aprox: 91
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:05.682</span><span>Sample</span><span>frame 671</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 671 | Time: 7,166 | Unscaled: 7,284
+Camera: Main Camera
+Pos: (171,367, 2,054, 137,675) | Rot Euler: (14,544, 46,922, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,904
+Input: W=True A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=-0,550 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=46,922 | Pitch=-16,083 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,675, -0,044)
+FPS aprox: 103
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:05.943</span><span>Sample</span><span>frame 692</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 692 | Time: 7,427 | Unscaled: 7,545
+Camera: Main Camera
+Pos: (172,446, 2,066, 137,270) | Rot Euler: (14,866, 25,739, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,830
+Input: W=False A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=-0,950 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=25,739 | Pitch=-15,711 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,867, -0,009)
+FPS aprox: 78
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:06.199</span><span>Sample</span><span>frame 714</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 714 | Time: 7,684 | Unscaled: 7,801
+Camera: Main Camera
+Pos: (173,746, 2,054, 137,077) | Rot Euler: (14,551, 0,419, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,692
+Input: W=False A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=-0,400 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=0,418 | Pitch=-16,075 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,459, 0,024)
+FPS aprox: 89
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:04.599</span><span>Sample</span><span>frame 574</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 574 | Time: 6,083 | Unscaled: 6,201
+Camera: Main Camera
+Pos: (168,582, 1,985, 138,583) | Rot Euler: (12,655, 87,129, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,919
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=87,128 | Pitch=-18,244 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,085, 0,022)
+FPS aprox: 88
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:04.918</span><span>Sample</span><span>frame 599</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 599 | Time: 6,401 | Unscaled: 6,519
+Camera: Main Camera
+Pos: (169,292, 1,957, 138,497) | Rot Euler: (11,876, 82,880, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,893
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=82,880 | Pitch=-19,125 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,147, 0,050)
+FPS aprox: 12
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:05.169</span><span>Sample</span><span>frame 624</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 624 | Time: 6,653 | Unscaled: 6,770
+Camera: Main Camera
+Pos: (169,867, 1,964, 138,398) | Rot Euler: (12,061, 77,529, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,894
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=77,529 | Pitch=-18,917 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,019, 0,000)
+FPS aprox: 116
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:05.429</span><span>Sample</span><span>frame 649</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 649 | Time: 6,914 | Unscaled: 7,031
+Camera: Main Camera
+Pos: (170,455, 1,975, 138,398) | Rot Euler: (12,375, 73,758, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,900
+Input: W=True A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=-0,450 Y=-0,100
+CameraGTA: FP=False | Transição=False | Yaw=73,758 | Pitch=-18,562 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,432, -0,093)
+FPS aprox: 74
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:03.586</span><span>Sample</span><span>frame 476</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 476 | Time: 5,070 | Unscaled: 5,187
+Camera: Main Camera
+Pos: (167,773, 2,454, 138,391) | Rot Euler: (21,679, 82,415, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,204
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=82,415 | Pitch=-7,602 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,023, 0,117)
+FPS aprox: 101
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:03.846</span><span>Sample</span><span>frame 502</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 502 | Time: 5,330 | Unscaled: 5,448
+Camera: Main Camera
+Pos: (167,781, 2,358, 138,460) | Rot Euler: (19,265, 84,465, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,128
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,250 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=84,465 | Pitch=-10,527 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,236, 0,323)
+FPS aprox: 87
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:04.097</span><span>Sample</span><span>frame 524</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 524 | Time: 5,582 | Unscaled: 5,699
+Camera: Main Camera
+Pos: (167,828, 2,210, 138,525) | Rot Euler: (14,824, 86,418, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,988
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,150 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=86,418 | Pitch=-15,760 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,118, 0,326)
+FPS aprox: 90
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:04.348</span><span>Sample</span><span>frame 549</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 549 | Time: 5,833 | Unscaled: 5,950
+Camera: Main Camera
+Pos: (168,097, 2,140, 138,567) | Rot Euler: (12,902, 87,341, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,930
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=87,341 | Pitch=-17,963 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 90
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:02.568</span><span>Sample</span><span>frame 382</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 382 | Time: 4,053 | Unscaled: 4,170
+Camera: Main Camera
+Pos: (167,949, 3,335, 138,045) | Rot Euler: (42,291, 70,608, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,798
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=70,609 | Pitch=19,377 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,018, 0,035)
+FPS aprox: 87
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:02.819</span><span>Sample</span><span>frame 403</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 403 | Time: 4,304 | Unscaled: 4,421
+Camera: Main Camera
+Pos: (167,845, 3,120, 138,177) | Rot Euler: (37,349, 75,552, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,669
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,100 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=75,552 | Pitch=12,615 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,142, 0,342)
+FPS aprox: 81
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:03.069</span><span>Sample</span><span>frame 425</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 425 | Time: 4,554 | Unscaled: 4,671
+Camera: Main Camera
+Pos: (167,771, 2,849, 138,332) | Rot Euler: (31,125, 80,648, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,493
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=80,648 | Pitch=4,346 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,078, 0,265)
+FPS aprox: 99
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:03.329</span><span>Sample</span><span>frame 451</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 451 | Time: 4,814 | Unscaled: 4,931
+Camera: Main Camera
+Pos: (167,767, 2,704, 138,320) | Rot Euler: (27,740, 80,315, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,391
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=80,315 | Pitch=-0,024 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,021, 0,098)
+FPS aprox: 105
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:01.553</span><span>Sample</span><span>frame 285</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 285 | Time: 3,037 | Unscaled: 3,155
+Camera: Main Camera
+Pos: (168,225, 3,664, 137,810) | Rot Euler: (50,050, 59,616, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,973
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,200 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=59,616 | Pitch=30,297 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,178, 0,142)
+FPS aprox: 102
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:01.806</span><span>Sample</span><span>frame 309</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 309 | Time: 3,290 | Unscaled: 3,407
+Camera: Main Camera
+Pos: (168,115, 3,562, 137,898) | Rot Euler: (47,602, 64,052, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,923
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,150 Y=0,200
+CameraGTA: FP=False | Transição=False | Yaw=64,052 | Pitch=26,816 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,153, 0,218)
+FPS aprox: 96
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:02.060</span><span>Sample</span><span>frame 334</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 334 | Time: 3,545 | Unscaled: 3,662
+Camera: Main Camera
+Pos: (168,014, 3,429, 137,976) | Rot Euler: (44,470, 67,792, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,851
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=67,792 | Pitch=22,410 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,036, 0,050)
+FPS aprox: 108
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:02.315</span><span>Sample</span><span>frame 358</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 358 | Time: 3,799 | Unscaled: 3,916
+Camera: Main Camera
+Pos: (167,991, 3,396, 137,997) | Rot Euler: (43,697, 68,694, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,832
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=68,694 | Pitch=21,330 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,051, 0,066)
+FPS aprox: 98
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:00.531</span><span>Sample</span><span>frame 187</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 187 | Time: 2,015 | Unscaled: 2,132
+Camera: Main Camera
+Pos: (168,636, 3,956, 137,622) | Rot Euler: (57,574, 44,587, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,105
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=44,587 | Pitch=41,182 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 109
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:00.790</span><span>Sample</span><span>frame 212</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 212 | Time: 2,275 | Unscaled: 2,392
+Camera: Main Camera
+Pos: (168,571, 3,929, 137,655) | Rot Euler: (56,833, 47,349, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,096
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,200 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=47,349 | Pitch=40,099 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,178, 0,116)
+FPS aprox: 92
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:01.042</span><span>Sample</span><span>frame 237</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 237 | Time: 2,526 | Unscaled: 2,644
+Camera: Main Camera
+Pos: (168,433, 3,828, 137,696) | Rot Euler: (54,176, 51,958, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,050
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=51,958 | Pitch=36,234 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,076, 0,103)
+FPS aprox: 92
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:01.298</span><span>Sample</span><span>frame 262</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 262 | Time: 2,783 | Unscaled: 2,900
+Camera: Main Camera
+Pos: (168,347, 3,757, 137,729) | Rot Euler: (52,371, 54,828, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,017
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=54,828 | Pitch=33,627 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,024, 0,037)
+FPS aprox: 110
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:59.509</span><span>Sample</span><span>frame 87</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 87 | Time: 0,993 | Unscaled: 1,111
+Camera: Main Camera
+Pos: (168,638, 3,955, 137,618) | Rot Euler: (57,540, 44,436, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,104
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=44,436 | Pitch=41,131 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 91
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:59.768</span><span>Sample</span><span>frame 112</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 112 | Time: 1,252 | Unscaled: 1,369
+Camera: Main Camera
+Pos: (168,639, 3,955, 137,617) | Rot Euler: (57,540, 44,361, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,104
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=44,361 | Pitch=41,131 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 99
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:00.024</span><span>Sample</span><span>frame 137</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 137 | Time: 1,509 | Unscaled: 1,626
+Camera: Main Camera
+Pos: (168,639, 3,955, 137,617) | Rot Euler: (57,540, 44,361, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,104
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=44,361 | Pitch=41,131 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 89
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:29:00.279</span><span>Sample</span><span>frame 163</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 163 | Time: 1,764 | Unscaled: 1,881
+Camera: Main Camera
+Pos: (168,639, 3,955, 137,617) | Rot Euler: (57,540, 44,361, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,104
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=44,361 | Pitch=41,131 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 106
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:58.494</span><span>Sample</span><span>frame 1</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1 | Time: 0,000 | Unscaled: 0,093
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 11
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:58.743</span><span>Sample</span><span>frame 16</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 16 | Time: 0,227 | Unscaled: 0,344
+Camera: Main Camera
+Pos: (168,728, 3,456, 137,152) | Rot Euler: (45,083, 31,505, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,783
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=-0,200
+CameraGTA: FP=False | Transição=False | Yaw=31,505 | Pitch=23,267 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,059, -0,251)
+FPS aprox: 93
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:59.000</span><span>Sample</span><span>frame 39</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 39 | Time: 0,485 | Unscaled: 0,602
+Camera: Main Camera
+Pos: (168,659, 3,847, 137,481) | Rot Euler: (54,654, 40,247, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,036
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,400 Y=-0,600
+CameraGTA: FP=False | Transição=False | Yaw=40,247 | Pitch=36,927 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,459, -0,806)
+FPS aprox: 77
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:59.252</span><span>Sample</span><span>frame 63</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 63 | Time: 0,737 | Unscaled: 0,855
+Camera: Main Camera
+Pos: (168,640, 3,960, 137,623) | Rot Euler: (57,692, 44,502, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,107
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=44,502 | Pitch=41,354 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 66
+</pre>
+</section>
+
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:28:58.480</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Monitoramento em tempo real da câmera iniciado. Incidentes pausam o Play e registram detalhes.</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:56.661</span><span>Sample</span><span>frame 535</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 535 | Time: 0,000 | Unscaled: 15,872
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 5
+</pre>
+</section>
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:28:57.046</span><span>Sistema</span><span>frame 536</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:55.592</span><span>Sample</span><span>frame 457</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 457 | Time: 0,000 | Unscaled: 14,804
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,300 Y=-1,100
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 68
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:55.844</span><span>Sample</span><span>frame 479</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 479 | Time: 0,000 | Unscaled: 15,055
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 91
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:56.095</span><span>Sample</span><span>frame 502</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 502 | Time: 0,000 | Unscaled: 15,307
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,450 Y=0,600
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 98
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:56.346</span><span>Sample</span><span>frame 525</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 525 | Time: 0,000 | Unscaled: 15,558
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 73
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:54.137</span><span>Sample</span><span>frame 432</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 432 | Time: 0,000 | Unscaled: 13,350
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 77
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:55.342</span><span>Sample</span><span>frame 438</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 438 | Time: 0,000 | Unscaled: 14,553
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 1
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:53.054</span><span>Sample</span><span>frame 356</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 356 | Time: 0,000 | Unscaled: 12,266
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=-0,100
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 71
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:53.305</span><span>Sample</span><span>frame 377</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 377 | Time: 0,000 | Unscaled: 12,516
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 97
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:53.622</span><span>Sample</span><span>frame 392</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 392 | Time: 0,000 | Unscaled: 12,834
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 6
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:53.880</span><span>Sample</span><span>frame 413</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 413 | Time: 0,000 | Unscaled: 13,092
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 91
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:52.015</span><span>Sample</span><span>frame 275</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 275 | Time: 0,000 | Unscaled: 11,228
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,600 Y=0,450
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 82
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:52.282</span><span>Sample</span><span>frame 295</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 295 | Time: 0,000 | Unscaled: 11,493
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,650 Y=1,200
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 64
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:52.539</span><span>Sample</span><span>frame 318</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 318 | Time: 0,000 | Unscaled: 11,751
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,650 Y=0,900
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 92
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:52.793</span><span>Sample</span><span>frame 336</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 336 | Time: 0,000 | Unscaled: 12,004
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 74
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:50.998</span><span>Sample</span><span>frame 182</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 182 | Time: 0,000 | Unscaled: 10,209
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,800 Y=0,950
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 88
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:51.245</span><span>Sample</span><span>frame 205</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 205 | Time: 0,000 | Unscaled: 10,461
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 93
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:51.509</span><span>Sample</span><span>frame 229</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 229 | Time: 0,000 | Unscaled: 10,721
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 87
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:51.761</span><span>Sample</span><span>frame 253</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 253 | Time: 0,000 | Unscaled: 10,972
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 85
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:49.977</span><span>Sample</span><span>frame 89</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 89 | Time: 0,000 | Unscaled: 9,189
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,400 Y=-0,350
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 47
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:50.237</span><span>Sample</span><span>frame 112</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 112 | Time: 0,000 | Unscaled: 9,449
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,050 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 91
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:50.491</span><span>Sample</span><span>frame 136</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 136 | Time: 0,000 | Unscaled: 9,703
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,750 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 97
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:50.744</span><span>Sample</span><span>frame 159</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 159 | Time: 0,000 | Unscaled: 9,956
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,400 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 104
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:49.207</span><span>Sample</span><span>frame 23</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 23 | Time: 0,000 | Unscaled: 8,419
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 91
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:49.468</span><span>Sample</span><span>frame 43</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 43 | Time: 0,000 | Unscaled: 8,680
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,150 Y=-1,850
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 70
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:49.724</span><span>Sample</span><span>frame 67</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 67 | Time: 0,000 | Unscaled: 8,936
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 101
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:48.949</span><span>Sample</span><span>frame 3</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 3 | Time: 0,000 | Unscaled: 8,161
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 0
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:46.167</span><span>Sample</span><span>frame 2</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2 | Time: 0,000 | Unscaled: 5,374
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 0
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:41.102</span><span>Sample</span><span>frame 1</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1 | Time: 0,000 | Unscaled: 0,000
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: N/A
+</pre>
+</section>
+<section class="entry incident">
+<div class="meta"><span>2026-07-09 02:28:46.162</span><span>INCIDENTE</span><span>frame 2</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - PLAY PAUSADO</h2>
+<pre>Frame: 2 | Time: 0,000 | Unscaled: 5,374
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 0
+Frame: 2 | Time: 0,000 | Unscaled: 5,374
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 0
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:28:41.022</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Monitoramento em tempo real da câmera iniciado. Incidentes pausam o Play e registram detalhes.</pre>
+</section>
+
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:28:38.717</span><span>Sistema</span><span>frame 106</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:24.135</span><span>Sample</span><span>frame 55</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 55 | Time: 0,712 | Unscaled: 1,117
+Camera: Main Camera
+Pos: (168,830, 3,807, 137,322) | Rot Euler: (53,637, 31,579, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,993
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,579 | Pitch=35,454 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 78
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:24.392</span><span>Sample</span><span>frame 79</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 79 | Time: 0,969 | Unscaled: 1,374
+Camera: Main Camera
+Pos: (168,384, 3,449, 137,424) | Rot Euler: (44,919, 45,924, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,820
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,400 Y=1,500
+CameraGTA: FP=False | Transição=False | Yaw=45,924 | Pitch=23,037 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(1,250, 1,314)
+FPS aprox: 81
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:24.644</span><span>Sample</span><span>frame 99</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 99 | Time: 1,221 | Unscaled: 1,626
+Camera: Main Camera
+Pos: (167,835, 3,015, 138,134) | Rot Euler: (34,458, 74,339, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,586
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,750 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=74,339 | Pitch=8,738 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,695, -0,016)
+FPS aprox: 85
+</pre>
+</section>
+<section class="entry incident">
+<div class="meta"><span>2026-07-09 02:28:24.737</span><span>INCIDENTE</span><span>frame 106</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - PLAY PAUSADO</h2>
+<pre>Frame: 106 | Time: 1,314 | Unscaled: 1,719
+Camera: Main Camera
+Pos: (167,798, 3,001, 138,685) | Rot Euler: (34,137, 91,066, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,585
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,950 Y=0,350
+CameraGTA: FP=False | Transição=False | Yaw=91,066 | Pitch=8,312 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(1,658, 0,244)
+FPS aprox: 76
+Frame: 106 | Time: 1,314 | Unscaled: 1,719
+Camera: Main Camera
+Pos: (167,798, 3,001, 138,685) | Rot Euler: (34,137, 91,066, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,585
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,950 Y=0,350
+CameraGTA: FP=False | Transição=False | Yaw=91,066 | Pitch=8,312 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(1,658, 0,244)
+FPS aprox: 76
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:23.365</span><span>Sample</span><span>frame 1</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1 | Time: 0,000 | Unscaled: 0,345
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 3
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:23.621</span><span>Sample</span><span>frame 11</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 11 | Time: 0,198 | Unscaled: 0,603
+Camera: Main Camera
+Pos: (168,776, 3,268, 137,044) | Rot Euler: (40,750, 28,435, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,654
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,100 Y=-0,300
+CameraGTA: FP=False | Transição=False | Yaw=28,435 | Pitch=17,252 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,115, -0,252)
+FPS aprox: 71
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:23.880</span><span>Sample</span><span>frame 33</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 33 | Time: 0,458 | Unscaled: 0,863
+Camera: Main Camera
+Pos: (168,879, 3,736, 137,237) | Rot Euler: (51,831, 28,467, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,943
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,300 Y=-0,750
+CameraGTA: FP=False | Transição=False | Yaw=28,467 | Pitch=32,851 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,311, -0,786)
+FPS aprox: 93
+</pre>
+</section>
+
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:28:23.291</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Monitoramento em tempo real da câmera iniciado. Incidentes pausam o Play e registram detalhes.</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:20.430</span><span>Sample</span><span>frame 2678</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2678 | Time: 1,759 | Unscaled: 53,400
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,850
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 93
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:20.686</span><span>Sample</span><span>frame 2702</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2702 | Time: 1,759 | Unscaled: 53,655
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,200 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 105
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:21.092</span><span>Sample</span><span>frame 2719</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2719 | Time: 1,759 | Unscaled: 54,063
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 5
+</pre>
+</section>
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:28:21.182</span><span>Sistema</span><span>frame 2720</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:20.179</span><span>Sample</span><span>frame 2656</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2656 | Time: 1,759 | Unscaled: 53,149
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=-5,250 Y=9,500
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 1
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:18.467</span><span>Sample</span><span>frame 2586</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2586 | Time: 1,759 | Unscaled: 51,437
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 46
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:18.730</span><span>Sample</span><span>frame 2600</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2600 | Time: 1,759 | Unscaled: 51,700
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 46
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:18.991</span><span>Sample</span><span>frame 2618</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2618 | Time: 1,759 | Unscaled: 51,961
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,750 Y=0,350
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 84
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:19.249</span><span>Sample</span><span>frame 2642</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2642 | Time: 1,759 | Unscaled: 52,219
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,500 Y=0,550
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 98
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:17.440</span><span>Sample</span><span>frame 2541</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2541 | Time: 1,759 | Unscaled: 50,410
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,900 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 34
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:17.691</span><span>Sample</span><span>frame 2551</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2551 | Time: 1,759 | Unscaled: 50,661
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,150 Y=-0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 38
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:17.943</span><span>Sample</span><span>frame 2561</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2561 | Time: 1,759 | Unscaled: 50,914
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,400 Y=-0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 40
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:18.210</span><span>Sample</span><span>frame 2572</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2572 | Time: 1,759 | Unscaled: 51,181
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,450 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 44
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:16.390</span><span>Sample</span><span>frame 2485</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2485 | Time: 1,759 | Unscaled: 49,361
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 100
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:16.642</span><span>Sample</span><span>frame 2509</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2509 | Time: 1,759 | Unscaled: 49,612
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 98
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:16.905</span><span>Sample</span><span>frame 2521</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2521 | Time: 1,759 | Unscaled: 49,874
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-2,450 Y=0,250
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 37
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:17.170</span><span>Sample</span><span>frame 2532</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2532 | Time: 1,759 | Unscaled: 50,140
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-2,250 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 44
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:15.380</span><span>Sample</span><span>frame 2383</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2383 | Time: 1,759 | Unscaled: 48,350
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 66
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:15.632</span><span>Sample</span><span>frame 2408</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2408 | Time: 1,759 | Unscaled: 48,602
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 114
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:15.884</span><span>Sample</span><span>frame 2434</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2434 | Time: 1,759 | Unscaled: 48,854
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 104
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:16.139</span><span>Sample</span><span>frame 2460</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2460 | Time: 1,759 | Unscaled: 49,109
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 98
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:14.372</span><span>Sample</span><span>frame 2291</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2291 | Time: 1,759 | Unscaled: 47,343
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 58
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:14.627</span><span>Sample</span><span>frame 2312</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2312 | Time: 1,759 | Unscaled: 47,596
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 80
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:14.878</span><span>Sample</span><span>frame 2334</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2334 | Time: 1,759 | Unscaled: 47,848
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,100 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 92
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:15.127</span><span>Sample</span><span>frame 2358</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2358 | Time: 1,759 | Unscaled: 48,098
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 103
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:13.607</span><span>Sample</span><span>frame 2237</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2237 | Time: 1,759 | Unscaled: 46,577
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,100 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 107
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:13.858</span><span>Sample</span><span>frame 2254</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2254 | Time: 1,759 | Unscaled: 46,828
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,300 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 66
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:14.114</span><span>Sample</span><span>frame 2272</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2272 | Time: 1,759 | Unscaled: 47,084
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 68
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:12.560</span><span>Sample</span><span>frame 2194</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2194 | Time: 1,759 | Unscaled: 45,529
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,850 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 20
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:12.810</span><span>Sample</span><span>frame 2204</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2204 | Time: 1,759 | Unscaled: 45,780
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,650 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 39
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:13.087</span><span>Sample</span><span>frame 2215</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2215 | Time: 1,759 | Unscaled: 46,057
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,900 Y=-0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 37
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:13.351</span><span>Sample</span><span>frame 2226</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2226 | Time: 1,759 | Unscaled: 46,321
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,250 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 45
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:11.485</span><span>Sample</span><span>frame 2152</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2152 | Time: 1,759 | Unscaled: 44,455
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,550 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 42
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:11.752</span><span>Sample</span><span>frame 2163</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2163 | Time: 1,759 | Unscaled: 44,722
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,500 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 41
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:12.004</span><span>Sample</span><span>frame 2173</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2173 | Time: 1,759 | Unscaled: 44,974
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,400 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 41
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:12.274</span><span>Sample</span><span>frame 2184</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2184 | Time: 1,759 | Unscaled: 45,245
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,750 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 42
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:10.439</span><span>Sample</span><span>frame 2110</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2110 | Time: 1,759 | Unscaled: 43,409
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,300 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 44
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:10.713</span><span>Sample</span><span>frame 2121</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2121 | Time: 1,759 | Unscaled: 43,684
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,350 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 37
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:10.964</span><span>Sample</span><span>frame 2131</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2131 | Time: 1,759 | Unscaled: 43,934
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,050 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 37
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:11.234</span><span>Sample</span><span>frame 2142</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2142 | Time: 1,759 | Unscaled: 44,204
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,600 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 40
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:09.416</span><span>Sample</span><span>frame 2027</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2027 | Time: 1,759 | Unscaled: 42,386
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 80
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:09.673</span><span>Sample</span><span>frame 2051</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2051 | Time: 1,759 | Unscaled: 42,643
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,100 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 98
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:09.925</span><span>Sample</span><span>frame 2076</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2076 | Time: 1,759 | Unscaled: 42,895
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 97
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:10.180</span><span>Sample</span><span>frame 2101</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2101 | Time: 1,759 | Unscaled: 43,150
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 98
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:08.398</span><span>Sample</span><span>frame 1930</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1930 | Time: 1,759 | Unscaled: 41,367
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,250 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 99
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:08.655</span><span>Sample</span><span>frame 1955</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1955 | Time: 1,759 | Unscaled: 41,625
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 106
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:08.911</span><span>Sample</span><span>frame 1980</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1980 | Time: 1,759 | Unscaled: 41,881
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 94
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:09.166</span><span>Sample</span><span>frame 2005</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 2005 | Time: 1,759 | Unscaled: 42,135
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,400 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 97
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:07.375</span><span>Sample</span><span>frame 1838</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1838 | Time: 1,759 | Unscaled: 40,346
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 99
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:07.628</span><span>Sample</span><span>frame 1862</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1862 | Time: 1,759 | Unscaled: 40,598
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,900 Y=-0,450
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 94
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:07.887</span><span>Sample</span><span>frame 1885</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1885 | Time: 1,759 | Unscaled: 40,857
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,250 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 101
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:08.145</span><span>Sample</span><span>frame 1908</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1908 | Time: 1,759 | Unscaled: 41,114
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 82
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:06.342</span><span>Sample</span><span>frame 1743</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1743 | Time: 1,759 | Unscaled: 39,312
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,900 Y=-0,900
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 59
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:06.603</span><span>Sample</span><span>frame 1765</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1765 | Time: 1,759 | Unscaled: 39,573
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,250 Y=-0,200
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 84
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:06.856</span><span>Sample</span><span>frame 1790</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1790 | Time: 1,759 | Unscaled: 39,827
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 101
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:07.119</span><span>Sample</span><span>frame 1815</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1815 | Time: 1,759 | Unscaled: 40,088
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=3,750 Y=0,200
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 72
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:05.315</span><span>Sample</span><span>frame 1647</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1647 | Time: 1,759 | Unscaled: 38,285
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 111
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:05.566</span><span>Sample</span><span>frame 1671</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1671 | Time: 1,759 | Unscaled: 38,536
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,200 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 103
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:05.827</span><span>Sample</span><span>frame 1696</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1696 | Time: 1,759 | Unscaled: 38,797
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,300 Y=0,250
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 75
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:06.081</span><span>Sample</span><span>frame 1721</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1721 | Time: 1,759 | Unscaled: 39,051
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 91
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:04.297</span><span>Sample</span><span>frame 1554</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1554 | Time: 1,759 | Unscaled: 37,267
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,800 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 105
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:04.553</span><span>Sample</span><span>frame 1578</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1578 | Time: 1,759 | Unscaled: 37,523
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,100 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 105
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:04.804</span><span>Sample</span><span>frame 1602</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1602 | Time: 1,759 | Unscaled: 37,775
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 99
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:05.063</span><span>Sample</span><span>frame 1626</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1626 | Time: 1,759 | Unscaled: 38,033
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,200 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 89
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:03.279</span><span>Sample</span><span>frame 1460</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1460 | Time: 1,759 | Unscaled: 36,249
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,600 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 59
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:03.538</span><span>Sample</span><span>frame 1484</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1484 | Time: 1,759 | Unscaled: 36,509
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 84
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:03.793</span><span>Sample</span><span>frame 1505</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1505 | Time: 1,759 | Unscaled: 36,763
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=5,700 Y=-0,500
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 71
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:04.044</span><span>Sample</span><span>frame 1530</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1530 | Time: 1,759 | Unscaled: 37,014
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 85
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:02.495</span><span>Sample</span><span>frame 1388</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1388 | Time: 1,759 | Unscaled: 35,465
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,150 Y=0,000
+CameraGTA: FP=True | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,150, 0,000)
+FPS aprox: 107
+</pre>
+</section>
+<section class="entry camera">
+<div class="meta"><span>2026-07-09 02:28:02.515</span><span>Camera</span><span>frame 1390</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 1390 | Time: 1,759 | Unscaled: 35,485
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 95
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:02.761</span><span>Sample</span><span>frame 1414</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1414 | Time: 1,759 | Unscaled: 35,732
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 59
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:03.024</span><span>Sample</span><span>frame 1438</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1438 | Time: 1,759 | Unscaled: 35,993
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,600 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 82
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:01.479</span><span>Sample</span><span>frame 1304</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1304 | Time: 1,759 | Unscaled: 34,449
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 70
+</pre>
+</section>
+<section class="entry camera">
+<div class="meta"><span>2026-07-09 02:28:01.715</span><span>Camera</span><span>frame 1326</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 1326 | Time: 1,759 | Unscaled: 34,686
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 100
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:01.734</span><span>Sample</span><span>frame 1328</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1328 | Time: 1,759 | Unscaled: 34,705
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 97
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:01.988</span><span>Sample</span><span>frame 1353</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1353 | Time: 1,759 | Unscaled: 34,958
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 86
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:02.244</span><span>Sample</span><span>frame 1378</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1378 | Time: 1,759 | Unscaled: 35,213
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-2,450 Y=0,400
+CameraGTA: FP=True | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-2,450, 0,400)
+FPS aprox: 62
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:00.459</span><span>Sample</span><span>frame 1216</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1216 | Time: 1,759 | Unscaled: 33,429
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=-1,650 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 81
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:00.714</span><span>Sample</span><span>frame 1240</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1240 | Time: 1,759 | Unscaled: 33,683
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,450 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 109
+</pre>
+</section>
+<section class="entry camera">
+<div class="meta"><span>2026-07-09 02:28:00.977</span><span>Camera</span><span>frame 1263</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 1263 | Time: 1,759 | Unscaled: 33,940
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,500 Y=0,050
+CameraGTA: FP=True | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 85
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:00.977</span><span>Sample</span><span>frame 1263</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1263 | Time: 1,759 | Unscaled: 33,940
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,500 Y=0,050
+CameraGTA: FP=True | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 85
+</pre>
+</section>
+<section class="entry camera">
+<div class="meta"><span>2026-07-09 02:28:01.228</span><span>Camera</span><span>frame 1282</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 1282 | Time: 1,759 | Unscaled: 34,198
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,700 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 85
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:01.228</span><span>Sample</span><span>frame 1282</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1282 | Time: 1,759 | Unscaled: 34,198
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,700 Y=0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 85
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:59.435</span><span>Sample</span><span>frame 1121</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1121 | Time: 1,759 | Unscaled: 32,405
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=1,850 Y=-0,350
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 107
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:59.695</span><span>Sample</span><span>frame 1146</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1146 | Time: 1,759 | Unscaled: 32,665
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=-0,050 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 96
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:59.953</span><span>Sample</span><span>frame 1171</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1171 | Time: 1,759 | Unscaled: 32,923
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=-1,050 Y=-0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 82
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:28:00.208</span><span>Sample</span><span>frame 1195</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1195 | Time: 1,759 | Unscaled: 33,179
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 99
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:58.402</span><span>Sample</span><span>frame 1027</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1027 | Time: 1,759 | Unscaled: 31,372
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,400 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 82
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:58.659</span><span>Sample</span><span>frame 1051</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1051 | Time: 1,759 | Unscaled: 31,630
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-2,250 Y=0,550
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 80
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:58.918</span><span>Sample</span><span>frame 1076</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1076 | Time: 1,759 | Unscaled: 31,888
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 105
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:59.180</span><span>Sample</span><span>frame 1100</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1100 | Time: 1,759 | Unscaled: 32,150
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=2,250 Y=-0,800
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 54
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:57.390</span><span>Sample</span><span>frame 932</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 932 | Time: 1,759 | Unscaled: 30,361
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,450 Y=0,650
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 75
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:57.642</span><span>Sample</span><span>frame 957</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 957 | Time: 1,759 | Unscaled: 30,612
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=0,150 Y=0,300
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 88
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:57.892</span><span>Sample</span><span>frame 980</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 980 | Time: 1,759 | Unscaled: 30,862
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 73
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:58.148</span><span>Sample</span><span>frame 1004</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1004 | Time: 1,759 | Unscaled: 31,118
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,200 Y=-0,550
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 91
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:56.360</span><span>Sample</span><span>frame 838</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 838 | Time: 1,759 | Unscaled: 29,330
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,350 Y=0,200
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 99
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:56.617</span><span>Sample</span><span>frame 864</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 864 | Time: 1,759 | Unscaled: 29,587
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 98
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:56.873</span><span>Sample</span><span>frame 885</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 885 | Time: 1,759 | Unscaled: 29,843
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 69
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:57.131</span><span>Sample</span><span>frame 908</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 908 | Time: 1,759 | Unscaled: 30,101
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,600 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 76
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:55.337</span><span>Sample</span><span>frame 739</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 739 | Time: 1,759 | Unscaled: 28,307
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=2,050 Y=0,450
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 88
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:55.590</span><span>Sample</span><span>frame 764</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 764 | Time: 1,759 | Unscaled: 28,560
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,250 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 103
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:55.841</span><span>Sample</span><span>frame 789</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 789 | Time: 1,759 | Unscaled: 28,811
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,100 Y=0,200
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 99
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:56.101</span><span>Sample</span><span>frame 815</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 815 | Time: 1,759 | Unscaled: 29,071
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 96
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:54.310</span><span>Sample</span><span>frame 638</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 638 | Time: 1,759 | Unscaled: 27,280
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,650 Y=1,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 55
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:54.566</span><span>Sample</span><span>frame 664</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 664 | Time: 1,759 | Unscaled: 27,536
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 108
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:54.819</span><span>Sample</span><span>frame 689</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 689 | Time: 1,759 | Unscaled: 27,789
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 109
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:55.076</span><span>Sample</span><span>frame 714</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 714 | Time: 1,759 | Unscaled: 28,046
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-2,550 Y=-0,350
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 89
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:53.284</span><span>Sample</span><span>frame 539</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 539 | Time: 1,759 | Unscaled: 26,254
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,000 Y=0,100
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 74
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:53.539</span><span>Sample</span><span>frame 564</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 564 | Time: 1,759 | Unscaled: 26,510
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 105
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:53.796</span><span>Sample</span><span>frame 589</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 589 | Time: 1,759 | Unscaled: 26,765
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=-0,250
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 98
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:54.048</span><span>Sample</span><span>frame 614</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 614 | Time: 1,759 | Unscaled: 27,019
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 116
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:52.252</span><span>Sample</span><span>frame 440</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 440 | Time: 1,759 | Unscaled: 25,222
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,050 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 103
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:52.506</span><span>Sample</span><span>frame 463</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 463 | Time: 1,759 | Unscaled: 25,479
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,100 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 103
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:52.763</span><span>Sample</span><span>frame 488</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 488 | Time: 1,759 | Unscaled: 25,733
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,550 Y=-0,050
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 82
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:53.022</span><span>Sample</span><span>frame 514</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 514 | Time: 1,759 | Unscaled: 25,993
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,450 Y=-0,250
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 99
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:51.231</span><span>Sample</span><span>frame 340</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 340 | Time: 1,759 | Unscaled: 24,201
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,200 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 95
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:51.481</span><span>Sample</span><span>frame 365</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 365 | Time: 1,759 | Unscaled: 24,452
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 109
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:51.737</span><span>Sample</span><span>frame 390</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 390 | Time: 1,759 | Unscaled: 24,707
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 112
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:51.993</span><span>Sample</span><span>frame 415</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 415 | Time: 1,759 | Unscaled: 24,963
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 87
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:50.207</span><span>Sample</span><span>frame 241</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 241 | Time: 1,759 | Unscaled: 23,174
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,350 Y=0,550
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 45
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:50.458</span><span>Sample</span><span>frame 264</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 264 | Time: 1,759 | Unscaled: 23,429
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 115
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:50.721</span><span>Sample</span><span>frame 290</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 290 | Time: 1,759 | Unscaled: 23,691
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 77
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:50.975</span><span>Sample</span><span>frame 315</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 315 | Time: 1,759 | Unscaled: 23,946
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 106
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:49.413</span><span>Sample</span><span>frame 165</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 165 | Time: 1,759 | Unscaled: 22,384
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,700 Y=-1,750
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 89
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:49.673</span><span>Sample</span><span>frame 190</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 190 | Time: 1,759 | Unscaled: 22,643
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,400 Y=-0,600
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 88
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:49.936</span><span>Sample</span><span>frame 216</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 216 | Time: 1,759 | Unscaled: 22,906
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 70
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:49.169</span><span>Sample</span><span>frame 146</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 146 | Time: 1,759 | Unscaled: 22,133
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 0
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:29.229</span><span>Sample</span><span>frame 135</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 135 | Time: 1,622 | Unscaled: 2,199
+Camera: Main Camera
+Pos: (168,507, 4,150, 138,152) | Rot Euler: (63,226, 66,687, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,233
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,500
+CameraGTA: FP=False | Transição=False | Yaw=66,687 | Pitch=49,512 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,037, 0,476)
+FPS aprox: 110
+</pre>
+</section>
+<section class="entry incident">
+<div class="meta"><span>2026-07-09 02:27:29.368</span><span>INCIDENTE</span><span>frame 145</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - PLAY PAUSADO</h2>
+<pre>Frame: 145 | Time: 1,759 | Unscaled: 2,337
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,000 Y=4,600
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 23
+Frame: 145 | Time: 1,759 | Unscaled: 2,337
+Camera: Main Camera
+Pos: (168,125, 3,448, 137,767) | Rot Euler: (44,904, 60,051, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,850
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,000 Y=4,600
+CameraGTA: FP=False | Transição=False | Yaw=60,051 | Pitch=23,016 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,921, 4,261)
+FPS aprox: 23
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:28.210</span><span>Sample</span><span>frame 45</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 45 | Time: 0,602 | Unscaled: 1,180
+Camera: Main Camera
+Pos: (168,751, 3,389, 137,107) | Rot Euler: (43,530, 30,112, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,737
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,500 Y=-0,600
+CameraGTA: FP=False | Transição=False | Yaw=30,112 | Pitch=21,099 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,641, -0,704)
+FPS aprox: 84
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:28.470</span><span>Sample</span><span>frame 66</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 66 | Time: 0,863 | Unscaled: 1,440
+Camera: Main Camera
+Pos: (168,520, 3,692, 137,465) | Rot Euler: (50,751, 43,607, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,957
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=43,607 | Pitch=31,300 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,001, -0,001)
+FPS aprox: 84
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:28.723</span><span>Sample</span><span>frame 90</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 90 | Time: 1,116 | Unscaled: 1,694
+Camera: Main Camera
+Pos: (168,437, 3,783, 137,640) | Rot Euler: (53,017, 50,279, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,022
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,250 Y=-0,950
+CameraGTA: FP=False | Transição=False | Yaw=50,279 | Pitch=34,559 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,966, -0,726)
+FPS aprox: 72
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:28.979</span><span>Sample</span><span>frame 114</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 114 | Time: 1,372 | Unscaled: 1,949
+Camera: Main Camera
+Pos: (168,527, 4,176, 138,186) | Rot Euler: (64,049, 67,809, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 4,246
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=67,809 | Pitch=50,734 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,102, -0,220)
+FPS aprox: 99
+</pre>
+</section>
+
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:27.491</span><span>Sample</span><span>frame 1</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 1 | Time: 0,000 | Unscaled: 0,416
+Camera: Main Camera
+Pos: (168,684, 3,180, 137,069) | Rot Euler: (38,728, 31,323, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,606
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=31,323 | Pitch=14,486 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 2
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:27.698</span><span>Sample</span><span>frame 3</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 3 | Time: 0,091 | Unscaled: 0,668
+Camera: Main Camera
+Pos: (168,821, 3,253, 137,016) | Rot Euler: (40,395, 26,766, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,638
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=False | Yaw=26,766 | Pitch=16,764 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,075, -0,052)
+FPS aprox: 14
+</pre>
+</section>
+<section class="entry sample">
+<div class="meta"><span>2026-07-09 02:27:27.948</span><span>Sample</span><span>frame 24</span></div>
+<h2>Amostra câmera</h2>
+<pre>Frame: 24 | Time: 0,341 | Unscaled: 0,919
+Camera: Main Camera
+Pos: (168,835, 3,260, 137,011) | Rot Euler: (40,562, 26,306, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,642
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=-0,150
+CameraGTA: FP=False | Transição=False | Yaw=26,306 | Pitch=16,993 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,146, -0,120)
+FPS aprox: 92
+</pre>
+</section>
+
+<section class="entry system">
+<div class="meta"><span>2026-07-09 02:27:27.326</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Monitoramento em tempo real da câmera iniciado. Incidentes pausam o Play e registram detalhes.</pre>
+</section>
+
 <section class="entry system"><div class="meta"><span>2026-07-09</span><span>Camera</span><span>setup</span></div><h2>CameraRealtimeLog.htm criado</h2><pre>Arquivo exclusivo para logs de câmera em tempo real. O script MiniMarketCameraRealtimeAnomalyLogger escreve amostras e incidentes neste arquivo durante o Play.</pre></section>
 </main></body></html>
