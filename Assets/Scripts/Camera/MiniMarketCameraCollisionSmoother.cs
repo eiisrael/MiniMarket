@@ -1,12 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// Suavizador de colisão da câmera em terceira pessoa.
+/// Suavizador opcional de colisão da câmera em terceira pessoa.
 ///
-/// Regra atual:
-/// - CameraGTAFollowHardcore continua sendo a autoridade de eixo/rotação/yaw/pitch.
-/// - Este script só ajusta a POSIÇÃO da câmera para colisão suave.
-/// - Não sobrescreve mais a rotação final, evitando pulo de eixo quando o mouse vira rápido.
+/// Mudança importante:
+/// - por padrão, respeita o Inspector do CameraGTAFollowHardcore;
+/// - não força mais usarColisaoCamera/corrigirPosicaoFinalSuavizada em loop;
+/// - se quiser que este script assuma a colisão, desligue Modo Inspector Livre e ligue Desativar Colisão Interna.
 /// </summary>
 [DefaultExecutionOrder(32500)]
 public class MiniMarketCameraCollisionSmoother : MonoBehaviour
@@ -15,14 +15,18 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
     public Camera cameraMonitorada;
     public CameraGTAFollowHardcore cameraGTA;
 
+    [Header("Modo Inspector")]
+    [Tooltip("Ligado: não altera os campos de colisão do CameraGTAFollowHardcore, deixando o Inspector editável.")]
+    public bool modoInspectorLivre = true;
+
     [Header("Ativação")]
     public bool ativo = true;
     public bool procurarAutomaticamente = true;
     [Min(0.2f)] public float intervaloBusca = 1f;
 
     [Header("Controle da Colisão")]
-    [Tooltip("Desliga a colisão instantânea dentro da CameraGTAFollowHardcore para evitar dois sistemas brigando.")]
-    public bool desativarColisaoInternaCameraGTA = true;
+    [Tooltip("Só funciona se Modo Inspector Livre estiver desligado.")]
+    public bool desativarColisaoInternaCameraGTA = false;
 
     [Tooltip("Este script calcula e aplica a colisão suavizada da câmera.")]
     public bool usarColisaoSuavizada = true;
@@ -120,6 +124,9 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
             return;
         }
 
+        if (!usarColisaoSuavizada)
+            return;
+
         AplicarSuavizacaoDeColisao();
     }
 
@@ -143,6 +150,9 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
     private void AplicarControleNaCameraGTA()
     {
+        if (modoInspectorLivre)
+            return;
+
         if (cameraGTA == null || !desativarColisaoInternaCameraGTA)
             return;
 
@@ -226,9 +236,6 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
 
     private float CalcularDistanciaSegura(Vector3 focus, Vector3 direcao, float distanciaNormal)
     {
-        if (!usarColisaoSuavizada)
-            return distanciaNormal;
-
         float distanciaSegura = distanciaNormal;
         int count = Physics.SphereCastNonAlloc(
             focus,
