@@ -9,6 +9,7 @@ using UnityEngine;
 /// - No modo segmentado, ignorar o limite minimo antigo da barra ativa para que ela possa chegar ate 0.
 /// - Quando a barra chega em 0, o PlayerMove consome 1 segmento e recarrega a barra para 100%.
 /// - So bloquear corrida quando os segmentos chegarem em 0/5.
+/// - Em 0/5, se a barra ja estiver regenerando, pressionar Shift NAO zera a barra instantaneamente.
 ///
 /// Este script se cria automaticamente ao iniciar a cena. Nao precisa arrastar no Inspector.
 /// </summary>
@@ -26,8 +27,8 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
     [Tooltip("Enquanto ainda houver cargas, remove o bloqueio antigo de cansaço.")]
     public bool destravarEnquantoHouverSegmentos = true;
 
-    [Tooltip("Se a stamina ativa estiver zerada mas ainda houver segmentos, deixa o PlayerMove consumir/decrementar no frame seguinte.")]
-    public bool manterConsumoContinuo = true;
+    [Tooltip("Desliga a trava que zerava instantaneamente a barra parcial no 0/5 ao segurar Shift.")]
+    public bool impedirDrenoInstantaneoNoZero = true;
 
     [Header("Performance")]
     [Min(0.02f)] public float intervaloBusca = 0.5f;
@@ -41,6 +42,9 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
     private bool limiteOriginalCapturado;
     private FieldInfo campoUsarStaminaSegmentada;
     private FieldInfo campoCorridaBloqueada;
+    private FieldInfo campoTravarNoZeroEnquantoShift;
+    private bool valorOriginalTravarNoZero;
+    private bool valorOriginalTravarNoZeroCapturado;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CriarAutomaticamente()
@@ -88,6 +92,7 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
         else
         {
             RestaurarLimiteOriginalSeNecessario();
+            RestaurarTravaZeroOriginalSeNecessario();
         }
     }
 
@@ -110,8 +115,10 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
 
         playerMove = encontrado;
         limiteOriginalCapturado = false;
+        valorOriginalTravarNoZeroCapturado = false;
         campoUsarStaminaSegmentada = null;
         campoCorridaBloqueada = null;
+        campoTravarNoZeroEnquantoShift = null;
 
         if (logarEventos)
             Debug.Log("[MiniMarketSegmentedStaminaRuntimeGuard] PlayerMove encontrado: " + playerMove.gameObject.name);
@@ -147,6 +154,9 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
         if (playerMove.staminaMinimaParaCorrer > limiteMinimoSegmentado)
             playerMove.staminaMinimaParaCorrer = limiteMinimoSegmentado;
 
+        if (impedirDrenoInstantaneoNoZero)
+            DesativarTravaInstantaneaNoZero();
+
         if (!destravarEnquantoHouverSegmentos)
             return;
 
@@ -154,6 +164,42 @@ public class MiniMarketSegmentedStaminaRuntimeGuard : MonoBehaviour
             return;
 
         DefinirCorridaBloqueada(false);
+    }
+
+    private void DesativarTravaInstantaneaNoZero()
+    {
+        if (playerMove == null)
+            return;
+
+        if (campoTravarNoZeroEnquantoShift == null)
+        {
+            campoTravarNoZeroEnquantoShift = typeof(PlayerMove).GetField(
+                "travarNoZeroEnquantoShiftPressionado",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            );
+        }
+
+        if (campoTravarNoZeroEnquantoShift == null || campoTravarNoZeroEnquantoShift.FieldType != typeof(bool))
+            return;
+
+        if (!valorOriginalTravarNoZeroCapturado)
+        {
+            valorOriginalTravarNoZero = (bool)campoTravarNoZeroEnquantoShift.GetValue(playerMove);
+            valorOriginalTravarNoZeroCapturado = true;
+        }
+
+        // Esta opção, quando ligada, fazia a barra parcial do 0/5 virar 0 imediatamente ao segurar Shift.
+        // Mantemos desligada no modo segmentado para carga/descarga terem a mesma velocidade.
+        if ((bool)campoTravarNoZeroEnquantoShift.GetValue(playerMove))
+            campoTravarNoZeroEnquantoShift.SetValue(playerMove, false);
+    }
+
+    private void RestaurarTravaZeroOriginalSeNecessario()
+    {
+        if (playerMove == null || !valorOriginalTravarNoZeroCapturado || campoTravarNoZeroEnquantoShift == null)
+            return;
+
+        campoTravarNoZeroEnquantoShift.SetValue(playerMove, valorOriginalTravarNoZero);
     }
 
     private void RestaurarLimiteOriginalSeNecessario()
