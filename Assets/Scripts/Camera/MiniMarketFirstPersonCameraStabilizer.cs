@@ -2,15 +2,13 @@ using System.Reflection;
 using UnityEngine;
 
 /// <summary>
-/// Estabilizador automatico para remover o efeito de "jumping / fade out" da camera em primeira pessoa.
+/// Estabilizador automatico da camera do MiniMarket.
 ///
-/// Ele nao substitui a CameraGTAFollowHardcore. Apenas corrige os pontos que causam tontura:
-/// - remove inercia residual do mouse na primeira pessoa;
-/// - impede snap/recenter ao entrar na mira;
-/// - deixa a sensibilidade igual a camera principal;
-/// - evita que a rotacao do corpo puxe a camera depois que o mouse para.
+/// Corrige dois problemas comuns:
+/// - pulso/reset de eixo da Main Camera causado por auto-align;
+/// - jumping/fade-out horizontal da primeira pessoa causado por inercia residual do mouse e suavizacao acumulada.
 ///
-/// Cria-se automaticamente ao carregar a cena.
+/// Ele se cria sozinho ao carregar a cena e aplica ajustes seguros na CameraGTAFollowHardcore.
 /// </summary>
 [DefaultExecutionOrder(32000)]
 public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
@@ -21,11 +19,18 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     public bool procurarCameraAutomaticamente = true;
     public bool aplicarConfiguracaoAutomaticamente = true;
 
-    [Header("Anti Jumping")]
+    [Header("Main Camera - Anti Pulso")]
+    [Tooltip("Desliga o auto-align que puxa a camera para tras do personagem e causa pulso/reset de eixo.")]
+    public bool desativarAutoAlignDaCamera = true;
+
+    [Tooltip("Mantem a camera livre, sem recentralizar automaticamente no corpo.")]
+    public bool manterCameraLivreSemRecenter = true;
+
+    [Header("Primeira Pessoa - Anti Jumping")]
     [Tooltip("Zera a inercia do mouse quando ele para, removendo o fade out no final do movimento.")]
     public bool zerarInerciaMouseQuandoParar = true;
 
-    [Tooltip("Remove a rotacao do corpo causada diretamente pelo mouse na primeira pessoa. O corpo ainda pode virar pela movimentacao normal.")]
+    [Tooltip("Remove a rotacao do corpo causada diretamente pela camera. O corpo continua podendo virar por outros scripts/movimento.")]
     public bool desativarRotacaoDoCorpoPelaCamera = true;
 
     [Tooltip("Forca a mira/primeira pessoa a usar a mesma sensibilidade da camera normal.")]
@@ -37,6 +42,9 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     [Tooltip("Limite abaixo do qual considera que o mouse parou.")]
     [Min(0f)] public float deadzoneParadaMouse = 0.0015f;
 
+    [Tooltip("Quando entrar/sair da primeira pessoa, limpa as velocidades internas de transicao para nao dar encaixe final.")]
+    public bool limparVelocidadesDuranteTransicao = true;
+
     [Header("Debug")]
     public bool logarEventos;
 
@@ -45,6 +53,8 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     private FieldInfo campoMouseSmoothVelocity;
     private FieldInfo campoPositionVelocity;
     private FieldInfo campoRotationVelocity;
+    private bool ultimoEstadoPrimeiraPessoa;
+    private float ultimoLogTempo;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CriarAutomaticamente()
@@ -52,7 +62,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (instancia != null)
             return;
 
-        GameObject go = new GameObject("MiniMarket_FirstPersonCameraStabilizer");
+        GameObject go = new GameObject("MiniMarket_CameraStabilizer");
         DontDestroyOnLoad(go);
         instancia = go.AddComponent<MiniMarketFirstPersonCameraStabilizer>();
     }
@@ -82,7 +92,14 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (aplicarConfiguracaoAutomaticamente)
             AplicarConfiguracao();
 
-        if (zerarInerciaMouseQuandoParar && cameraGTA.EstaEmPrimeiraPessoa)
+        bool estadoPrimeiraPessoa = cameraGTA.EstaEmPrimeiraPessoa;
+
+        if (limparVelocidadesDuranteTransicao && estadoPrimeiraPessoa != ultimoEstadoPrimeiraPessoa)
+            LimparVelocidadesInternas();
+
+        ultimoEstadoPrimeiraPessoa = estadoPrimeiraPessoa;
+
+        if (zerarInerciaMouseQuandoParar && estadoPrimeiraPessoa)
             RemoverInerciaResidualDoMouse();
     }
 
@@ -102,13 +119,30 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
             cameraGTA = FindObjectOfType<CameraGTAFollowHardcore>(true);
 
         if (cameraGTA != null)
+        {
             PrepararReflection();
+            MiniMarketUpgradeLogger.Log("Camera", "CameraGTAFollowHardcore encontrada", "Estabilizador automatico conectado a " + cameraGTA.gameObject.name, "camera-found", 10f);
+        }
     }
 
     private void AplicarConfiguracao()
     {
         if (cameraGTA == null)
             return;
+
+        if (desativarAutoAlignDaCamera)
+        {
+            cameraGTA.autoAlignBehindPlayer = false;
+            cameraGTA.autoAlignDelay = 999f;
+            cameraGTA.autoAlignSpeed = 0f;
+        }
+
+        if (manterCameraLivreSemRecenter)
+        {
+            cameraGTA.protegerContraResetDeAngulo = true;
+            cameraGTA.anguloMaximoAutoAlignSemReset = 180f;
+            cameraGTA.bloquearAutoAlignDuranteMira = true;
+        }
 
         cameraGTA.preservarAnguloAtualNaTransicao = true;
         cameraGTA.alinharComFrenteDoPersonagemAoEntrarNaMira = false;
@@ -131,6 +165,12 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         }
 
         cameraGTA.mouseSmoothTimePrimeiraPessoa = mouseSmoothTimePrimeiraPessoa;
+
+        if (logarEventos && Time.unscaledTime - ultimoLogTempo > 10f)
+        {
+            ultimoLogTempo = Time.unscaledTime;
+            MiniMarketUpgradeLogger.Log("Camera", "Configuracao anti-jumping aplicada", "Auto-align desligado; primeira pessoa sem recenter/pitch snap; smooth FP = " + mouseSmoothTimePrimeiraPessoa.ToString("0.###"), "camera-config", 10f);
+        }
     }
 
     private void PrepararReflection()
@@ -159,7 +199,18 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (campoMouseSmoothVelocity != null)
             campoMouseSmoothVelocity.SetValue(cameraGTA, Vector2.zero);
 
-        // Na primeira pessoa, velocidade de transicao residual pode parecer um pequeno encaixe.
+        if (campoRotationVelocity != null)
+            campoRotationVelocity.SetValue(cameraGTA, new Quaternion(0f, 0f, 0f, 0f));
+    }
+
+    private void LimparVelocidadesInternas()
+    {
+        if (campoMouseSuavizado != null)
+            campoMouseSuavizado.SetValue(cameraGTA, Vector2.zero);
+
+        if (campoMouseSmoothVelocity != null)
+            campoMouseSmoothVelocity.SetValue(cameraGTA, Vector2.zero);
+
         if (campoPositionVelocity != null)
             campoPositionVelocity.SetValue(cameraGTA, Vector3.zero);
 
