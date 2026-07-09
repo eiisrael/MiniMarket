@@ -1,14 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Camera principal do personagem.
+/// Camera principal do personagem, estável para terceira pessoa e primeira pessoa.
 ///
 /// Ajuste atual:
-/// - Remove o efeito de jumping na primeira pessoa/mira.
-/// - Mantem o mesmo yaw/pitch quando entra/sai da primeira pessoa.
-/// - Usa a mesma sensibilidade da Main Camera, salvo se voce desligar a opcao no Inspector.
-/// - Evita que a rotacao do personagem realimente a posicao da camera e cause tranco lateral.
-/// - Mantem zoom/mira por distancia ajustavel em tempo real.
+/// - Botão direito entra em primeira pessoa via SetPrimeiraPessoa(true), soltar volta para terceira pessoa.
+/// - Sem auto-align/recenter automático: remove pulsação/reset de eixo.
+/// - Primeira pessoa usa posição real dos olhos, não zoom atrás da cabeça.
+/// - Oculta renderers do personagem em primeira pessoa para não ver cabeça/corpo por dentro.
+/// - Colisão da terceira pessoa ignora o próprio player e objetos seguráveis, evitando snap/travadas.
 /// </summary>
 public class CameraGTAFollowHardcore : MonoBehaviour
 {
@@ -26,167 +26,97 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     public bool invertY = false;
 
     [Header("Sensibilidade da Mira")]
-    [Tooltip("Recomendado desligado: primeira pessoa/mira usa a mesma sensibilidade da Main Camera.")]
     public bool usarSensibilidadeSeparadaNaMira = false;
-
-    [Range(0, 2)]
-    public int botaoSensibilidadeMira = 1;
-
+    [Range(0, 2)] public int botaoSensibilidadeMira = 1;
     public float mouseSensitivityXMira = 180f;
     public float mouseSensitivityYMira = 120f;
 
     [Header("Suavização do Mouse")]
     public bool suavizarMouse = true;
-
-    [Min(0f)]
-    public float mouseSmoothTimeTerceiraPessoa = 0.015f;
-
-    [Min(0f)]
-    public float mouseSmoothTimePrimeiraPessoa = 0.015f;
-
-    [Tooltip("Forca a primeira pessoa a usar a mesma sensibilidade e suavizacao da Main Camera.")]
+    [Min(0f)] public float mouseSmoothTimeTerceiraPessoa = 0.008f;
+    [Min(0f)] public float mouseSmoothTimePrimeiraPessoa = 0f;
     public bool usarMesmaSensibilidadeDaMainCameraNaPrimeiraPessoa = true;
-
-    [Min(0f)]
-    public float mouseDeadZone = 0.001f;
+    [Min(0f)] public float mouseDeadZone = 0.001f;
 
     [Header("Limites Verticais")]
-    public float minPitch = -25f;
-    public float maxPitch = 55f;
+    public float minPitch = -45f;
+    public float maxPitch = 65f;
 
     [Header("Suavização Terceira Pessoa")]
-    public float positionSmoothTime = 0.06f;
-    public float rotationSmoothTime = 0.04f;
+    [Min(0f)] public float positionSmoothTime = 0.035f;
+    [Min(0f)] public float rotationSmoothTime = 0.025f;
 
     [Header("Auto Alinhar Atrás do Personagem")]
-    public bool autoAlignBehindPlayer = true;
-    public float autoAlignDelay = 1.2f;
-    public float autoAlignSpeed = 70f;
+    public bool autoAlignBehindPlayer = false;
+    public float autoAlignDelay = 999f;
+    public float autoAlignSpeed = 0f;
 
     [Header("Proteção Contra Reset de Ângulo")]
     public bool protegerContraResetDeAngulo = true;
     public bool bloquearAutoAlignDuranteMira = true;
-
-    [Range(5f, 180f)]
-    public float anguloMaximoAutoAlignSemReset = 35f;
-
-    [Min(0.01f)]
-    public float autoAlignSmoothTime = 0.35f;
+    [Range(5f, 180f)] public float anguloMaximoAutoAlignSemReset = 180f;
+    [Min(0.01f)] public float autoAlignSmoothTime = 0.35f;
 
     [Header("Primeira Pessoa")]
     public bool permitirPrimeiraPessoa = true;
     public Transform pontoPrimeiraPessoa;
-    public Vector3 offsetPrimeiraPessoa = new Vector3(0f, 1.68f, 0.32f);
-    public Vector3 ajusteLocalPontoPrimeiraPessoa = new Vector3(0f, 0f, 0.12f);
+    public Vector3 offsetPrimeiraPessoa = new Vector3(0f, 1.68f, 0.18f);
+    public Vector3 ajusteLocalPontoPrimeiraPessoa = new Vector3(0f, 0f, 0.05f);
 
     [Header("Primeira Pessoa Anti-Jumping")]
-    [Tooltip("Mantem exatamente o angulo atual da camera ao entrar/sair da primeira pessoa. Remove o snap/recenter.")]
     public bool preservarAnguloAtualNaTransicao = true;
-
-    [Tooltip("Usa uma posicao de primeira pessoa calculada em mundo, sem depender da rotacao local do ponto filho. Evita o pulo lateral ao olhar para os lados.")]
     public bool usarPosicaoPrimeiraPessoaEstavel = true;
-
-    [Tooltip("Quando ligado, a camera nao rotaciona o corpo no mesmo frame usando transform do alvo para calcular a posicao. Reduz jumping/tontura.")]
     public bool evitarRealimentacaoRotacaoPersonagemCamera = true;
-
-    [Tooltip("Sincroniza o corpo com a camera apenas de forma suave, sem puxar a camera.")]
     public bool sincronizarCorpoSuaveNaPrimeiraPessoa = true;
-
-    [Min(0.1f)]
-    public float velocidadeSincronizarCorpoPrimeiraPessoa = 8f;
+    [Min(0.1f)] public float velocidadeSincronizarCorpoPrimeiraPessoa = 18f;
 
     [Header("Mira / Zoom Profissional")]
-    [Tooltip("Use somente se quiser forcar a mira para a frente do personagem. Recomendado desligado para evitar snap.")]
     public bool alinharComFrenteDoPersonagemAoEntrarNaMira = false;
-
-    [Tooltip("Use somente se quiser forcar pitch reto. Recomendado desligado para manter a direcao atual.")]
     public bool corrigirPitchAoEntrarNaMira = false;
+    [Range(-30f, 30f)] public float pitchInicialAoEntrarNaMira = 0f;
 
-    [Range(-30f, 30f)]
-    public float pitchInicialAoEntrarNaMira = 0f;
-
-    [Tooltip("Usa uma camera de mira por distancia. Mais estavel para terceira pessoa.")]
-    public bool usarZoomMiraPorDistancia = true;
-
-    [Min(0.15f)]
-    public float distanciaZoomMira = 1.25f;
-
+    [Tooltip("Mantido por compatibilidade. Recomendado desligado: botão direito agora usa primeira pessoa real.")]
+    public bool usarZoomMiraPorDistancia = false;
+    [Min(0.15f)] public float distanciaZoomMira = 1.25f;
     public float alturaZoomMira = 1.58f;
     public float deslocamentoLateralZoomMira = 0f;
-
-    [Min(0.5f)]
-    public float distanciaOlharFrenteZoomMira = 8f;
-
-    public bool aplicarColisaoNoZoomMira = true;
-
-    [Min(0.1f)]
-    public float velocidadeEntradaZoomMira = 2.2f;
+    [Min(0.5f)] public float distanciaOlharFrenteZoomMira = 8f;
+    public bool aplicarColisaoNoZoomMira = false;
+    [Min(0.1f)] public float velocidadeEntradaZoomMira = 8f;
 
     [Header("FOV da Mira / Zoom")]
     public bool ajustarFovNaMira = true;
     public bool capturarFovNormalNoStart = true;
-
-    [Min(1f)]
-    public float fovNormal = 60f;
-
-    [Range(25f, 75f)]
-    public float fovMira = 50f;
-
-    [Min(0.1f)]
-    public float velocidadeFovMira = 8f;
+    [Min(1f)] public float fovNormal = 60f;
+    [Range(25f, 75f)] public float fovMira = 58f;
+    [Min(0.1f)] public float velocidadeFovMira = 12f;
 
     [Header("Transição Anti-Enjoo")]
-    [Min(0.1f)]
-    public float velocidadeEntradaPrimeiraPessoa = 4.2f;
-
-    [Min(0.1f)]
-    public float velocidadeSaidaPrimeiraPessoa = 1.6f;
-
-    [Min(0.01f)]
-    public float positionSmoothTimePrimeiraPessoa = 0.06f;
-
-    [Min(0.01f)]
-    public float rotationSmoothTimePrimeiraPessoa = 0.04f;
-
-    [Min(0.01f)]
-    public float positionSmoothTimeSaidaPrimeiraPessoa = 0.18f;
-
-    [Min(0.01f)]
-    public float rotationSmoothTimeSaidaPrimeiraPessoa = 0.12f;
+    [Min(0.1f)] public float velocidadeEntradaPrimeiraPessoa = 14f;
+    [Min(0.1f)] public float velocidadeSaidaPrimeiraPessoa = 14f;
+    [Min(0f)] public float positionSmoothTimePrimeiraPessoa = 0f;
+    [Min(0f)] public float rotationSmoothTimePrimeiraPessoa = 0f;
+    [Min(0f)] public float positionSmoothTimeSaidaPrimeiraPessoa = 0.035f;
+    [Min(0f)] public float rotationSmoothTimeSaidaPrimeiraPessoa = 0.025f;
 
     [Header("Rotação do Personagem na Mira")]
     public bool rotacionarPersonagemNaPrimeiraPessoa = true;
-
-    [Min(0.1f)]
-    public float velocidadeRotacaoPersonagemPrimeiraPessoa = 10f;
+    [Min(0.1f)] public float velocidadeRotacaoPersonagemPrimeiraPessoa = 18f;
 
     [Header("Anti Atravessar Cabeça")]
     public bool ocultarRenderersNaPrimeiraPessoa = true;
     public bool autoEncontrarRenderersDoTarget = true;
-
-    [Range(0f, 1f)]
-    public float ocultarRenderersQuandoBlendMaiorQue = 0.08f;
-
+    [Range(0f, 1f)] public float ocultarRenderersQuandoBlendMaiorQue = 0.08f;
     public Renderer[] renderersParaOcultar;
 
     [Header("Colisão da Câmera - Anti Parede Seguro")]
     public bool usarColisaoCamera = true;
     public LayerMask cameraCollisionLayers = ~0;
-
-    [Min(0.01f)]
-    public float cameraCollisionRadius = 0.30f;
-
-    [Min(0f)]
-    public float cameraCollisionOffset = 0.18f;
-
-    [Min(0.05f)]
-    public float cameraMinDistanceFromFocus = 0.75f;
-
+    [Min(0.01f)] public float cameraCollisionRadius = 0.28f;
+    [Min(0f)] public float cameraCollisionOffset = 0.18f;
+    [Min(0.05f)] public float cameraMinDistanceFromFocus = 0.85f;
     public bool usarAntiGrudarExtra = true;
-
-    [Range(3, 14)]
-    public int passosBuscaAntiGrudar = 8;
-
+    [Range(3, 14)] public int passosBuscaAntiGrudar = 8;
     public bool corrigirPosicaoFinalSuavizada = true;
 
     [Header("Debug")]
@@ -198,7 +128,6 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     public KeyCode lockCursorKey = KeyCode.Mouse0;
 
     private Camera cameraComponente;
-
     private float yaw;
     private float pitch = 15f;
     private float timeWithoutMouse;
@@ -242,14 +171,8 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             lastTargetPosition = target.position;
         }
 
-        if (
-            autoEncontrarRenderersDoTarget &&
-            target != null &&
-            (renderersParaOcultar == null || renderersParaOcultar.Length == 0)
-        )
-        {
+        if (autoEncontrarRenderersDoTarget && target != null && (renderersParaOcultar == null || renderersParaOcultar.Length == 0))
             renderersParaOcultar = target.GetComponentsInChildren<Renderer>(true);
-        }
 
         AplicarPreferenciasSensibilidade();
         ResetarSuavizacoes();
@@ -281,6 +204,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
         AtualizarBlendPrimeiraPessoa();
 
+        // Auto-align fica efetivamente desligado por padrão para impedir pulsação/reset de eixo.
         if (!EstaEmPrimeiraPessoa)
             HandleAutoAlign();
 
@@ -324,7 +248,6 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     {
         float mouseXRaw = Input.GetAxisRaw("Mouse X");
         float mouseYRaw = Input.GetAxisRaw("Mouse Y");
-
         Vector2 mouseInput = new Vector2(mouseXRaw, mouseYRaw);
 
         if (mouseInput.sqrMagnitude <= mouseDeadZone * mouseDeadZone)
@@ -340,11 +263,16 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
         if (suavizarMouse)
         {
-            float smoothTime = EstaEmPrimeiraPessoa
-                ? mouseSmoothTimePrimeiraPessoa
-                : mouseSmoothTimeTerceiraPessoa;
-
-            mouseSuavizado = Vector2.SmoothDamp(mouseSuavizado, mouseInput, ref mouseSmoothVelocity, smoothTime);
+            float smoothTime = EstaEmPrimeiraPessoa ? mouseSmoothTimePrimeiraPessoa : mouseSmoothTimeTerceiraPessoa;
+            if (smoothTime <= 0.0001f)
+            {
+                mouseSuavizado = mouseInput;
+                mouseSmoothVelocity = Vector2.zero;
+            }
+            else
+            {
+                mouseSuavizado = Vector2.SmoothDamp(mouseSuavizado, mouseInput, ref mouseSmoothVelocity, smoothTime);
+            }
         }
         else
         {
@@ -360,23 +288,14 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         float sensibilidadeYAtual = podeUsarSensibilidadeSeparada ? mouseSensitivityYMira : mouseSensitivityY;
 
         yaw += mouseSuavizado.x * sensibilidadeXAtual * Time.deltaTime;
-
-        if (invertY)
-            pitch += mouseSuavizado.y * sensibilidadeYAtual * Time.deltaTime;
-        else
-            pitch -= mouseSuavizado.y * sensibilidadeYAtual * Time.deltaTime;
-
+        pitch += (invertY ? mouseSuavizado.y : -mouseSuavizado.y) * sensibilidadeYAtual * Time.deltaTime;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
     }
 
     private void AtualizarBlendPrimeiraPessoa()
     {
         float alvo = primeiraPessoaSolicitada ? 1f : 0f;
-
-        float velocidade = primeiraPessoaSolicitada && usarZoomMiraPorDistancia
-            ? velocidadeEntradaZoomMira
-            : (primeiraPessoaSolicitada ? velocidadeEntradaPrimeiraPessoa : velocidadeSaidaPrimeiraPessoa);
-
+        float velocidade = primeiraPessoaSolicitada ? velocidadeEntradaPrimeiraPessoa : velocidadeSaidaPrimeiraPessoa;
         primeiraPessoaBlend = Mathf.MoveTowards(primeiraPessoaBlend, alvo, velocidade * Time.deltaTime);
     }
 
@@ -385,60 +304,50 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         Vector3 focusPoint = target.position + targetOffset;
         Quaternion orbitRotation = Quaternion.Euler(pitch, yaw, 0f);
 
-        Vector3 terceiraPessoaPosition =
-            focusPoint
-            - orbitRotation * Vector3.forward * distance
-            + Vector3.up * height;
-
+        Vector3 terceiraPessoaPosition = focusPoint - orbitRotation * Vector3.forward * distance + Vector3.up * height;
         terceiraPessoaPosition = AplicarColisaoCameraSegura(focusPoint, terceiraPessoaPosition);
-
         Quaternion terceiraPessoaRotation = Quaternion.LookRotation(focusPoint - terceiraPessoaPosition, Vector3.up);
 
-        Vector3 primeiraPessoaPosition;
-        Quaternion primeiraPessoaRotation;
-
-        if (usarZoomMiraPorDistancia)
-        {
-            primeiraPessoaPosition = CalcularPosicaoZoomMiraPorDistancia();
-            primeiraPessoaRotation = CalcularRotacaoZoomMira(primeiraPessoaPosition);
-        }
-        else
-        {
-            primeiraPessoaPosition = CalcularPosicaoPrimeiraPessoaEstavel();
-            primeiraPessoaRotation = Quaternion.Euler(pitch, yaw, 0f);
-        }
+        Vector3 primeiraPessoaPosition = CalcularPosicaoPrimeiraPessoaEstavel();
+        Quaternion primeiraPessoaRotation = Quaternion.Euler(pitch, yaw, 0f);
 
         float blendSuave = SmoothStep01(primeiraPessoaBlend);
-
         Vector3 desiredPosition = Vector3.Lerp(terceiraPessoaPosition, primeiraPessoaPosition, blendSuave);
         Quaternion desiredRotation = Quaternion.Slerp(terceiraPessoaRotation, primeiraPessoaRotation, blendSuave);
 
-        float smoothPositionAtual;
-        float smoothRotationAtual;
-
-        if (!primeiraPessoaSolicitada && primeiraPessoaBlend > 0.01f)
+        if (primeiraPessoaSolicitada && primeiraPessoaBlend >= 0.98f)
         {
-            smoothPositionAtual = positionSmoothTimeSaidaPrimeiraPessoa;
-            smoothRotationAtual = rotationSmoothTimeSaidaPrimeiraPessoa;
+            transform.position = desiredPosition;
+            transform.rotation = desiredRotation;
         }
         else
         {
-            smoothPositionAtual = Mathf.Lerp(positionSmoothTime, positionSmoothTimePrimeiraPessoa, blendSuave);
-            smoothRotationAtual = Mathf.Lerp(rotationSmoothTime, rotationSmoothTimePrimeiraPessoa, blendSuave);
+            float smoothPositionAtual = primeiraPessoaSolicitada
+                ? positionSmoothTimePrimeiraPessoa
+                : positionSmoothTimeSaidaPrimeiraPessoa;
+
+            float smoothRotationAtual = primeiraPessoaSolicitada
+                ? rotationSmoothTimePrimeiraPessoa
+                : rotationSmoothTimeSaidaPrimeiraPessoa;
+
+            if (primeiraPessoaBlend <= 0.01f)
+            {
+                smoothPositionAtual = positionSmoothTime;
+                smoothRotationAtual = rotationSmoothTime;
+            }
+
+            Vector3 novaPosicao = smoothPositionAtual <= 0.0001f
+                ? desiredPosition
+                : Vector3.SmoothDamp(transform.position, desiredPosition, ref positionVelocity, smoothPositionAtual);
+
+            if (usarColisaoCamera && corrigirPosicaoFinalSuavizada && blendSuave < 0.20f)
+                novaPosicao = AplicarColisaoCameraSegura(focusPoint, novaPosicao);
+
+            transform.position = novaPosicao;
+            transform.rotation = smoothRotationAtual <= 0.0001f
+                ? desiredRotation
+                : Quaternion.Slerp(transform.rotation, desiredRotation, CalcularSuavizacao(1f / Mathf.Max(0.0001f, smoothRotationAtual), Time.deltaTime));
         }
-
-        Vector3 novaPosicao = Vector3.SmoothDamp(transform.position, desiredPosition, ref positionVelocity, smoothPositionAtual);
-
-        bool deveCorrigirPosicaoFinal =
-            usarColisaoCamera &&
-            corrigirPosicaoFinalSuavizada &&
-            (blendSuave < 0.95f || (usarZoomMiraPorDistancia && aplicarColisaoNoZoomMira));
-
-        if (deveCorrigirPosicaoFinal)
-            novaPosicao = AplicarColisaoCameraSegura(focusPoint, novaPosicao);
-
-        transform.position = novaPosicao;
-        transform.rotation = SmoothDampQuaternion(transform.rotation, desiredRotation, ref rotationVelocity, smoothRotationAtual);
 
         SincronizarCorpoComCameraSemJumping();
         lastTargetPosition = target.position;
@@ -449,46 +358,15 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         if (!usarPosicaoPrimeiraPessoaEstavel && pontoPrimeiraPessoa != null)
             return pontoPrimeiraPessoa.TransformPoint(ajusteLocalPontoPrimeiraPessoa);
 
-        float altura = offsetPrimeiraPessoa.y;
-        Vector3 offsetPlano = new Vector3(offsetPrimeiraPessoa.x, 0f, offsetPrimeiraPessoa.z);
-
         if (pontoPrimeiraPessoa != null)
         {
-            altura = pontoPrimeiraPessoa.position.y - target.position.y;
-            offsetPlano += new Vector3(ajusteLocalPontoPrimeiraPessoa.x, 0f, ajusteLocalPontoPrimeiraPessoa.z);
+            Quaternion yawRotationPonto = Quaternion.Euler(0f, yaw, 0f);
+            return pontoPrimeiraPessoa.position + yawRotationPonto * ajusteLocalPontoPrimeiraPessoa;
         }
 
         Quaternion yawRotation = Quaternion.Euler(0f, yaw, 0f);
-        return target.position + Vector3.up * altura + yawRotation * offsetPlano;
-    }
-
-    private Vector3 CalcularPosicaoZoomMiraPorDistancia()
-    {
-        Quaternion yawRotation = Quaternion.Euler(0f, yaw, 0f);
-        Vector3 focoMira = target.position + Vector3.up * alturaZoomMira;
-
-        Vector3 posicao =
-            focoMira
-            - yawRotation * Vector3.forward * distanciaZoomMira
-            + yawRotation * Vector3.right * deslocamentoLateralZoomMira;
-
-        if (usarColisaoCamera && aplicarColisaoNoZoomMira)
-            posicao = AplicarColisaoCameraSegura(focoMira, posicao);
-
-        return posicao;
-    }
-
-    private Quaternion CalcularRotacaoZoomMira(Vector3 cameraPosition)
-    {
-        Quaternion rotacaoOlhar = Quaternion.Euler(pitch, yaw, 0f);
-        Vector3 focoMira = target.position + Vector3.up * alturaZoomMira;
-        Vector3 pontoOlhar = focoMira + rotacaoOlhar * Vector3.forward * distanciaOlharFrenteZoomMira;
-        Vector3 direcao = pontoOlhar - cameraPosition;
-
-        if (direcao.sqrMagnitude <= 0.0001f)
-            return Quaternion.Euler(pitch, yaw, 0f);
-
-        return Quaternion.LookRotation(direcao.normalized, Vector3.up);
+        Vector3 offsetPlano = new Vector3(offsetPrimeiraPessoa.x, 0f, offsetPrimeiraPessoa.z);
+        return target.position + Vector3.up * offsetPrimeiraPessoa.y + yawRotation * offsetPlano;
     }
 
     private void SincronizarCorpoComCameraSemJumping()
@@ -496,14 +374,12 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         if (!rotacionarPersonagemNaPrimeiraPessoa || target == null || !EstaEmPrimeiraPessoa)
             return;
 
-        if (!sincronizarCorpoSuaveNaPrimeiraPessoa)
+        Vector3 forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+        if (forward.sqrMagnitude <= 0.0001f)
             return;
 
-        Quaternion rotacaoAlvoDoPersonagem = Quaternion.Euler(0f, yaw, 0f);
-        float velocidade = evitarRealimentacaoRotacaoPersonagemCamera
-            ? velocidadeSincronizarCorpoPrimeiraPessoa
-            : velocidadeRotacaoPersonagemPrimeiraPessoa;
-
+        Quaternion rotacaoAlvoDoPersonagem = Quaternion.LookRotation(forward.normalized, Vector3.up);
+        float velocidade = sincronizarCorpoSuaveNaPrimeiraPessoa ? velocidadeSincronizarCorpoPrimeiraPessoa : velocidadeRotacaoPersonagemPrimeiraPessoa;
         float suavizacaoRotacaoPlayer = CalcularSuavizacao(velocidade, Time.deltaTime);
         target.rotation = Quaternion.Slerp(target.rotation, rotacaoAlvoDoPersonagem, suavizacaoRotacaoPlayer);
     }
@@ -553,7 +429,6 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         for (int i = 0; i < hitCount; i++)
         {
             RaycastHit hit = cameraHits[i];
-
             if (DeveIgnorarCollider(hit.collider))
                 continue;
 
@@ -586,8 +461,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
     private Vector3 EncontrarMelhorPosicaoSemGrudar(Vector3 focusPoint, Vector3 direction, float distanciaMaxima)
     {
-        float distanciaMinima = Mathf.Min(cameraMinDistanceFromFocus, distanciaMaxima);
-        float menor = distanciaMinima;
+        float menor = Mathf.Min(cameraMinDistanceFromFocus, distanciaMaxima);
         float maior = distanciaMaxima;
         Vector3 melhorPosicao = focusPoint + direction * menor;
 
@@ -597,9 +471,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             Vector3 teste = focusPoint + direction * meio;
 
             if (CameraEstaSobreposta(teste))
-            {
                 maior = meio;
-            }
             else
             {
                 melhorPosicao = teste;
@@ -639,13 +511,14 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
         Transform colTransform = col.transform;
 
-        if (target != null)
-        {
-            if (colTransform == target || colTransform.IsChildOf(target))
-                return true;
-        }
+        if (target != null && (colTransform == target || colTransform.IsChildOf(target)))
+            return true;
 
         if (colTransform == transform || colTransform.IsChildOf(transform))
+            return true;
+
+        // Objetos seguráveis não devem empurrar/rebater a câmera. Isso remove snaps quando a caixa passa perto do foco.
+        if (col.GetComponentInParent<GrabbableObjectHardcore>() != null)
             return true;
 
         return false;
@@ -671,14 +544,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         if (protegerContraResetDeAngulo && diferenca > anguloMaximoAutoAlignSemReset)
             return;
 
-        if (protegerContraResetDeAngulo)
-        {
-            yaw = Mathf.SmoothDampAngle(yaw, targetYaw, ref yawAutoAlignVelocity, autoAlignSmoothTime, autoAlignSpeed);
-        }
-        else
-        {
-            yaw = Mathf.MoveTowardsAngle(yaw, targetYaw, autoAlignSpeed * Time.deltaTime);
-        }
+        yaw = Mathf.SmoothDampAngle(yaw, targetYaw, ref yawAutoAlignVelocity, autoAlignSmoothTime, autoAlignSpeed);
     }
 
     private bool IsTargetMoving()
@@ -739,31 +605,6 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         yawAutoAlignVelocity = 0f;
     }
 
-    private Quaternion SmoothDampQuaternion(Quaternion current, Quaternion targetRotation, ref Quaternion velocity, float smoothTime)
-    {
-        if (Time.deltaTime < Mathf.Epsilon)
-            return current;
-
-        smoothTime = Mathf.Max(0.0001f, smoothTime);
-
-        float dot = Quaternion.Dot(current, targetRotation);
-        float multi = dot > 0f ? 1f : -1f;
-
-        targetRotation.x *= multi;
-        targetRotation.y *= multi;
-        targetRotation.z *= multi;
-        targetRotation.w *= multi;
-
-        Vector4 result = new Vector4(
-            Mathf.SmoothDamp(current.x, targetRotation.x, ref velocity.x, smoothTime),
-            Mathf.SmoothDamp(current.y, targetRotation.y, ref velocity.y, smoothTime),
-            Mathf.SmoothDamp(current.z, targetRotation.z, ref velocity.z, smoothTime),
-            Mathf.SmoothDamp(current.w, targetRotation.w, ref velocity.w, smoothTime)
-        ).normalized;
-
-        return new Quaternion(result.x, result.y, result.z, result.w);
-    }
-
     private void AplicarPreferenciasSensibilidade()
     {
         if (!usarMesmaSensibilidadeDaMainCameraNaPrimeiraPessoa)
@@ -771,7 +612,6 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
         mouseSensitivityXMira = mouseSensitivityX;
         mouseSensitivityYMira = mouseSensitivityY;
-        mouseSmoothTimePrimeiraPessoa = mouseSmoothTimeTerceiraPessoa;
     }
 
     private float NormalizarPitch(float eulerX, float fallback)
@@ -802,12 +642,10 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         distance = Mathf.Max(0.1f, distance);
         distanciaZoomMira = Mathf.Max(0.15f, distanciaZoomMira);
         distanciaOlharFrenteZoomMira = Mathf.Max(0.5f, distanciaOlharFrenteZoomMira);
-
         cameraCollisionRadius = Mathf.Max(0.01f, cameraCollisionRadius);
         cameraCollisionOffset = Mathf.Max(0f, cameraCollisionOffset);
         cameraMinDistanceFromFocus = Mathf.Max(0.05f, cameraMinDistanceFromFocus);
         passosBuscaAntiGrudar = Mathf.Clamp(passosBuscaAntiGrudar, 3, 14);
-
         minPitch = Mathf.Clamp(minPitch, -89f, 89f);
         maxPitch = Mathf.Clamp(maxPitch, -89f, 89f);
 
@@ -817,12 +655,5 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         pitchInicialAoEntrarNaMira = Mathf.Clamp(pitchInicialAoEntrarNaMira, minPitch, maxPitch);
         fovNormal = Mathf.Clamp(fovNormal, 1f, 179f);
         fovMira = Mathf.Clamp(fovMira, 25f, 75f);
-
-        if (usarMesmaSensibilidadeDaMainCameraNaPrimeiraPessoa)
-        {
-            mouseSensitivityXMira = mouseSensitivityX;
-            mouseSensitivityYMira = mouseSensitivityY;
-            mouseSmoothTimePrimeiraPessoa = mouseSmoothTimeTerceiraPessoa;
-        }
     }
 }
