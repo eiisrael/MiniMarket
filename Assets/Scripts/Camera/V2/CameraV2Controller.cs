@@ -5,6 +5,7 @@ using UnityEngine;
 ///
 /// Use em um GameObject vazio: CameraSystemV2.
 /// Ele alterna entre ThirdPersonCAM e FirstPersonCAM sem depender dos scripts antigos.
+/// Também controla AudioListener para evitar dois listeners ativos.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(19900)]
@@ -25,6 +26,9 @@ public class CameraV2Controller : MonoBehaviour
     [Header("Estado Inicial")]
     public bool iniciarEmTerceiraPessoa = true;
     public bool sincronizarYawAoTrocar = true;
+
+    [Header("Áudio")]
+    public bool controlarAudioListeners = true;
 
     [Header("Segurança")]
     public bool desativarCameraAntigaSeEncontrar = false;
@@ -132,6 +136,23 @@ public class CameraV2Controller : MonoBehaviour
 
         if (firstPersonCAM != null)
             firstPersonCAM.SetAtiva(primeiraPessoaAtiva);
+
+        AtualizarAudioListeners();
+    }
+
+    private void AtualizarAudioListeners()
+    {
+        if (!controlarAudioListeners)
+            return;
+
+        AudioListener thirdListener = thirdPersonCAM != null ? thirdPersonCAM.GetComponent<AudioListener>() : null;
+        AudioListener firstListener = firstPersonCAM != null ? firstPersonCAM.GetComponent<AudioListener>() : null;
+
+        if (thirdListener != null)
+            thirdListener.enabled = !primeiraPessoaAtiva;
+
+        if (firstListener != null)
+            firstListener.enabled = primeiraPessoaAtiva;
     }
 
     private void SincronizarAngulos(bool indoParaPrimeiraPessoa)
