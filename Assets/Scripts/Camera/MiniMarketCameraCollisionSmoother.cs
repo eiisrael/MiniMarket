@@ -8,7 +8,7 @@ using UnityEngine;
 /// - Isso gerava sensação de travada/mudança brusca de eixo ao usar W/S/A/D perto de parede/objeto.
 ///
 /// Correção:
-/// - Desativa a colisão interna instantânea da CameraGTAFollowHardcore.
+/// - Desativa a colisão interna instantânea da CameraGTAFollowHardcore antes do LateUpdate da câmera.
 /// - Este script assume 100% da colisão da câmera em terceira pessoa.
 /// - A distância câmera->alvo é suavizada separadamente da rotação/orbit.
 /// - Se o jogador mexer o mouse, a órbita continua responsiva, mas a aproximação/retorno de parede não dá snap.
@@ -92,7 +92,7 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
         AplicarControleNaCameraGTA();
     }
 
-    private void LateUpdate()
+    private void Update()
     {
         if (!ativo)
             return;
@@ -102,6 +102,15 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
             proximaBusca = Time.unscaledTime + intervaloBusca;
             ResolverReferencias(false);
         }
+
+        // Roda em Update para garantir que a CameraGTA já chegue no LateUpdate com colisão interna desligada.
+        AplicarControleNaCameraGTA();
+    }
+
+    private void LateUpdate()
+    {
+        if (!ativo)
+            return;
 
         if (cameraMonitorada == null || cameraGTA == null || cameraGTA.target == null)
             return;
@@ -140,7 +149,6 @@ public class MiniMarketCameraCollisionSmoother : MonoBehaviour
         if (cameraGTA == null || !desativarColisaoInternaCameraGTA)
             return;
 
-        // Evita a colisão instantânea original, que era a fonte do snap.
         cameraGTA.usarColisaoCamera = false;
         cameraGTA.corrigirPosicaoFinalSuavizada = false;
     }
