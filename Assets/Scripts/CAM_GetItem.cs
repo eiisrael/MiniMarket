@@ -2,20 +2,21 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Sistema profissional e funcional de pegar, mover, colocar e soltar objetos pela mira.
+/// Sistema de pegar, mover, colocar e soltar objetos pela mira.
 ///
 /// Fluxo:
-/// - Segure botao direito para entrar no modo mira/zoom.
-/// - Aponte para o objeto.
-/// - Segure botao esquerdo para pegar e mover.
-/// - Solte botao esquerdo para colocar/soltar.
+/// - Botao direito: entra no modo mira/zoom.
+/// - Mirar no objeto permitido: seleciona/destaca.
+/// - Segurar botao esquerdo: pega e move.
+/// - Soltar botao esquerdo: coloca/solta.
 ///
-/// Ajuste atual:
-/// - Rigidbody nao fica mais grudado/travado no chao enquanto segura.
-/// - Ao soltar, o objeto volta dinamico, com gravidade, sem constraints e empurravel pelo player.
-/// - Objeto em primeira pessoa fica visivel no centro/direita da tela, nao abaixo da camera.
-/// - Camera assist puxa a camera para esquerda enquanto mira/seleciona/segura para o corpo nao tampar o objeto.
-/// - Encaixe leve sobre superficie ao soltar.
+/// Versao segura para Unity 6/7:
+/// - nao usa GetInstanceID;
+/// - usa Rigidbody.linearVelocity / linearDamping / angularDamping;
+/// - segura com movimento kinematic suave para nao grudar no chao;
+/// - ao soltar, volta dinamico, com gravidade e sem constraints;
+/// - objeto fica mais visivel na primeira pessoa;
+/// - camera assist puxa levemente para esquerda na terceira pessoa.
 /// </summary>
 [DefaultExecutionOrder(12000)]
 public class PlayerObjectGrabberHardcore : MonoBehaviour
@@ -23,7 +24,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     [Header("Referencias")]
     public Camera cameraDoPlayer;
 
-    [Tooltip("Arraste aqui o Character 01 para evitar selecionar o proprio player.")]
+    [Tooltip("Arraste aqui o Character 01 para evitar selecionar/colidir com o proprio player.")]
     public Transform raizDoPlayer;
 
     public CrosshairAim crosshairAim;
@@ -38,18 +39,15 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     public bool aceitarEstadoDoCrosshairAim = true;
     public bool aceitarEstadoZoomCameraGTA = true;
 
-    [Header("Selecao - Mira")]
+    [Header("Selecao")]
     [Min(0.1f)] public float distanciaSelecao = 8f;
     [Min(0.001f)] public float raioSelecao = 0.28f;
     public LayerMask layersSelecionaveis = ~0;
 
-    [Tooltip("Mantem a selecao por alguns frames mesmo se o raycast oscilar. Evita demora/pisca na cor.")]
+    [Tooltip("Segura a selecao por alguns frames para evitar piscar/demorar quando o raycast oscila.")]
     [Min(0f)] public float tempoMemoriaSelecao = 0.25f;
 
-    [Tooltip("Se o raycast nao bater perfeitamente, tenta selecionar objeto permitido proximo ao centro da tela.")]
     public bool usarFallbackPorCentroDaTela = true;
-
-    [Tooltip("Raio visual em viewport usado no fallback. 0.22 = tolerante para caixas/produtos.")]
     [Range(0.01f, 0.35f)] public float raioViewportFallback = 0.22f;
 
     [Header("Objetos Permitidos")]
@@ -61,17 +59,9 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     public bool adicionarComponenteAutomaticamenteNosPermitidos = true;
     public bool adicionarRigidbodyAutomaticamente = true;
     public bool adicionarColliderAutomaticamente = true;
-
-    [Tooltip("Garante que objetos permitidos com Rigidbody fiquem livres para fisica, sem constraints travando movimento.")]
     public bool destravarRigidbodyAutomaticamente = true;
-
-    [Tooltip("Massa aplicada quando o objeto nao possui Rigidbody nem perfil proprio.")]
     [Min(0.01f)] public float massaPadraoSemRigidbody = 1f;
-
-    [Tooltip("Damping padrao aplicado quando preparar Rigidbody. Valor baixo permite empurrar sem parecer colado.")]
     [Min(0f)] public float linearDampingPreparado = 0.15f;
-
-    [Tooltip("Angular damping padrao aplicado quando preparar Rigidbody.")]
     [Min(0f)] public float angularDampingPreparado = 0.15f;
 
     [Header("Limites Fisicos")]
@@ -85,10 +75,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     public Vector2 offsetSegurando = new Vector2(0.35f, -0.08f);
 
     [Header("Segurar / Mover - Primeira Pessoa")]
-    [Tooltip("Distancia do objeto na primeira pessoa. Maior = objeto mais longe da camera.")]
     [Min(0.3f)] public float distanciaSegurandoPrimeiraPessoa = 2.65f;
-
-    [Tooltip("X positivo deixa o item na direita. Y perto de zero evita sumir abaixo da tela.")]
     public Vector2 offsetSegurandoPrimeiraPessoa = new Vector2(0.55f, 0.04f);
 
     [Header("Distancia")]
@@ -98,23 +85,16 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     [Min(0.05f)] public float velocidadeScrollDistancia = 0.35f;
 
     [Header("Resposta Fisica")]
-    [Tooltip("Enquanto segura, usa movimento kinematic suave. Mais funcional e nao gruda no chao.")]
+    [Tooltip("Recomendado ligado. Enquanto segura, o objeto segue a mira sem ficar grudado no chao.")]
     public bool usarMovimentoKinematicEnquantoSegura = true;
 
-    [Tooltip("Rigidez da resposta do objeto indo ate o ponto alvo.")]
     [Min(1f)] public float rigidezSegurar = 24f;
-
-    [Tooltip("Suavizacao do movimento kinematic. Maior = segue mais rapido.")]
     [Range(0.01f, 1f)] public float suavizacaoVelocidade = 0.72f;
-
-    [Tooltip("Velocidade maxima quando usar modo dinamico.")]
     [Min(0.5f)] public float velocidadeMaximaObjeto = 14f;
-
     [Range(0f, 1f)] public float influenciaPesoNaResposta = 0.30f;
     [Range(0f, 1f)] public float influenciaPesoNaDistancia = 0.22f;
 
     [Header("Fisica Enquanto Segura")]
-    [Tooltip("Recomendado desligado. O peso aparece pela suavizacao, nao por cair na tela.")]
     public bool usarGravidadeEnquantoSegura = false;
     [Min(0f)] public float linearDampingEnquantoSegura = 1.5f;
     [Min(0f)] public float angularDampingEnquantoSegura = 4f;
@@ -129,12 +109,8 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     [Min(0.5f)] public float distanciaMaximaErroAntesDeSoltar = 3.5f;
 
     [Header("Camera Assist - Colocar Objeto")]
-    [Tooltip("Puxa a Main Camera para esquerda enquanto mira/seleciona/segura, evitando a cabeca do personagem tampar o objeto.")]
     public bool puxarCameraParaEsquerdaAoMirarOuSegurar = true;
-
-    [Tooltip("Aplica assistencia ja quando o objeto esta selecionado, antes de pegar.")]
     public bool aplicarAssistenciaQuandoSelecionado = true;
-
     [Min(0f)] public float deslocamentoCameraEsquerda = 1.05f;
     [Min(0.1f)] public float velocidadeAssistenciaCamera = 12f;
     public bool aplicarAssistenciaCameraNaPrimeiraPessoa = false;
@@ -149,24 +125,16 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     [Range(0f, 1.5f)] public float multiplicadorRotacaoAoSoltar = 0.20f;
     public bool afastarDoPlayerAoSoltar = true;
     [Min(0.05f)] public float distanciaMinimaDoPlayerAoSoltar = 0.75f;
-
-    [Tooltip("Ao soltar, garante que o Rigidbody fique dinamico/empurravel.")]
     public bool deixarRigidbodyDinamicoAoSoltar = true;
-
-    [Tooltip("Remove constraints ao soltar para nao ficar travado nos eixos.")]
     public bool removerConstraintsAoSoltar = true;
-
-    [Tooltip("Damping final ao soltar. Valor baixo = objeto nao fica colado no chao.")]
     [Min(0f)] public float linearDampingAoSoltar = 0.25f;
     [Min(0f)] public float angularDampingAoSoltar = 0.25f;
 
     [Header("Encaixe Leve na Superficie")]
-    [Tooltip("Ao soltar, encaixa suavemente o fundo do objeto sobre a superficie abaixo, como se tivesse um grude leve.")]
     public bool encaixarNaSuperficieAoSoltar = true;
     public LayerMask layersSuperficieEncaixe = ~0;
     [Min(0.05f)] public float distanciaBuscaSuperficie = 1.6f;
     [Min(0f)] public float margemEncaixeSuperficie = 0.015f;
-    [Tooltip("Se ligado, alinha o up do objeto com a normal da superficie. Para caixas/produtos, normalmente deixe desligado.")]
     public bool alinharComNormalDaSuperficie = false;
     [Range(0f, 1f)] public float suavidadeAlinhamentoSuperficie = 0.35f;
 
@@ -183,6 +151,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     private Rigidbody rbPegando;
 
     private Quaternion rotacaoOriginalObjeto;
+    private Vector3 offsetCentroParaRigidbody;
     private float distanciaAtualSegurando;
     private float massaAtual = 1f;
     private float raioObjetoAtual = 0.25f;
@@ -217,7 +186,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
     {
         ResolverReferencias();
         PrepararObjetosPermitidos();
-        MiniMarketUpgradeLogger.Log("Grabber", "PlayerObjectGrabberHardcore ativo", "Versao com kinematic hold, objeto visivel em primeira pessoa, camera assist e Rigidbody dinamico ao soltar.", "grabber-enable", 5f);
+        MiniMarketUpgradeLogger.Log("Grabber", "PlayerObjectGrabberHardcore ativo", "Grabber compilado para Unity 6/7 sem GetInstanceID e com objeto dinamico ao soltar.", "grabber-enable", 5f);
     }
 
     private void OnDisable()
@@ -261,10 +230,8 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (objetoPegando == null)
-            return;
-
-        MoverObjetoPegandoFisico();
+        if (objetoPegando != null)
+            MoverObjetoPegandoFisico();
     }
 
     private void LateUpdate()
@@ -277,14 +244,14 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (cameraDoPlayer == null)
             cameraDoPlayer = Camera.main;
 
-        if (cameraDoPlayer != null)
-        {
-            if (crosshairAim == null)
-                crosshairAim = cameraDoPlayer.GetComponent<CrosshairAim>();
+        if (cameraDoPlayer == null)
+            return;
 
-            if (cameraGTA == null)
-                cameraGTA = cameraDoPlayer.GetComponent<CameraGTAFollowHardcore>();
-        }
+        if (crosshairAim == null)
+            crosshairAim = cameraDoPlayer.GetComponent<CrosshairAim>();
+
+        if (cameraGTA == null)
+            cameraGTA = cameraDoPlayer.GetComponent<CameraGTAFollowHardcore>();
     }
 
     private void ResolverReferenciasLeves()
@@ -362,16 +329,16 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (rb == null)
             return;
 
-        if (destravarRigidbodyAutomaticamente || forcado)
-        {
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            rb.constraints = RigidbodyConstraints.None;
-            rb.linearDamping = linearDampingPreparado;
-            rb.angularDamping = angularDampingPreparado;
-            rb.interpolation = RigidbodyInterpolation.Interpolate;
-            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        }
+        if (!destravarRigidbodyAutomaticamente && !forcado)
+            return;
+
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.constraints = RigidbodyConstraints.None;
+        rb.linearDamping = linearDampingPreparado;
+        rb.angularDamping = angularDampingPreparado;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
     }
 
     private void AdicionarBoxColliderPorBounds(GameObject objeto)
@@ -414,7 +381,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         if (objetoSelecionado != null)
         {
             objetoSelecionado.Selecionar(true);
-            MiniMarketUpgradeLogger.Log("Grabber", "Objeto selecionado", objetoSelecionado.name, "grab-select-" + objetoSelecionado.GetInstanceID(), 1f);
+            MiniMarketUpgradeLogger.Log("Grabber", "Objeto selecionado", objetoSelecionado.name, "grab-select-" + ChaveObjeto(objetoSelecionado.gameObject), 1f);
         }
     }
 
@@ -431,7 +398,8 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
                 continue;
 
             GrabbableObjectHardcore grabbable = ResolverGrabbable(hit.collider);
-            if (ObjetoPodeSerSelecionado(grabbable, out string motivo))
+            string motivo;
+            if (ObjetoPodeSerSelecionado(grabbable, out motivo))
                 return grabbable;
 
             if (logarMotivoNaoPegou && grabbable != null)
@@ -458,7 +426,8 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
             PrepararObjetoPermitido(objeto);
 
             GrabbableObjectHardcore grabbable = objeto.GetComponent<GrabbableObjectHardcore>();
-            if (!ObjetoPodeSerSelecionado(grabbable, out _))
+            string motivo;
+            if (!ObjetoPodeSerSelecionado(grabbable, out motivo))
                 continue;
 
             Vector3 ponto = ObterCentroObjeto(grabbable.transform);
@@ -489,6 +458,9 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
     private bool TemLinhaDeVisaoParaObjeto(GrabbableObjectHardcore grabbable, Vector3 ponto)
     {
+        if (cameraDoPlayer == null || grabbable == null)
+            return false;
+
         Vector3 origem = cameraDoPlayer.transform.position;
         Vector3 direcao = ponto - origem;
         float distancia = direcao.magnitude;
@@ -624,7 +596,8 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
     private void PegarObjeto(GrabbableObjectHardcore objeto)
     {
-        if (objeto == null || !ObjetoPodeSerSelecionado(objeto, out string motivo))
+        string motivo = string.Empty;
+        if (objeto == null || !ObjetoPodeSerSelecionado(objeto, out motivo))
         {
             if (logarMotivoNaoPegou)
                 Debug.Log("[PlayerObjectGrabberHardcore] Falha ao pegar: " + motivo);
@@ -641,12 +614,13 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         raioObjetoAtual = CalcularRaioObjeto(objetoPegando.transform);
         rotacaoOriginalObjeto = objetoPegando.transform.rotation;
         distanciaAtualSegurando = CalcularDistanciaInicialSegurando();
+        offsetCentroParaRigidbody = rbPegando != null ? rbPegando.position - rbPegando.worldCenterOfMass : Vector3.zero;
 
         CacheCollidersObjetoPegando();
         PrepararRigidbodyParaSegurar();
         objetoPegando.ComecarPegar();
 
-        MiniMarketUpgradeLogger.Log("Grabber", "Objeto pego", objetoPegando.name + " | massa=" + massaAtual.ToString("0.##") + " | distancia=" + distanciaAtualSegurando.ToString("0.##"), "grab-pick-" + objetoPegando.GetInstanceID(), 0.5f);
+        MiniMarketUpgradeLogger.Log("Grabber", "Objeto pego", objetoPegando.name + " | massa=" + massaAtual.ToString("0.##") + " | distancia=" + distanciaAtualSegurando.ToString("0.##"), "grab-pick-" + ChaveObjeto(objetoPegando.gameObject), 0.5f);
     }
 
     private void PrepararRigidbodyParaSegurar()
@@ -733,7 +707,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
 
         if (usarMovimentoKinematicEnquantoSegura || rbPegando.isKinematic)
         {
-            Vector3 posicaoAlvoRb = rbPegando.position + erro;
+            Vector3 posicaoAlvoRb = alvoCentro + offsetCentroParaRigidbody;
             Vector3 novaPosicao = Vector3.Lerp(rbPegando.position, posicaoAlvoRb, suavizacao);
             rbPegando.MovePosition(novaPosicao);
         }
@@ -842,6 +816,7 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
         perfilPegando = null;
         rbPegando = null;
         collidersObjetoPegando.Clear();
+        offsetCentroParaRigidbody = Vector3.zero;
 
         MiniMarketUpgradeLogger.Log("Grabber", encaixou ? "Objeto colocado com encaixe" : "Objeto solto", nome, "grab-release-" + nome, 0.5f);
     }
@@ -1098,6 +1073,14 @@ public class PlayerObjectGrabberHardcore : MonoBehaviour
                 }
             }
         }
+    }
+
+    private string ChaveObjeto(GameObject objeto)
+    {
+        if (objeto == null)
+            return "null";
+
+        return objeto.name.Replace(" ", "_");
     }
 
     private float CalcularSuavizacao(float velocidade, float deltaTime)
