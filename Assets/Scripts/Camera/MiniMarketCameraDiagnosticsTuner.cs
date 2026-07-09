@@ -3,9 +3,12 @@ using UnityEngine;
 /// <summary>
 /// Ajusta automaticamente o CameraRealtimeAnomalyLogger para não pausar por movimento normal de mouse/orbit.
 ///
-/// O log anterior mostrou que uma parte dos incidentes era causada por mudança normal de órbita da câmera
-/// enquanto havia Mouse Raw diferente de zero. O detector continua ativo, mas com limites mais adequados
-/// para capturar snap real de distância/colisão, não movimento normal do jogador.
+/// O log mostrou dois cenários diferentes:
+/// - problema real: distância câmera->alvo muda por colisão/anti-parede;
+/// - falso positivo: órbita normal da câmera por mouse enquanto W/S/A/D está pressionado.
+///
+/// Este tuner mantém o logger ativo, mas aumenta limites de velocidade/aceleração/rotação
+/// para ele não travar o Play por movimento normal do jogador.
 /// </summary>
 [DefaultExecutionOrder(33100)]
 public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
@@ -14,15 +17,22 @@ public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
     public bool procurarAutomaticamente = true;
     public float intervaloBusca = 1f;
 
-    [Header("Novos limites seguros")]
-    public float limiteSaltoPosicaoFrame = 1.35f;
-    public float limiteVelocidadeCamera = 45f;
-    public float limiteAceleracaoCamera = 500f;
-    public float limiteSaltoRotacaoFrame = 28f;
-    public float limiteVelocidadeAngular = 720f;
-    public float limiteSaltoFovFrame = 5f;
-    public float limiteSaltoDistanciaAlvo = 0.55f;
-    public float toleranciaAposTrocaPrimeiraPessoa = 0.32f;
+    [Header("Limites seguros anti falso positivo")]
+    public float limiteSaltoPosicaoFrame = 2.2f;
+    public float limiteVelocidadeCamera = 120f;
+    public float limiteAceleracaoCamera = 2200f;
+    public float limiteSaltoRotacaoFrame = 45f;
+    public float limiteVelocidadeAngular = 1800f;
+    public float limiteSaltoFovFrame = 6f;
+
+    [Tooltip("Continua sensível para snap real de colisão/distância.")]
+    public float limiteSaltoDistanciaAlvo = 0.85f;
+
+    public float toleranciaAposTrocaPrimeiraPessoa = 0.45f;
+
+    [Header("Pausa")]
+    [Tooltip("No Editor, EditorApplication.isPaused já pausa. Não usar TimeScale 0 evita congelar Time.time e confundir os logs.")]
+    public bool usarTimeScaleZeroAoPausar = false;
 
     [Header("Amostras")]
     public float intervaloAmostraLeve = 0.35f;
@@ -91,13 +101,14 @@ public class MiniMarketCameraDiagnosticsTuner : MonoBehaviour
         logger.limiteSaltoFovFrame = limiteSaltoFovFrame;
         logger.limiteSaltoDistanciaAlvo = limiteSaltoDistanciaAlvo;
         logger.toleranciaAposTrocaPrimeiraPessoa = toleranciaAposTrocaPrimeiraPessoa;
+        logger.usarTimeScaleZeroAoPausar = usarTimeScaleZeroAoPausar;
         logger.intervaloAmostraLeve = intervaloAmostraLeve;
         logger.intervaloFlush = intervaloFlush;
 
         if (!aplicouUmaVez)
         {
             aplicouUmaVez = true;
-            MiniMarketUpgradeLogger.Log("Camera", "Camera diagnostics tuner aplicado", "Logger ajustado para ignorar movimento normal de órbita por mouse e focar em snap real de distância/colisão.", "camera-diagnostics-tuner", 3f);
+            MiniMarketUpgradeLogger.Log("Camera", "Camera diagnostics tuner aplicado", "Logger ajustado para não pausar por órbita normal/mouse e continuar pegando snap real de distância/colisão.", "camera-diagnostics-tuner", 3f);
         }
     }
 }
