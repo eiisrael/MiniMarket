@@ -3,8 +3,11 @@ using UnityEngine.Rendering;
 
 /// <summary>
 /// Marca visualmente uma area/terreno a venda no chao.
-/// Tambem oferece suporte a hover/selecao para compra na BuyScene.
-/// Agora sincroniza o status com o MiniMarketPlayerDatabase.
+/// Sincroniza status com MiniMarketPlayerDatabase.
+///
+/// Correção:
+/// - OnValidate não cria mais GameObject/LineRenderer/SetParent.
+/// - Isso remove spam "SendMessage cannot be called during OnValidate" e evita travadas no Editor.
 /// </summary>
 public class BuyableLandAreaMarker : MonoBehaviour
 {
@@ -16,63 +19,32 @@ public class BuyableLandAreaMarker : MonoBehaviour
     }
 
     [Header("Identificacao")]
-    [Tooltip("ID fixo salvo no banco. Para propriedades importantes, preencha manualmente. Ex: BRONZE_MARKET.")]
     public string idPersistente;
-
-    [Tooltip("Nome amigavel para organizar no Inspector e mostrar no painel de compra.")]
     public string nomeDoTerreno = "Terreno a Venda";
-
-    [Tooltip("Preco do terreno em gold.")]
-    [Min(0)]
-    public int precoGold = 20000;
+    [Min(0)] public int precoGold = 20000;
 
     [Header("Banco de Dados")]
-    [Tooltip("Se ligado, carrega/salva o status desta area pelo banco do jogador.")]
     public bool sincronizarComBancoDeDados = true;
-
-    [Tooltip("Se comprado no banco, fica vermelho/indisponivel automaticamente ao iniciar a cena.")]
     public bool aplicarEstadoSalvoAoIniciar = true;
 
     [Header("Estado")]
     public EstadoDoTerreno estadoAtual = EstadoDoTerreno.Disponivel;
-
-    [Tooltip("Se desligar, o terreno some da demarcacao visual.")]
     public bool exibirDemarcacao = true;
 
     [Header("Tamanho da Area")]
-    [Tooltip("Tamanho X/Z da demarcacao no chao.")]
     public Vector2 tamanhoArea = new Vector2(4f, 4f);
-
-    [Tooltip("Offset local do centro da demarcacao.")]
     public Vector3 centroLocal = Vector3.zero;
-
-    [Tooltip("Altura extra para a linha nao brigar com o chao.")]
-    [Min(0f)]
-    public float alturaAcimaDoChao = 0.04f;
+    [Min(0f)] public float alturaAcimaDoChao = 0.04f;
 
     [Header("Visual")]
-    [Tooltip("Material opcional das linhas. Se deixar vazio, o script cria um material simples automaticamente.")]
     public Material materialLinha;
-
-    [Tooltip("Largura da borda no mundo 3D.")]
-    [Min(0.005f)]
-    public float larguraLinha = 0.08f;
-
+    [Min(0.005f)] public float larguraLinha = 0.08f;
     public Color corDisponivel = new Color(1f, 0.92f, 0f, 1f);
     public Color corDestacado = new Color(0.25f, 1f, 0.1f, 1f);
-
-    [Tooltip("Cor usada quando o mouse esta em cima do terreno durante a BuyScene.")]
     public Color corHover = new Color(0.1f, 0.95f, 1f, 1f);
-
-    [Tooltip("Cor usada quando o terreno foi clicado e esta aguardando confirmacao.")]
     public Color corSelecionado = new Color(1f, 0.65f, 0.1f, 1f);
-
     public Color corIndisponivel = new Color(1f, 0.15f, 0.1f, 1f);
-
-    [Tooltip("Mostra um X no centro do terreno, como na referencia enviada.")]
     public bool exibirXCentral = true;
-
-    [Tooltip("Atualiza as linhas em tempo real. Deixe ligado se voce vai mover/escalar os terrenos no editor durante Play.")]
     public bool atualizarEmTempoReal = true;
 
     [Header("Debug")]
@@ -83,7 +55,6 @@ public class BuyableLandAreaMarker : MonoBehaviour
     private LineRenderer linhaDiagonalA;
     private LineRenderer linhaDiagonalB;
     private Material materialGerado;
-
     private bool hoverAtivo;
     private bool selecionadoAtivo;
     private MiniMarketPlayerDatabase banco;
@@ -148,8 +119,13 @@ public class BuyableLandAreaMarker : MonoBehaviour
         alturaAcimaDoChao = Mathf.Max(0f, alturaAcimaDoChao);
         precoGold = Mathf.Max(0, precoGold);
 
-        if (Application.isPlaying)
-            CriarOuAtualizarLinhas();
+        // Importante: não criar GameObject/SetParent/AddComponent em OnValidate.
+        // Apenas atualiza linhas já existentes para evitar warnings e travadas no Editor.
+        ConfigurarLinhaSeExistir(linhaBorda);
+        ConfigurarLinhaSeExistir(linhaDiagonalA);
+        ConfigurarLinhaSeExistir(linhaDiagonalB);
+        AtualizarPosicoesDasLinhas();
+        AplicarVisibilidade();
     }
 
     public void SincronizarEstadoComBanco()
@@ -229,13 +205,7 @@ public class BuyableLandAreaMarker : MonoBehaviour
             ResolverBanco();
             if (banco != null)
             {
-                banco.DefinirStatusPropriedade(
-                    ObterIdPersistente(),
-                    nomeDoTerreno,
-                    !disponivel,
-                    disponivel,
-                    disponivel ? "Disponivel" : "Indisponivel"
-                );
+                banco.DefinirStatusPropriedade(ObterIdPersistente(), nomeDoTerreno, !disponivel, disponivel, disponivel ? "Disponivel" : "Indisponivel");
             }
         }
     }
@@ -276,10 +246,7 @@ public class BuyableLandAreaMarker : MonoBehaviour
         float metadeX = Mathf.Abs(tamanhoArea.x) * 0.5f + Mathf.Max(0f, margemExtra);
         float metadeZ = Mathf.Abs(tamanhoArea.y) * 0.5f + Mathf.Max(0f, margemExtra);
 
-        return local.x >= -metadeX &&
-               local.x <= metadeX &&
-               local.z >= -metadeZ &&
-               local.z <= metadeZ;
+        return local.x >= -metadeX && local.x <= metadeX && local.z >= -metadeZ && local.z <= metadeZ;
     }
 
     private void ResolverBanco()
@@ -293,10 +260,8 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
     private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
     {
-        if (!Application.isPlaying)
-            return;
-
-        SincronizarEstadoComBanco();
+        if (Application.isPlaying)
+            SincronizarEstadoComBanco();
     }
 
     private string ObterIdPersistente()
@@ -353,10 +318,15 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
         GameObject objetoLinha = new GameObject(nome);
         objetoLinha.transform.SetParent(transform, false);
-
         LineRenderer novaLinha = objetoLinha.AddComponent<LineRenderer>();
         novaLinha.positionCount = quantidadePontos;
         return novaLinha;
+    }
+
+    private void ConfigurarLinhaSeExistir(LineRenderer linha)
+    {
+        if (linha != null)
+            ConfigurarLinha(linha);
     }
 
     private void ConfigurarLinha(LineRenderer linha)
@@ -390,12 +360,8 @@ public class BuyableLandAreaMarker : MonoBehaviour
         if (materialGerado == null)
         {
             Shader shader = Shader.Find("Sprites/Default");
-
-            if (shader == null)
-                shader = Shader.Find("Universal Render Pipeline/Unlit");
-
-            if (shader == null)
-                shader = Shader.Find("Unlit/Color");
+            if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) shader = Shader.Find("Unlit/Color");
 
             materialGerado = new Material(shader);
             materialGerado.name = "Material_Gerado_BuyScene_Linha";
@@ -408,18 +374,10 @@ public class BuyableLandAreaMarker : MonoBehaviour
 
     private Color ObterCorAtual()
     {
-        if (estadoAtual == EstadoDoTerreno.Indisponivel)
-            return corIndisponivel;
-
-        if (selecionadoAtivo)
-            return corSelecionado;
-
-        if (hoverAtivo)
-            return corHover;
-
-        if (estadoAtual == EstadoDoTerreno.Destacado)
-            return corDestacado;
-
+        if (estadoAtual == EstadoDoTerreno.Indisponivel) return corIndisponivel;
+        if (selecionadoAtivo) return corSelecionado;
+        if (hoverAtivo) return corHover;
+        if (estadoAtual == EstadoDoTerreno.Destacado) return corDestacado;
         return corDisponivel;
     }
 
@@ -442,10 +400,8 @@ public class BuyableLandAreaMarker : MonoBehaviour
         linhaBorda.SetPosition(2, p2);
         linhaBorda.SetPosition(3, p3);
         linhaBorda.SetPosition(4, p0);
-
         linhaDiagonalA.SetPosition(0, p0);
         linhaDiagonalA.SetPosition(1, p2);
-
         linhaDiagonalB.SetPosition(0, p1);
         linhaDiagonalB.SetPosition(1, p3);
     }
@@ -455,14 +411,9 @@ public class BuyableLandAreaMarker : MonoBehaviour
         bool mostrarLinhas = exibirDemarcacao;
         bool mostrarX = exibirDemarcacao && exibirXCentral;
 
-        if (linhaBorda != null)
-            linhaBorda.gameObject.SetActive(mostrarLinhas);
-
-        if (linhaDiagonalA != null)
-            linhaDiagonalA.gameObject.SetActive(mostrarX);
-
-        if (linhaDiagonalB != null)
-            linhaDiagonalB.gameObject.SetActive(mostrarX);
+        if (linhaBorda != null) linhaBorda.gameObject.SetActive(mostrarLinhas);
+        if (linhaDiagonalA != null) linhaDiagonalA.gameObject.SetActive(mostrarX);
+        if (linhaDiagonalB != null) linhaDiagonalB.gameObject.SetActive(mostrarX);
     }
 
     private void OnDrawGizmosSelected()
