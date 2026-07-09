@@ -1,6 +1,13 @@
 using UnityEngine;
+
 /// <summary>
-///  camera principal do personagem
+/// Camera principal do personagem.
+///
+/// Ajustes profissionais:
+/// - Evita reset/puxão de ângulo causado pelo auto-alinhamento atrás do personagem.
+/// - Corrige entrada da mira/zoom para olhar reto para frente do personagem.
+/// - Adiciona zoom/mira por distância ajustável em tempo real no Inspector.
+/// - Mantém colisão segura contra paredes/objetos grandes.
 /// </summary>
 public class CameraGTAFollowHardcore : MonoBehaviour
 {
@@ -56,6 +63,21 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     public float autoAlignDelay = 1.2f;
     public float autoAlignSpeed = 70f;
 
+    [Header("Proteção Contra Reset de Ângulo")]
+    [Tooltip("Impede que a câmera dê puxões/reset quando você olha rapidamente para o lado ou para trás.")]
+    public bool protegerContraResetDeAngulo = true;
+
+    [Tooltip("Não auto-alinha atrás do personagem enquanto o botão de mira estiver pressionado.")]
+    public bool bloquearAutoAlignDuranteMira = true;
+
+    [Tooltip("Se a diferença entre câmera e personagem for maior que este valor, o auto-align não força a volta. Evita o reset brusco.")]
+    [Range(5f, 180f)]
+    public float anguloMaximoAutoAlignSemReset = 35f;
+
+    [Tooltip("Suavização extra do auto-align. Maior = mais macio.")]
+    [Min(0.01f)]
+    public float autoAlignSmoothTime = 0.35f;
+
     [Header("Primeira Pessoa")]
     public bool permitirPrimeiraPessoa = true;
 
@@ -67,6 +89,58 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
     [Tooltip("Ajuste extra local quando usar pontoPrimeiraPessoa. Use Z positivo se ainda atravessar a cabeça.")]
     public Vector3 ajusteLocalPontoPrimeiraPessoa = new Vector3(0f, 0f, 0.12f);
+
+    [Header("Mira / Zoom Profissional")]
+    [Tooltip("Ao entrar na mira/zoom, a câmera alinha com a frente real do personagem. Evita entrar olhando para cima/lado errado.")]
+    public bool alinharComFrenteDoPersonagemAoEntrarNaMira = true;
+
+    [Tooltip("Zera/define o pitch ao entrar na mira. Recomendado para evitar o zoom subir verticalmente.")]
+    public bool corrigirPitchAoEntrarNaMira = true;
+
+    [Tooltip("Ângulo vertical inicial ao abrir a mira. 0 = olhar reto para frente.")]
+    [Range(-30f, 30f)]
+    public float pitchInicialAoEntrarNaMira = 0f;
+
+    [Tooltip("Usa uma câmera de mira por distância em vez de enfiar a câmera direto no ponto dos olhos. Mais estável para jogo em terceira pessoa.")]
+    public bool usarZoomMiraPorDistancia = true;
+
+    [Tooltip("Distância da câmera no modo mira/zoom. Pode ajustar em tempo real no Inspector durante o Play.")]
+    [Min(0.15f)]
+    public float distanciaZoomMira = 1.25f;
+
+    [Tooltip("Altura do foco da mira/zoom no personagem.")]
+    public float alturaZoomMira = 1.58f;
+
+    [Tooltip("Deslocamento lateral da câmera na mira. 0 = centralizado; positivo = ombro direito.")]
+    public float deslocamentoLateralZoomMira = 0f;
+
+    [Tooltip("Distância do ponto para onde a câmera olha no modo mira. Maior = olhar mais reto para frente.")]
+    [Min(0.5f)]
+    public float distanciaOlharFrenteZoomMira = 8f;
+
+    [Tooltip("Aplica colisão também no modo zoom/mira por distância.")]
+    public bool aplicarColisaoNoZoomMira = true;
+
+    [Tooltip("Velocidade específica para entrar no zoom/mira por distância. Menor = menos tranco.")]
+    [Min(0.1f)]
+    public float velocidadeEntradaZoomMira = 2.2f;
+
+    [Header("FOV da Mira / Zoom")]
+    [Tooltip("Ajusta o Field Of View da câmera ao entrar na mira. É um zoom visual menor e controlável.")]
+    public bool ajustarFovNaMira = true;
+
+    [Tooltip("Se ligado, captura o FOV atual da câmera no Start como FOV normal.")]
+    public bool capturarFovNormalNoStart = true;
+
+    [Min(1f)]
+    public float fovNormal = 60f;
+
+    [Tooltip("FOV durante a mira. Valores próximos de 50 fazem zoom menor; valores menores aproximam mais.")]
+    [Range(25f, 75f)]
+    public float fovMira = 50f;
+
+    [Min(0.1f)]
+    public float velocidadeFovMira = 8f;
 
     [Header("Transição Anti-Enjoo")]
     [Tooltip("Velocidade para ENTRAR na primeira pessoa. Menor = mais lento.")]
@@ -147,9 +221,12 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     public KeyCode unlockCursorKey = KeyCode.Escape;
     public KeyCode lockCursorKey = KeyCode.Mouse0;
 
+    private Camera cameraComponente;
+
     private float yaw;
     private float pitch = 15f;
     private float timeWithoutMouse;
+    private float yawAutoAlignVelocity;
 
     private Vector3 positionVelocity;
     private Quaternion rotationVelocity;
@@ -170,9 +247,15 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
     public float YawAtual => yaw;
     public float PitchAtual => pitch;
+    public float DistanciaZoomMiraAtual => distanciaZoomMira;
 
     private void Start()
     {
+        cameraComponente = GetComponent<Camera>();
+
+        if (cameraComponente != null && capturarFovNormalNoStart)
+            fovNormal = cameraComponente.fieldOfView;
+
         if (target == null && transform.parent != null)
             target = transform.parent;
 
@@ -201,6 +284,9 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     private void OnDisable()
     {
         AplicarVisibilidadeRenderers(true);
+
+        if (cameraComponente != null && ajustarFovNaMira)
+            cameraComponente.fieldOfView = fovNormal;
     }
 
     private void LateUpdate()
@@ -219,7 +305,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             HandleAutoAlign();
 
         UpdateCameraUnificada();
-
+        AtualizarFovMira();
         AtualizarVisibilidadeDuranteTransicao();
     }
 
@@ -234,12 +320,26 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         primeiraPessoaSolicitada = ativa;
 
         ResetarSuavizacoes();
+        yawAutoAlignVelocity = 0f;
 
         if (primeiraPessoaSolicitada)
+        {
             timeWithoutMouse = 0f;
+
+            if (target != null && alinharComFrenteDoPersonagemAoEntrarNaMira)
+                yaw = target.eulerAngles.y;
+
+            if (corrigirPitchAoEntrarNaMira)
+                pitch = Mathf.Clamp(pitchInicialAoEntrarNaMira, minPitch, maxPitch);
+        }
 
         if (target != null)
             lastTargetPosition = target.position;
+    }
+
+    public void DefinirDistanciaZoomMira(float novaDistancia)
+    {
+        distanciaZoomMira = Mathf.Max(0.15f, novaDistancia);
     }
 
     private void HandleMouse()
@@ -257,6 +357,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         else
         {
             timeWithoutMouse = 0f;
+            yawAutoAlignVelocity = 0f;
         }
 
         if (suavizarMouse)
@@ -303,9 +404,9 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     {
         float alvo = primeiraPessoaSolicitada ? 1f : 0f;
 
-        float velocidade = primeiraPessoaSolicitada
-            ? velocidadeEntradaPrimeiraPessoa
-            : velocidadeSaidaPrimeiraPessoa;
+        float velocidade = primeiraPessoaSolicitada && usarZoomMiraPorDistancia
+            ? velocidadeEntradaZoomMira
+            : (primeiraPessoaSolicitada ? velocidadeEntradaPrimeiraPessoa : velocidadeSaidaPrimeiraPessoa);
 
         primeiraPessoaBlend = Mathf.MoveTowards(
             primeiraPessoaBlend,
@@ -335,8 +436,19 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             Vector3.up
         );
 
-        Vector3 primeiraPessoaPosition = CalcularPosicaoPrimeiraPessoa();
-        Quaternion primeiraPessoaRotation = Quaternion.Euler(pitch, yaw, 0f);
+        Vector3 primeiraPessoaPosition;
+        Quaternion primeiraPessoaRotation;
+
+        if (usarZoomMiraPorDistancia)
+        {
+            primeiraPessoaPosition = CalcularPosicaoZoomMiraPorDistancia();
+            primeiraPessoaRotation = CalcularRotacaoZoomMira(primeiraPessoaPosition);
+        }
+        else
+        {
+            primeiraPessoaPosition = CalcularPosicaoPrimeiraPessoa();
+            primeiraPessoaRotation = Quaternion.Euler(pitch, yaw, 0f);
+        }
 
         float blendSuave = SmoothStep01(primeiraPessoaBlend);
 
@@ -382,11 +494,12 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             smoothPositionAtual
         );
 
-        if (
+        bool deveCorrigirPosicaoFinal =
             usarColisaoCamera &&
             corrigirPosicaoFinalSuavizada &&
-            blendSuave < 0.95f
-        )
+            (blendSuave < 0.95f || (usarZoomMiraPorDistancia && aplicarColisaoNoZoomMira));
+
+        if (deveCorrigirPosicaoFinal)
         {
             novaPosicao = AplicarColisaoCameraSegura(
                 focusPoint,
@@ -428,6 +541,52 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             return pontoPrimeiraPessoa.TransformPoint(ajusteLocalPontoPrimeiraPessoa);
 
         return target.TransformPoint(offsetPrimeiraPessoa);
+    }
+
+    private Vector3 CalcularPosicaoZoomMiraPorDistancia()
+    {
+        Quaternion yawRotation = Quaternion.Euler(0f, yaw, 0f);
+        Vector3 focoMira = target.position + Vector3.up * alturaZoomMira;
+
+        Vector3 posicao =
+            focoMira
+            - yawRotation * Vector3.forward * distanciaZoomMira
+            + yawRotation * Vector3.right * deslocamentoLateralZoomMira;
+
+        if (usarColisaoCamera && aplicarColisaoNoZoomMira)
+            posicao = AplicarColisaoCameraSegura(focoMira, posicao);
+
+        return posicao;
+    }
+
+    private Quaternion CalcularRotacaoZoomMira(Vector3 cameraPosition)
+    {
+        Quaternion rotacaoOlhar = Quaternion.Euler(pitch, yaw, 0f);
+        Vector3 focoMira = target.position + Vector3.up * alturaZoomMira;
+        Vector3 pontoOlhar = focoMira + rotacaoOlhar * Vector3.forward * distanciaOlharFrenteZoomMira;
+
+        Vector3 direcao = pontoOlhar - cameraPosition;
+
+        if (direcao.sqrMagnitude <= 0.0001f)
+            return Quaternion.Euler(pitch, yaw, 0f);
+
+        return Quaternion.LookRotation(direcao.normalized, Vector3.up);
+    }
+
+    private void AtualizarFovMira()
+    {
+        if (!ajustarFovNaMira)
+            return;
+
+        if (cameraComponente == null)
+            cameraComponente = GetComponent<Camera>();
+
+        if (cameraComponente == null)
+            return;
+
+        float alvoFov = primeiraPessoaSolicitada ? fovMira : fovNormal;
+        float suavizacao = CalcularSuavizacao(velocidadeFovMira, Time.deltaTime);
+        cameraComponente.fieldOfView = Mathf.Lerp(cameraComponente.fieldOfView, alvoFov, suavizacao);
     }
 
     private Vector3 AplicarColisaoCameraSegura(Vector3 focusPoint, Vector3 desiredPosition)
@@ -591,6 +750,9 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         if (!autoAlignBehindPlayer)
             return;
 
+        if (bloquearAutoAlignDuranteMira && Input.GetMouseButton(botaoSensibilidadeMira))
+            return;
+
         if (timeWithoutMouse < autoAlignDelay)
             return;
 
@@ -598,12 +760,29 @@ public class CameraGTAFollowHardcore : MonoBehaviour
             return;
 
         float targetYaw = target.eulerAngles.y;
+        float diferenca = Mathf.Abs(Mathf.DeltaAngle(yaw, targetYaw));
 
-        yaw = Mathf.MoveTowardsAngle(
-            yaw,
-            targetYaw,
-            autoAlignSpeed * Time.deltaTime
-        );
+        if (protegerContraResetDeAngulo && diferenca > anguloMaximoAutoAlignSemReset)
+            return;
+
+        if (protegerContraResetDeAngulo)
+        {
+            yaw = Mathf.SmoothDampAngle(
+                yaw,
+                targetYaw,
+                ref yawAutoAlignVelocity,
+                autoAlignSmoothTime,
+                autoAlignSpeed
+            );
+        }
+        else
+        {
+            yaw = Mathf.MoveTowardsAngle(
+                yaw,
+                targetYaw,
+                autoAlignSpeed * Time.deltaTime
+            );
+        }
     }
 
     private bool IsTargetMoving()
@@ -666,6 +845,7 @@ public class CameraGTAFollowHardcore : MonoBehaviour
         rotationVelocity = new Quaternion(0f, 0f, 0f, 0f);
         mouseSuavizado = Vector2.zero;
         mouseSmoothVelocity = Vector2.zero;
+        yawAutoAlignVelocity = 0f;
     }
 
     private Quaternion SmoothDampQuaternion(
@@ -710,6 +890,9 @@ public class CameraGTAFollowHardcore : MonoBehaviour
     private void OnValidate()
     {
         distance = Mathf.Max(0.1f, distance);
+        distanciaZoomMira = Mathf.Max(0.15f, distanciaZoomMira);
+        distanciaOlharFrenteZoomMira = Mathf.Max(0.5f, distanciaOlharFrenteZoomMira);
+
         cameraCollisionRadius = Mathf.Max(0.01f, cameraCollisionRadius);
         cameraCollisionOffset = Mathf.Max(0f, cameraCollisionOffset);
         cameraMinDistanceFromFocus = Mathf.Max(0.05f, cameraMinDistanceFromFocus);
@@ -720,5 +903,9 @@ public class CameraGTAFollowHardcore : MonoBehaviour
 
         if (maxPitch < minPitch)
             maxPitch = minPitch;
+
+        pitchInicialAoEntrarNaMira = Mathf.Clamp(pitchInicialAoEntrarNaMira, minPitch, maxPitch);
+        fovNormal = Mathf.Clamp(fovNormal, 1f, 179f);
+        fovMira = Mathf.Clamp(fovMira, 25f, 75f);
     }
 }
