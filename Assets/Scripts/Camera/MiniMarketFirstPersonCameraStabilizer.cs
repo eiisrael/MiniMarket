@@ -4,8 +4,8 @@ using UnityEngine;
 /// <summary>
 /// Estabilizador automático da câmera do MiniMarket.
 ///
-/// Mantém a Main Camera estável, sem auto-align/recenter, sem efeito mola ao apertar S/A/D
-/// e com primeira pessoa real pelo botão direito.
+/// Mantém a Main Camera estável, sem auto-align/recenter, sem efeito mola ao apertar S/A/D,
+/// sem suavização residual de mouse e com primeira pessoa real pelo botão direito.
 /// </summary>
 [DefaultExecutionOrder(32000)]
 public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
@@ -25,6 +25,11 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
     [Min(0f)] public float positionSmoothTimeTerceiraPessoa = 0f;
     [Min(0f)] public float rotationSmoothTimeTerceiraPessoa = 0f;
     [Min(0f)] public float tremorVerticalIgnorado = 0.01f;
+
+    [Header("Mouse - Sem Arrasto Residual")]
+    [Tooltip("Desliga a suavizacao de mouse para impedir que MouseSuavizado continue girando a camera depois que o mouse para.")]
+    public bool desligarSuavizacaoMouseTotal = true;
+    [Min(0f)] public float mouseSmoothTimeTerceiraPessoa = 0f;
 
     [Header("Primeira Pessoa - Anti Jumping")]
     public bool zerarInerciaMouseQuandoParar = true;
@@ -142,6 +147,14 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
             cameraGTA.estabilizarPontoPrimeiraPessoaContraAnimacao = true;
         }
 
+        if (desligarSuavizacaoMouseTotal)
+        {
+            cameraGTA.suavizarMouse = false;
+            cameraGTA.mouseSmoothTimeTerceiraPessoa = mouseSmoothTimeTerceiraPessoa;
+            cameraGTA.mouseSmoothTimePrimeiraPessoa = mouseSmoothTimePrimeiraPessoa;
+            LimparVelocidadesInternas();
+        }
+
         cameraGTA.usarZoomMiraPorDistancia = false;
         cameraGTA.aplicarColisaoNoZoomMira = false;
         cameraGTA.preservarAnguloAtualNaTransicao = true;
@@ -164,7 +177,7 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
         if (logarEventos && Time.unscaledTime - ultimoLogTempo > 10f)
         {
             ultimoLogTempo = Time.unscaledTime;
-            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; efeito mola S/A/D removido; smooth FP = " + mouseSmoothTimePrimeiraPessoa.ToString("0.###"), "camera-config", 10f);
+            MiniMarketUpgradeLogger.Log("Camera", "Estabilizacao aplicada", "Auto-align desligado; efeito mola S/A/D removido; smooth mouse desligado.", "camera-config", 10f);
         }
     }
 
@@ -200,6 +213,9 @@ public class MiniMarketFirstPersonCameraStabilizer : MonoBehaviour
 
     private void LimparVelocidadesInternas()
     {
+        if (cameraGTA == null)
+            return;
+
         if (campoMouseSuavizado != null)
             campoMouseSuavizado.SetValue(cameraGTA, Vector2.zero);
 
