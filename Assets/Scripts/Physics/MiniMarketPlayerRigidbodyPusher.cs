@@ -6,6 +6,7 @@ using UnityEngine;
 /// Unity CharacterController nao empurra Rigidbody automaticamente de forma forte.
 /// Este script aplica uma velocidade/impulso horizontal leve e controlado quando o player encosta.
 /// Ele se instala automaticamente em objetos com CharacterController ao iniciar a cena.
+/// Versao Unity 6/7 sem GetInstanceID obsoleto.
 /// </summary>
 [RequireComponent(typeof(CharacterController))]
 public class MiniMarketPlayerRigidbodyPusher : MonoBehaviour
@@ -34,7 +35,7 @@ public class MiniMarketPlayerRigidbodyPusher : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void InstalarAutomaticamente()
     {
-        CharacterController[] controllers = FindObjectsOfType<CharacterController>(true);
+        CharacterController[] controllers = Object.FindObjectsByType<CharacterController>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < controllers.Length; i++)
         {
             CharacterController cc = controllers[i];
@@ -89,7 +90,15 @@ public class MiniMarketPlayerRigidbodyPusher : MonoBehaviour
         if (logarEventos && Time.unscaledTime - ultimoLog > 1f)
         {
             ultimoLog = Time.unscaledTime;
-            MiniMarketUpgradeLogger.Log("Physics", "Player empurrou Rigidbody", rb.gameObject.name + " | massa=" + massa.ToString("0.##"), "push-" + rb.GetInstanceID(), 1f);
+            MiniMarketUpgradeLogger.Log("Physics", "Player empurrou Rigidbody", rb.gameObject.name + " | massa=" + massa.ToString("0.##"), "push-" + NomeSeguro(rb.gameObject), 1f);
         }
+    }
+
+    private string NomeSeguro(GameObject objeto)
+    {
+        if (objeto == null)
+            return "null";
+
+        return objeto.name.Replace(" ", "_");
     }
 }
