@@ -1,102 +1,73 @@
-using System.Reflection;
 using UnityEngine;
 
 /// <summary>
-/// Alterna entre camera normal/terceira pessoa e uma camera de primeira pessoa.
+/// Controlador de perspectiva do MiniMarket.
 ///
-/// Modo seguro:
-/// - Nao desativa o GameObject da Main Camera, apenas o componente Camera/AudioListener.
-/// - Assim, scripts de camera/mouse que estiverem na Main Camera continuam rodando.
-/// - A camera de primeira pessoa copia a rotacao da camera normal e segue um ponto nos olhos/cabeca.
-/// - Em primeira pessoa, pode rotacionar o personagem junto com a camera e ocultar renderers para nao ver a cabeca por dentro.
-/// - Estabiliza o PlayerMove para sempre usar a camera ativa como referencia de movimento.
+/// Novo comportamento:
+/// - Segurar botão direito: ativa primeira pessoa na própria Main Camera.
+/// - Soltar botão direito: volta para a camera normal/terceira pessoa.
+/// - Não alterna mais por TAB, evitando conflito com menu.
+/// - Mantém a camera secundária desativada para não haver duas cameras brigando.
+/// - Atualiza PlayerMove.cameraTransform sempre para a Main Camera estável.
 /// </summary>
-[DefaultExecutionOrder(20000)]
+[DefaultExecutionOrder(21000)]
 public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 {
     [Header("Cameras")]
-    [Tooltip("Camera normal/terceira pessoa. Geralmente a Main Camera atual.")]
     public Camera cameraNormal;
 
-    [Tooltip("Nova camera em primeira pessoa. Crie uma Camera e arraste aqui.")]
+    [Tooltip("Compatibilidade: se existir uma camera antiga de primeira pessoa, ela será desativada para evitar snap/jumping.")]
     public Camera cameraPrimeiraPessoa;
 
-    [Header("Ponto de Primeira Pessoa")]
-    [Tooltip("Empty no personagem, posicionado nos olhos/cabeca. A camera de primeira pessoa segue este ponto.")]
-    public Transform pontoPrimeiraPessoa;
+    [Header("Primeira Pessoa")]
+    public bool usarBotaoDireitoComoPrimeiraPessoa = true;
+    [Range(0, 2)] public int botaoPrimeiraPessoa = 1;
+    public bool voltarParaCameraNormalAoSoltar = true;
 
-    [Tooltip("Usado se pontoPrimeiraPessoa estiver vazio. Arraste o Character 01 aqui. Se vazio, encontra o PlayerMove automaticamente.")]
-    public Transform alvoFallback;
-
-    [Tooltip("Offset local usado quando seguir o alvoFallback.")]
-    public Vector3 offsetLocalFallback = new Vector3(0f, 1.68f, 0.22f);
-
-    [Header("Input")]
+    [Tooltip("Mantido por compatibilidade. Não é mais usado para alternar, pois TAB pertence ao Menu.")]
     public KeyCode teclaAlternar = KeyCode.Tab;
-
-    [Tooltip("Comeca renderizando a camera normal.")]
     public bool iniciarNaCameraNormal = true;
 
-    [Header("Comportamento")]
-    [Tooltip("Copia a rotacao da camera normal para a camera de primeira pessoa. Recomendado deixar ligado.")]
+    [Header("Ponto de Primeira Pessoa")]
+    public Transform pontoPrimeiraPessoa;
+    public Transform alvoFallback;
+    public Vector3 offsetLocalFallback = new Vector3(0f, 1.68f, 0.18f);
+
+    [Header("Compatibilidade")]
     public bool copiarRotacaoDaCameraNormal = true;
-
-    [Tooltip("Quando alternar, copia FOV da camera normal para a primeira pessoa.")]
     public bool copiarFOVDaCameraNormal = true;
-
-    [Tooltip("Mantem o cursor travado durante a troca de camera.")]
     public bool manterCursorTravado = true;
 
-    [Header("Estabilidade / Compatibilidade")]
-    [Tooltip("PlayerMove do personagem. Se vazio, encontra automaticamente.")]
+    [Header("Estabilidade / PlayerMove")]
     public PlayerMove playerMove;
-
-    [Tooltip("Atualiza o cameraTransform do PlayerMove para a camera ativa. Evita movimento/camera brigando quando troca POV.")]
     public bool atualizarCameraTransformDoPlayerMove = true;
-
-    [Tooltip("Desativa via reflection o autoAlignBehindPlayer de scripts de camera GTA, evitando puxao/reset automatico de yaw.")]
     public bool desativarAutoAlignCameraGTA = true;
-
-    [Tooltip("Executa a estabilizacao varias vezes nos primeiros segundos para pegar scripts que inicializam depois.")]
     public bool reforcarEstabilizacaoInicial = true;
-
-    [Tooltip("Tempo maximo para reforcar estabilizacao apos iniciar a cena.")]
     [Min(0.1f)] public float tempoReforcoEstabilizacao = 3f;
 
     [Header("Primeira Pessoa - Personagem")]
-    [Tooltip("Objeto principal do personagem que deve virar junto com a camera. Se vazio, usa PlayerMove/alvoFallback.")]
     public Transform personagemParaRotacionar;
-
-    [Tooltip("Se ligado, em primeira pessoa o personagem vira para o mesmo Yaw da camera.")]
     public bool rotacionarPersonagemComCamera = true;
-
-    [Tooltip("Velocidade de suavizacao para o personagem acompanhar a camera.")]
     [Min(0.1f)] public float velocidadeRotacaoPersonagem = 18f;
-
-    [Tooltip("Oculta renderers do personagem em primeira pessoa para nao ver cabeca/corpo por dentro.")]
     public bool ocultarRenderersNaPrimeiraPessoa = true;
-
-    [Tooltip("Se vazio, encontra automaticamente renderers dentro do personagem.")]
     public bool encontrarRenderersAutomaticamente = true;
-
     public Renderer[] renderersDoPersonagem;
 
     [Header("Bloqueio por Menu")]
-    [Tooltip("Se um menu estiver aberto, evita alternar camera.")]
     public bool bloquearAlternanciaComMenuAberto = true;
-
-    [Tooltip("Arraste CanvasGroup do Menu aqui se quiser bloquear explicitamente.")]
     public CanvasGroup[] menusQueBloqueiamAlternancia;
-
-    [Tooltip("Procura automaticamente CanvasGroups visiveis com nome contendo 'Menu'. Evita conflito se Menu e Camera usam TAB.")]
     public bool detectarMenusAutomaticamente = true;
+    [Min(0.1f)] public float intervaloBuscaMenus = 0.75f;
 
     [Header("Debug")]
-    public bool logarEventos = true;
+    public bool logarEventos = false;
 
     private bool usandoPrimeiraPessoa;
-    private bool autoAlignEstabilizado;
+    private bool ultimoEstadoBotao;
     private float tempoInicio;
+    private float proximaBuscaMenus;
+    private CanvasGroup[] menusAuto;
+    private CameraGTAFollowHardcore cameraGTA;
     private AudioListener audioNormal;
     private AudioListener audioPrimeiraPessoa;
 
@@ -106,69 +77,112 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
     {
         tempoInicio = Time.unscaledTime;
         ResolverReferencias();
-        usandoPrimeiraPessoa = !iniciarNaCameraNormal;
-        EstabilizarScriptsDeCameraGTA();
-        AplicarEstadoDasCameras();
+        usandoPrimeiraPessoa = false;
+        AplicarEstadoInicial();
+        EstabilizarCameraGTA();
     }
 
     private void Start()
     {
         ResolverReferencias();
-        EstabilizarScriptsDeCameraGTA();
-        AplicarEstadoDasCameras();
+        AplicarEstadoInicial();
+        EstabilizarCameraGTA();
     }
 
     private void OnDisable()
     {
+        SetPrimeiraPessoa(false, true);
         AplicarVisibilidadeRenderers(true);
     }
 
     private void Update()
     {
+        ResolverReferenciasLeve();
+
         if (reforcarEstabilizacaoInicial && Time.unscaledTime - tempoInicio <= tempoReforcoEstabilizacao)
-            EstabilizarScriptsDeCameraGTA();
+            EstabilizarCameraGTA();
 
-        if (Input.GetKeyDown(teclaAlternar))
+        if (!usarBotaoDireitoComoPrimeiraPessoa)
+            return;
+
+        bool menuAberto = AlgumMenuBloqueando();
+        bool botaoPressionado = Input.GetMouseButton(botaoPrimeiraPessoa) && !menuAberto;
+
+        if (botaoPressionado != ultimoEstadoBotao)
         {
-            if (AlgumMenuBloqueando())
-                return;
+            ultimoEstadoBotao = botaoPressionado;
 
-            AlternarCamera();
+            if (botaoPressionado)
+                SetPrimeiraPessoa(true, false);
+            else if (voltarParaCameraNormalAoSoltar)
+                SetPrimeiraPessoa(false, false);
         }
     }
 
     private void LateUpdate()
     {
-        AtualizarCameraPrimeiraPessoa();
-        AtualizarRotacaoPersonagemPrimeiraPessoa();
+        // Garante que camera secundária antiga não ligue sozinha e não concorra com a Main Camera.
+        DesativarCameraPrimeiraPessoaAntiga();
         AtualizarCameraDoPlayerMove();
+        AtualizarRotacaoPersonagemPrimeiraPessoa();
     }
 
     public void AlternarCamera()
     {
-        usandoPrimeiraPessoa = !usandoPrimeiraPessoa;
-        AplicarEstadoDasCameras();
+        SetPrimeiraPessoa(!usandoPrimeiraPessoa, false);
+    }
 
-        if (manterCursorTravado)
+    public void UsarCameraNormal()
+    {
+        SetPrimeiraPessoa(false, false);
+    }
+
+    public void UsarCameraPrimeiraPessoa()
+    {
+        SetPrimeiraPessoa(true, false);
+    }
+
+    private void SetPrimeiraPessoa(bool ativa, bool instantaneo)
+    {
+        ResolverReferenciasLeve();
+
+        usandoPrimeiraPessoa = ativa;
+
+        if (cameraGTA != null)
+            cameraGTA.SetPrimeiraPessoa(ativa);
+
+        if (cameraNormal != null)
+            cameraNormal.enabled = true;
+
+        DesativarCameraPrimeiraPessoaAntiga();
+        AplicarVisibilidadeRenderers(!ativa || !ocultarRenderersNaPrimeiraPessoa);
+        AtualizarCameraDoPlayerMove();
+
+        if (manterCursorTravado && ativa)
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
 
         if (logarEventos)
-            Debug.Log("[MiniMarketCameraPerspectiveSwitcher] Camera ativa: " + (usandoPrimeiraPessoa ? "Primeira Pessoa" : "Normal"));
+            MiniMarketUpgradeLogger.Log("Camera", ativa ? "Primeira pessoa ON" : "Primeira pessoa OFF", "Controle por botão direito na Main Camera.", "camera-rmb-" + ativa, 1f);
     }
 
-    public void UsarCameraNormal()
+    private void AplicarEstadoInicial()
     {
-        usandoPrimeiraPessoa = false;
-        AplicarEstadoDasCameras();
-    }
+        if (cameraNormal == null)
+            cameraNormal = Camera.main;
 
-    public void UsarCameraPrimeiraPessoa()
-    {
-        usandoPrimeiraPessoa = true;
-        AplicarEstadoDasCameras();
+        if (cameraNormal != null)
+        {
+            cameraNormal.enabled = true;
+            audioNormal = cameraNormal.GetComponent<AudioListener>();
+            if (audioNormal != null)
+                audioNormal.enabled = true;
+        }
+
+        DesativarCameraPrimeiraPessoaAntiga();
+        SetPrimeiraPessoa(!iniciarNaCameraNormal, true);
     }
 
     private void ResolverReferencias()
@@ -176,24 +190,33 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         if (cameraNormal == null)
             cameraNormal = Camera.main;
 
-        if (cameraNormal != null && audioNormal == null)
+        if (cameraNormal != null)
+        {
+            cameraGTA = cameraNormal.GetComponent<CameraGTAFollowHardcore>();
             audioNormal = cameraNormal.GetComponent<AudioListener>();
+        }
 
-        if (cameraPrimeiraPessoa != null && audioPrimeiraPessoa == null)
+        if (cameraPrimeiraPessoa != null)
             audioPrimeiraPessoa = cameraPrimeiraPessoa.GetComponent<AudioListener>();
 
         if (playerMove == null)
-            playerMove = FindObjectOfType<PlayerMove>(true);
+            playerMove = Object.FindFirstObjectByType<PlayerMove>(FindObjectsInactive.Include);
 
         if (alvoFallback == null && playerMove != null)
             alvoFallback = playerMove.transform;
 
         if (personagemParaRotacionar == null)
+            personagemParaRotacionar = playerMove != null ? playerMove.transform : alvoFallback;
+
+        if (cameraGTA != null)
         {
-            if (playerMove != null)
-                personagemParaRotacionar = playerMove.transform;
-            else
-                personagemParaRotacionar = alvoFallback;
+            if (cameraGTA.target == null && personagemParaRotacionar != null)
+                cameraGTA.target = personagemParaRotacionar;
+
+            if (pontoPrimeiraPessoa != null)
+                cameraGTA.pontoPrimeiraPessoa = pontoPrimeiraPessoa;
+            else if (cameraGTA.pontoPrimeiraPessoa == null && alvoFallback != null)
+                cameraGTA.offsetPrimeiraPessoa = offsetLocalFallback;
         }
 
         if (encontrarRenderersAutomaticamente && (renderersDoPersonagem == null || renderersDoPersonagem.Length == 0))
@@ -204,143 +227,75 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         }
     }
 
-    private void AplicarEstadoDasCameras()
+    private void ResolverReferenciasLeve()
     {
-        ResolverReferencias();
+        if (cameraNormal == null)
+            cameraNormal = Camera.main;
 
-        if (cameraNormal != null)
-            cameraNormal.enabled = !usandoPrimeiraPessoa;
+        if (cameraGTA == null && cameraNormal != null)
+            cameraGTA = cameraNormal.GetComponent<CameraGTAFollowHardcore>();
 
-        if (cameraPrimeiraPessoa != null)
-            cameraPrimeiraPessoa.enabled = usandoPrimeiraPessoa;
-
-        if (audioNormal != null)
-            audioNormal.enabled = !usandoPrimeiraPessoa;
-
-        if (audioPrimeiraPessoa != null)
-            audioPrimeiraPessoa.enabled = usandoPrimeiraPessoa;
-
-        AplicarVisibilidadeRenderers(!usandoPrimeiraPessoa || !ocultarRenderersNaPrimeiraPessoa);
-        AtualizarCameraPrimeiraPessoa();
-        AtualizarRotacaoPersonagemPrimeiraPessoa(true);
-        AtualizarCameraDoPlayerMove();
+        if (playerMove == null)
+            playerMove = Object.FindFirstObjectByType<PlayerMove>(FindObjectsInactive.Include);
     }
 
-    private void AtualizarCameraPrimeiraPessoa()
+    private void DesativarCameraPrimeiraPessoaAntiga()
     {
         if (cameraPrimeiraPessoa == null)
             return;
 
-        Transform camTransform = cameraPrimeiraPessoa.transform;
+        cameraPrimeiraPessoa.enabled = false;
 
-        if (pontoPrimeiraPessoa != null)
-        {
-            camTransform.position = pontoPrimeiraPessoa.position;
-        }
-        else if (alvoFallback != null)
-        {
-            camTransform.position = alvoFallback.TransformPoint(offsetLocalFallback);
-        }
+        if (audioPrimeiraPessoa == null)
+            audioPrimeiraPessoa = cameraPrimeiraPessoa.GetComponent<AudioListener>();
 
-        if (copiarRotacaoDaCameraNormal && cameraNormal != null)
-            camTransform.rotation = cameraNormal.transform.rotation;
-
-        if (copiarFOVDaCameraNormal && cameraNormal != null)
-            cameraPrimeiraPessoa.fieldOfView = cameraNormal.fieldOfView;
+        if (audioPrimeiraPessoa != null)
+            audioPrimeiraPessoa.enabled = false;
     }
 
     private void AtualizarCameraDoPlayerMove()
     {
-        if (!atualizarCameraTransformDoPlayerMove)
+        if (!atualizarCameraTransformDoPlayerMove || playerMove == null || cameraNormal == null)
             return;
 
-        if (playerMove == null)
-            return;
-
-        Camera ativa = usandoPrimeiraPessoa && cameraPrimeiraPessoa != null ? cameraPrimeiraPessoa : cameraNormal;
-        if (ativa != null)
-            playerMove.cameraTransform = ativa.transform;
+        playerMove.cameraTransform = cameraNormal.transform;
     }
 
-    private void AtualizarRotacaoPersonagemPrimeiraPessoa(bool instantaneo = false)
+    private void AtualizarRotacaoPersonagemPrimeiraPessoa()
     {
-        if (!usandoPrimeiraPessoa)
-            return;
-
-        if (!rotacionarPersonagemComCamera)
+        if (!usandoPrimeiraPessoa || !rotacionarPersonagemComCamera)
             return;
 
         Transform alvo = personagemParaRotacionar != null ? personagemParaRotacionar : alvoFallback;
-        if (alvo == null)
+        if (alvo == null || cameraNormal == null)
             return;
 
-        Camera referencia = cameraPrimeiraPessoa != null ? cameraPrimeiraPessoa : cameraNormal;
-        if (referencia == null)
-            return;
-
-        Vector3 forward = referencia.transform.forward;
+        Vector3 forward = cameraNormal.transform.forward;
         forward.y = 0f;
 
         if (forward.sqrMagnitude < 0.0001f)
             return;
 
         Quaternion rotacaoAlvo = Quaternion.LookRotation(forward.normalized, Vector3.up);
-
-        if (instantaneo)
-        {
-            alvo.rotation = rotacaoAlvo;
-            return;
-        }
-
         float t = 1f - Mathf.Exp(-velocidadeRotacaoPersonagem * Time.deltaTime);
         alvo.rotation = Quaternion.Slerp(alvo.rotation, rotacaoAlvo, t);
     }
 
-    private void EstabilizarScriptsDeCameraGTA()
+    private void EstabilizarCameraGTA()
     {
-        if (!desativarAutoAlignCameraGTA)
+        if (!desativarAutoAlignCameraGTA || cameraGTA == null)
             return;
 
-        if (cameraNormal == null)
-            return;
-
-        bool alterouAlgo = false;
-        MonoBehaviour[] scripts = cameraNormal.GetComponents<MonoBehaviour>();
-
-        for (int i = 0; i < scripts.Length; i++)
-        {
-            MonoBehaviour script = scripts[i];
-            if (script == null || script == this)
-                continue;
-
-            System.Type tipo = script.GetType();
-            string nomeTipo = tipo.Name.ToLowerInvariant();
-
-            FieldInfo autoAlignField = tipo.GetField("autoAlignBehindPlayer", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (autoAlignField == null || autoAlignField.FieldType != typeof(bool))
-                continue;
-
-            bool valorAtual = (bool)autoAlignField.GetValue(script);
-            if (valorAtual)
-            {
-                autoAlignField.SetValue(script, false);
-                alterouAlgo = true;
-            }
-
-            FieldInfo delayField = tipo.GetField("autoAlignDelay", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (delayField != null && delayField.FieldType == typeof(float))
-            {
-                float delayAtual = (float)delayField.GetValue(script);
-                if (delayAtual < 999f)
-                    delayField.SetValue(script, 999f);
-            }
-
-            if (logarEventos && !autoAlignEstabilizado && nomeTipo.Contains("camera"))
-                Debug.Log("[MiniMarketCameraPerspectiveSwitcher] Auto-align estabilizado em: " + tipo.Name);
-        }
-
-        if (alterouAlgo)
-            autoAlignEstabilizado = true;
+        cameraGTA.autoAlignBehindPlayer = false;
+        cameraGTA.autoAlignDelay = 999f;
+        cameraGTA.autoAlignSpeed = 0f;
+        cameraGTA.usarZoomMiraPorDistancia = false;
+        cameraGTA.aplicarColisaoNoZoomMira = false;
+        cameraGTA.preservarAnguloAtualNaTransicao = true;
+        cameraGTA.usarPosicaoPrimeiraPessoaEstavel = true;
+        cameraGTA.rotacionarPersonagemNaPrimeiraPessoa = true;
+        cameraGTA.sincronizarCorpoSuaveNaPrimeiraPessoa = true;
+        cameraGTA.mouseSmoothTimePrimeiraPessoa = 0f;
     }
 
     private void AplicarVisibilidadeRenderers(bool visivel)
@@ -372,10 +327,18 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
         if (!detectarMenusAutomaticamente)
             return false;
 
-        CanvasGroup[] grupos = FindObjectsOfType<CanvasGroup>(true);
-        for (int i = 0; i < grupos.Length; i++)
+        if (Time.unscaledTime >= proximaBuscaMenus || menusAuto == null)
         {
-            CanvasGroup grupo = grupos[i];
+            proximaBuscaMenus = Time.unscaledTime + intervaloBuscaMenus;
+            menusAuto = Object.FindObjectsByType<CanvasGroup>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        }
+
+        if (menusAuto == null)
+            return false;
+
+        for (int i = 0; i < menusAuto.Length; i++)
+        {
+            CanvasGroup grupo = menusAuto[i];
             if (grupo == null)
                 continue;
 
@@ -392,9 +355,6 @@ public class MiniMarketCameraPerspectiveSwitcher : MonoBehaviour
 
     private bool CanvasGroupEstaAberto(CanvasGroup grupo)
     {
-        if (grupo == null)
-            return false;
-
-        return grupo.gameObject.activeInHierarchy && grupo.alpha > 0.05f && grupo.blocksRaycasts;
+        return grupo != null && grupo.gameObject.activeInHierarchy && grupo.alpha > 0.05f && grupo.blocksRaycasts;
     }
 }
