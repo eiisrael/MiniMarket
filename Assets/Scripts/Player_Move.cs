@@ -4,6 +4,10 @@ using UnityEngine;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMove : MonoBehaviour
 {
+    private const string KeyStaminaSegmentosAtuais = "MiniMarket.Player.StaminaSegmentosAtuais";
+    private const string KeyStaminaSegmentosMaximos = "MiniMarket.Player.StaminaSegmentosMaximos";
+    private const string KeyStaminaRecargaReserva = "MiniMarket.Player.StaminaRecargaReserva";
+
     [Header("Referências")]
     public Transform cameraTransform;
     public Animator animator;
@@ -62,6 +66,28 @@ public class PlayerMove : MonoBehaviour
 
     [Tooltip("Se ativado, ao zerar stamina, bloqueia a corrida até recuperar um pouco.")]
     public bool bloquearCorridaQuandoCansado = true;
+
+    [Header("Stamina Segmentada 5/5")]
+    [Tooltip("Liga o sistema real de cargas: 5/5, 4/5, 3/5... Cada carga representa uma barra cheia.")]
+    public bool usarStaminaSegmentada = true;
+
+    [Tooltip("Quantidade maxima de barras/cargas de stamina.")]
+    [Min(1)] public int staminaSegmentosMaximos = 5;
+
+    [Tooltip("Quantidade atual de cargas. Exibido no HUD como 5/5, 4/5 etc.")]
+    [SerializeField] private int staminaSegmentosAtuais = 5;
+
+    [Tooltip("Progresso interno para recuperar uma carga reserva sem mexer na barra ativa.")]
+    [SerializeField] private float staminaRecargaReserva;
+
+    [Tooltip("Quando a barra ativa esvazia, decrementa 1 carga e recarrega a barra para 100%, ate chegar em 0/5.")]
+    public bool recarregarBarraAoConsumirSegmento = true;
+
+    [Tooltip("Quando chegar em 0/5, mantém a barra travada no vermelho enquanto o Shift estiver pressionado.")]
+    public bool travarNoZeroEnquantoShiftPressionado = true;
+
+    [Tooltip("Salva a quantidade 5/5 em PlayerPrefs para sobreviver ao Stop/Play no Editor.")]
+    public bool salvarSegmentosLocalmente = true;
 
     [Header("Banco de Dados - Stamina/Energia")]
     [Tooltip("Se ligado, le e grava a stamina no MiniMarketPlayerDatabase em tempo real.")]
@@ -181,12 +207,18 @@ public class PlayerMove : MonoBehaviour
     private MiniMarketPlayerDatabase banco;
     private float ultimaStaminaSalva;
     private float ultimoTempoSalvouStamina;
+    private int ultimoSegmentosSalvos;
+    private float ultimaRecargaReservaSalva;
 
     private readonly HashSet<string> animatorParams = new HashSet<string>();
 
     public float StaminaAtual => staminaAtual;
     public float StaminaMaxima => staminaMaxima;
     public float StaminaPercentual01 => staminaMaxima <= 0f ? 0f : staminaAtual / staminaMaxima;
+    public int StaminaSegmentosAtuais => Mathf.Clamp(staminaSegmentosAtuais, 0, Mathf.Max(1, staminaSegmentosMaximos));
+    public int StaminaSegmentosMaximos => Mathf.Max(1, staminaSegmentosMaximos);
+    public float StaminaRecargaReserva => staminaRecargaReserva;
+    public string StaminaSegmentadaTexto => StaminaSegmentosAtuais + "/" + StaminaSegmentosMaximos;
     public bool EstaGastandoStamina => estaGastandoStamina;
     public bool EstaCansado => corridaBloqueadaPorStamina;
     public bool EstaCorrendo => isRunning;
@@ -197,6 +229,8 @@ public class PlayerMove : MonoBehaviour
 
         staminaMaxima = Mathf.Max(1f, staminaMaxima);
         staminaAtual = Mathf.Clamp(staminaAtual, 0f, staminaMaxima);
+        NormalizarStaminaSegmentada();
+        CarregarStaminaSegmentadaLocal();
 
         InicializarStaminaComBanco();
 
@@ -239,11 +273,13 @@ public class PlayerMove : MonoBehaviour
             banco.OnDatabaseChanged -= AoBancoAlterado;
 
         SalvarStaminaNoBanco(true);
+        SalvarStaminaSegmentadaLocal(true);
     }
 
     private void OnApplicationQuit()
     {
         SalvarStaminaNoBanco(true);
+        SalvarStaminaSegmentadaLocal(true);
     }
 
     private void Update()
@@ -271,6 +307,7 @@ public class PlayerMove : MonoBehaviour
 
         staminaMaxima = Mathf.Max(1f, banco.StaminaMaxima);
         staminaAtual = Mathf.Clamp(banco.StaminaAtual, 0f, staminaMaxima);
+        NormalizarStaminaSegmentada();
         ultimaStaminaSalva = staminaAtual;
         ultimoTempoSalvouStamina = Time.time;
     }
@@ -282,25 +319,42 @@ public class PlayerMove : MonoBehaviour
 
         staminaMaxima = Mathf.Max(1f, dados.staminaMaxima);
         staminaAtual = Mathf.Clamp(dados.staminaAtual, 0f, staminaMaxima);
+        NormalizarStaminaSegmentada();
         ultimaStaminaSalva = staminaAtual;
     }
 
     public void DefinirStamina(float novaStamina)
     {
         staminaAtual = Mathf.Clamp(novaStamina, 0f, staminaMaxima);
-        if (corridaBloqueadaPorStamina && staminaAtual >= staminaParaLiberarCorrida)
+        if (corridaBloqueadaPorStamina && PodeLiberarCorridaPorStamina())
             corridaBloqueadaPorStamina = false;
 
         SalvarStaminaNoBanco(true);
     }
 
+    public void DefinirStaminaSegmentada(int segmentosAtuais, float barraAtual, bool salvarAgora = true)
+    {
+        staminaSegmentosAtuais = Mathf.Clamp(segmentosAtuais, 0, Mathf.Max(1, staminaSegmentosMaximos));
+        staminaAtual = Mathf.Clamp(barraAtual, 0f, staminaMaxima);
+        staminaRecargaReserva = Mathf.Clamp(staminaRecargaReserva, 0f, staminaMaxima);
+
+        if (staminaSegmentosAtuais > 0 && staminaAtual >= staminaMinimaParaCorrer)
+            corridaBloqueadaPorStamina = false;
+
+        SalvarStaminaNoBanco(salvarAgora);
+        SalvarStaminaSegmentadaLocal(salvarAgora);
+    }
+
     public void RestaurarStaminaCompleta()
     {
         staminaAtual = Mathf.Max(1f, staminaMaxima);
+        staminaSegmentosAtuais = Mathf.Max(1, staminaSegmentosMaximos);
+        staminaRecargaReserva = 0f;
         corridaBloqueadaPorStamina = false;
         estaGastandoStamina = false;
         tempoSemGastarStamina = 0f;
         SalvarStaminaNoBanco(true);
+        SalvarStaminaSegmentadaLocal(true);
     }
 
     public void RecarregarEnergiaCompleta()
@@ -322,9 +376,51 @@ public class PlayerMove : MonoBehaviour
         if (!forcar && (!mudouValor || !passouTempo))
             return;
 
-        banco.DefinirStamina(staminaAtual, staminaMaxima);
+        banco.DefinirStamina(staminaAtual, staminaMaxima, forcar);
         ultimaStaminaSalva = staminaAtual;
         ultimoTempoSalvouStamina = Time.time;
+    }
+
+    private void SalvarStaminaSegmentadaLocal(bool forcar)
+    {
+        if (!salvarSegmentosLocalmente)
+            return;
+
+        if (!forcar && ultimoSegmentosSalvos == staminaSegmentosAtuais && Mathf.Abs(ultimaRecargaReservaSalva - staminaRecargaReserva) < 0.25f)
+            return;
+
+        PlayerPrefs.SetInt(KeyStaminaSegmentosAtuais, staminaSegmentosAtuais);
+        PlayerPrefs.SetInt(KeyStaminaSegmentosMaximos, staminaSegmentosMaximos);
+        PlayerPrefs.SetFloat(KeyStaminaRecargaReserva, staminaRecargaReserva);
+        PlayerPrefs.Save();
+
+        ultimoSegmentosSalvos = staminaSegmentosAtuais;
+        ultimaRecargaReservaSalva = staminaRecargaReserva;
+    }
+
+    private void CarregarStaminaSegmentadaLocal()
+    {
+        if (!salvarSegmentosLocalmente)
+            return;
+
+        if (PlayerPrefs.HasKey(KeyStaminaSegmentosMaximos))
+            staminaSegmentosMaximos = Mathf.Max(1, PlayerPrefs.GetInt(KeyStaminaSegmentosMaximos, staminaSegmentosMaximos));
+
+        if (PlayerPrefs.HasKey(KeyStaminaSegmentosAtuais))
+            staminaSegmentosAtuais = Mathf.Clamp(PlayerPrefs.GetInt(KeyStaminaSegmentosAtuais, staminaSegmentosAtuais), 0, staminaSegmentosMaximos);
+        else
+            staminaSegmentosAtuais = Mathf.Clamp(staminaSegmentosAtuais, 0, staminaSegmentosMaximos);
+
+        staminaRecargaReserva = Mathf.Clamp(PlayerPrefs.GetFloat(KeyStaminaRecargaReserva, staminaRecargaReserva), 0f, staminaMaxima);
+        ultimoSegmentosSalvos = staminaSegmentosAtuais;
+        ultimaRecargaReservaSalva = staminaRecargaReserva;
+    }
+
+    private void NormalizarStaminaSegmentada()
+    {
+        staminaSegmentosMaximos = Mathf.Max(1, staminaSegmentosMaximos);
+        staminaSegmentosAtuais = Mathf.Clamp(staminaSegmentosAtuais, 0, staminaSegmentosMaximos);
+        staminaRecargaReserva = Mathf.Clamp(staminaRecargaReserva, 0f, staminaMaxima);
     }
 
     private void ReadInput()
@@ -520,6 +616,14 @@ public class PlayerMove : MonoBehaviour
         if (gastarStaminaApenasNoChao && !isGrounded)
             return false;
 
+        if (usarStaminaSegmentada && staminaSegmentosAtuais <= 0)
+        {
+            if (bloquearCorridaQuandoCansado)
+                corridaBloqueadaPorStamina = true;
+
+            return false;
+        }
+
         if (bloquearCorridaQuandoCansado && corridaBloqueadaPorStamina)
             return false;
 
@@ -534,14 +638,31 @@ public class PlayerMove : MonoBehaviour
         return true;
     }
 
+    private bool PodeLiberarCorridaPorStamina()
+    {
+        if (usarStaminaSegmentada)
+            return staminaSegmentosAtuais > 0 && staminaAtual >= staminaMinimaParaCorrer;
+
+        return staminaAtual >= staminaParaLiberarCorrida;
+    }
+
     private void AtualizarStamina(bool querCorrer, bool correndoAgora)
     {
         if (!usarStamina)
         {
             staminaAtual = staminaMaxima;
+            staminaSegmentosAtuais = staminaSegmentosMaximos;
+            staminaRecargaReserva = 0f;
             estaGastandoStamina = false;
             corridaBloqueadaPorStamina = false;
             SalvarStaminaNoBanco(false);
+            SalvarStaminaSegmentadaLocal(false);
+            return;
+        }
+
+        if (usarStaminaSegmentada)
+        {
+            AtualizarStaminaSegmentada(querCorrer, correndoAgora);
             return;
         }
 
@@ -583,6 +704,130 @@ public class PlayerMove : MonoBehaviour
 
         staminaAtual = Mathf.Clamp(staminaAtual, 0f, staminaMaxima);
         SalvarStaminaNoBanco(false);
+    }
+
+    private void AtualizarStaminaSegmentada(bool querCorrer, bool correndoAgora)
+    {
+        NormalizarStaminaSegmentada();
+
+        bool deveGastar = correndoAgora;
+
+        if (gastarStaminaApenasNoChao && !isGrounded)
+            deveGastar = false;
+
+        if (deveGastar)
+        {
+            estaGastandoStamina = true;
+            tempoSemGastarStamina = 0f;
+            staminaRecargaReserva = 0f;
+
+            staminaAtual -= gastoStaminaPorSegundo * Time.deltaTime;
+
+            if (staminaAtual <= 0f)
+                ConsumirSegmentoDeStamina();
+        }
+        else
+        {
+            estaGastandoStamina = false;
+
+            if (travarNoZeroEnquantoShiftPressionado && staminaSegmentosAtuais <= 0 && querCorrer)
+            {
+                staminaAtual = 0f;
+                staminaRecargaReserva = 0f;
+                tempoSemGastarStamina = 0f;
+
+                if (bloquearCorridaQuandoCansado)
+                    corridaBloqueadaPorStamina = true;
+            }
+            else
+            {
+                tempoSemGastarStamina += Time.deltaTime;
+
+                if (tempoSemGastarStamina >= delayParaRegenerarStamina)
+                    RegenerarStaminaSegmentada();
+            }
+        }
+
+        staminaAtual = Mathf.Clamp(staminaAtual, 0f, staminaMaxima);
+        staminaRecargaReserva = Mathf.Clamp(staminaRecargaReserva, 0f, staminaMaxima);
+        SalvarStaminaNoBanco(false);
+        SalvarStaminaSegmentadaLocal(false);
+    }
+
+    private void ConsumirSegmentoDeStamina()
+    {
+        staminaAtual = 0f;
+
+        if (staminaSegmentosAtuais > 0)
+            staminaSegmentosAtuais--;
+
+        if (staminaSegmentosAtuais > 0 && recarregarBarraAoConsumirSegmento)
+        {
+            staminaAtual = staminaMaxima;
+            corridaBloqueadaPorStamina = false;
+        }
+        else
+        {
+            staminaAtual = 0f;
+
+            if (bloquearCorridaQuandoCansado)
+                corridaBloqueadaPorStamina = true;
+        }
+
+        SalvarStaminaSegmentadaLocal(true);
+    }
+
+    private void RegenerarStaminaSegmentada()
+    {
+        if (staminaSegmentosAtuais <= 0)
+        {
+            staminaAtual += regeneracaoStaminaPorSegundo * Time.deltaTime;
+
+            if (staminaAtual >= staminaMaxima)
+            {
+                staminaAtual = staminaMaxima;
+                staminaSegmentosAtuais = 1;
+                staminaRecargaReserva = 0f;
+                corridaBloqueadaPorStamina = false;
+                SalvarStaminaSegmentadaLocal(true);
+            }
+
+            return;
+        }
+
+        if (staminaAtual < staminaMaxima)
+        {
+            staminaAtual += regeneracaoStaminaPorSegundo * Time.deltaTime;
+
+            if (staminaAtual >= staminaMaxima)
+            {
+                staminaAtual = staminaMaxima;
+
+                if (corridaBloqueadaPorStamina && PodeLiberarCorridaPorStamina())
+                    corridaBloqueadaPorStamina = false;
+            }
+
+            return;
+        }
+
+        if (staminaSegmentosAtuais < staminaSegmentosMaximos)
+        {
+            staminaRecargaReserva += regeneracaoStaminaPorSegundo * Time.deltaTime;
+
+            if (staminaRecargaReserva >= staminaMaxima)
+            {
+                staminaRecargaReserva = 0f;
+                staminaSegmentosAtuais = Mathf.Clamp(staminaSegmentosAtuais + 1, 0, staminaSegmentosMaximos);
+                SalvarStaminaSegmentadaLocal(true);
+            }
+        }
+        else
+        {
+            staminaRecargaReserva = 0f;
+        }
+
+        if (corridaBloqueadaPorStamina && PodeLiberarCorridaPorStamina())
+            corridaBloqueadaPorStamina = false;
     }
 
     private Vector3 GetCameraRelativeDirection(Vector2 input)
@@ -761,6 +1006,9 @@ public class PlayerMove : MonoBehaviour
     {
         staminaMaxima = Mathf.Max(1f, staminaMaxima);
         staminaAtual = Mathf.Clamp(staminaAtual, 0f, staminaMaxima);
+        staminaSegmentosMaximos = Mathf.Max(1, staminaSegmentosMaximos);
+        staminaSegmentosAtuais = Mathf.Clamp(staminaSegmentosAtuais, 0, staminaSegmentosMaximos);
+        staminaRecargaReserva = Mathf.Clamp(staminaRecargaReserva, 0f, staminaMaxima);
         staminaMinimaParaCorrer = Mathf.Clamp(staminaMinimaParaCorrer, 0f, staminaMaxima);
         staminaParaLiberarCorrida = Mathf.Clamp(staminaParaLiberarCorrida, staminaMinimaParaCorrer, staminaMaxima);
         diferencaMinimaParaSalvarStamina = Mathf.Max(0.01f, diferencaMinimaParaSalvarStamina);
