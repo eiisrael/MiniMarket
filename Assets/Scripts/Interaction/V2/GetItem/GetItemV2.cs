@@ -5,20 +5,14 @@ using UnityEngine;
 /// MiniMarket GetItem V2.
 ///
 /// Sistema limpo de selecionar, pegar, mover e soltar objetos pela câmera ativa.
-/// Projetado para funcionar principalmente com FirstPersonCAM/Camera1Person, mas também aceita qualquer Camera.
-///
-/// Fluxo padrão:
-/// - Segurar botão direito na Camera1Person ativa o zoom/mira.
-/// - Mirar no objeto com GetItemObjectV2 seleciona.
-/// - Segurar botão esquerdo pega.
-/// - Soltar botão esquerdo solta.
+/// Compatível com Unity antigo e Unity 6: usa wrappers para velocity/linearVelocity e drag/linearDamping.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(20200)]
 public class GetItemV2 : MonoBehaviour
 {
     [Header("Referências")]
-    public Camera cameraOrigem;
+    public UnityEngine.Camera cameraOrigem;
     public Transform raizPlayer;
 
     [Header("Input")]
@@ -163,10 +157,10 @@ public class GetItemV2 : MonoBehaviour
     private void ResolverReferencias()
     {
         if (cameraOrigem == null)
-            cameraOrigem = GetComponent<Camera>();
+            cameraOrigem = GetComponent<UnityEngine.Camera>();
 
         if (cameraOrigem == null)
-            cameraOrigem = Camera.main;
+            cameraOrigem = UnityEngine.Camera.main;
     }
 
     private void AtualizarSelecao()
@@ -267,19 +261,19 @@ public class GetItemV2 : MonoBehaviour
 
         rbGravityOriginal = rbPegando.useGravity;
         rbKinematicOriginal = rbPegando.isKinematic;
-        rbLinearDampingOriginal = rbPegando.linearDamping;
-        rbAngularDampingOriginal = rbPegando.angularDamping;
+        rbLinearDampingOriginal = GetLinearDamping(rbPegando);
+        rbAngularDampingOriginal = GetAngularDamping(rbPegando);
         rbConstraintsOriginal = rbPegando.constraints;
         rbInterpolationOriginal = rbPegando.interpolation;
         rbCollisionOriginal = rbPegando.collisionDetectionMode;
 
-        rbPegando.linearVelocity = Vector3.zero;
+        SetLinearVelocity(rbPegando, Vector3.zero);
         rbPegando.angularVelocity = Vector3.zero;
         rbPegando.useGravity = false;
         rbPegando.isKinematic = usarKinematicEnquantoSegura;
         rbPegando.constraints = RigidbodyConstraints.None;
-        rbPegando.linearDamping = 1.5f;
-        rbPegando.angularDamping = 4f;
+        SetLinearDamping(rbPegando, 1.5f);
+        SetAngularDamping(rbPegando, 4f);
         rbPegando.interpolation = RigidbodyInterpolation.Interpolate;
         rbPegando.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rbPegando.WakeUp();
@@ -327,7 +321,7 @@ public class GetItemV2 : MonoBehaviour
         else
         {
             Vector3 velocidadeDesejada = Vector3.ClampMagnitude(erro * rigidezVelocidade, velocidadeMaxima);
-            rbPegando.linearVelocity = Vector3.Lerp(rbPegando.linearVelocity, velocidadeDesejada, suavizacaoMovimento);
+            SetLinearVelocity(rbPegando, Vector3.Lerp(GetLinearVelocity(rbPegando), velocidadeDesejada, suavizacaoMovimento));
         }
 
         Quaternion rotacaoAlvo = CalcularRotacaoAlvo();
@@ -392,17 +386,17 @@ public class GetItemV2 : MonoBehaviour
 
         if (rbPegando != null)
         {
-            Vector3 vel = rbPegando.isKinematic ? Vector3.zero : rbPegando.linearVelocity * multiplicadorVelocidadeSoltar;
+            Vector3 vel = rbPegando.isKinematic ? Vector3.zero : GetLinearVelocity(rbPegando) * multiplicadorVelocidadeSoltar;
             Vector3 ang = rbPegando.isKinematic ? Vector3.zero : rbPegando.angularVelocity * multiplicadorAngularSoltar;
 
             rbPegando.isKinematic = dinamicoAoSoltar ? false : rbKinematicOriginal;
             rbPegando.useGravity = dinamicoAoSoltar ? usarGravidadeAoSoltar : rbGravityOriginal;
             rbPegando.constraints = removerConstraintsAoSoltar ? RigidbodyConstraints.None : rbConstraintsOriginal;
-            rbPegando.linearDamping = dinamicoAoSoltar ? linearDampingSoltar : rbLinearDampingOriginal;
-            rbPegando.angularDamping = dinamicoAoSoltar ? angularDampingSoltar : rbAngularDampingOriginal;
+            SetLinearDamping(rbPegando, dinamicoAoSoltar ? linearDampingSoltar : rbLinearDampingOriginal);
+            SetAngularDamping(rbPegando, dinamicoAoSoltar ? angularDampingSoltar : rbAngularDampingOriginal);
             rbPegando.interpolation = rbInterpolationOriginal;
             rbPegando.collisionDetectionMode = rbCollisionOriginal;
-            rbPegando.linearVelocity = vel;
+            SetLinearVelocity(rbPegando, vel);
             rbPegando.angularVelocity = ang;
             rbPegando.WakeUp();
         }
@@ -440,7 +434,7 @@ public class GetItemV2 : MonoBehaviour
 
     private bool DeveIgnorarCollider(Collider col)
     {
-        if (col == null || !col.enabled || col.isTrigger && ignorarTriggers)
+        if (col == null || !col.enabled || (col.isTrigger && ignorarTriggers))
             return true;
 
         if (raizPlayer != null && col.transform.IsChildOf(raizPlayer))
@@ -535,6 +529,60 @@ public class GetItemV2 : MonoBehaviour
         if (velocidade <= 0.0001f)
             return 1f;
         return 1f - Mathf.Exp(-velocidade * dt);
+    }
+
+    private Vector3 GetLinearVelocity(Rigidbody rb)
+    {
+#if UNITY_6000_0_OR_NEWER
+        return rb.linearVelocity;
+#else
+        return rb.velocity;
+#endif
+    }
+
+    private void SetLinearVelocity(Rigidbody rb, Vector3 value)
+    {
+#if UNITY_6000_0_OR_NEWER
+        rb.linearVelocity = value;
+#else
+        rb.velocity = value;
+#endif
+    }
+
+    private float GetLinearDamping(Rigidbody rb)
+    {
+#if UNITY_6000_0_OR_NEWER
+        return rb.linearDamping;
+#else
+        return rb.drag;
+#endif
+    }
+
+    private void SetLinearDamping(Rigidbody rb, float value)
+    {
+#if UNITY_6000_0_OR_NEWER
+        rb.linearDamping = value;
+#else
+        rb.drag = value;
+#endif
+    }
+
+    private float GetAngularDamping(Rigidbody rb)
+    {
+#if UNITY_6000_0_OR_NEWER
+        return rb.angularDamping;
+#else
+        return rb.angularDrag;
+#endif
+    }
+
+    private void SetAngularDamping(Rigidbody rb, float value)
+    {
+#if UNITY_6000_0_OR_NEWER
+        rb.angularDamping = value;
+#else
+        rb.angularDrag = value;
+#endif
     }
 
     private void OnValidate()
