@@ -17,7 +17,7 @@ using UnityEngine;
 public class Camera3Person : MonoBehaviour
 {
     [Header("Referências")]
-    public Camera camera3Person;
+    public UnityEngine.Camera camera3Person;
     public Transform target;
     public Transform lookAtOverride;
 
@@ -114,13 +114,13 @@ public class Camera3Person : MonoBehaviour
     public float YawAtual => yaw;
     public float PitchAtual => pitch;
     public bool ZoomAtivo => usarZoom && zoomEnquantoSeguraBotao && Input.GetMouseButton(botaoZoomMira);
-    public Camera Camera => camera3Person;
+    public UnityEngine.Camera UnityCamera => camera3Person;
 
     private void Reset()
     {
-        camera3Person = GetComponent<Camera>();
+        camera3Person = GetComponent<UnityEngine.Camera>();
         if (camera3Person == null)
-            camera3Person = Camera.main;
+            camera3Person = UnityEngine.Camera.main;
     }
 
     private void Awake()
@@ -167,7 +167,7 @@ public class Camera3Person : MonoBehaviour
         target = novoTarget;
         possuiUltimaTarget = false;
         if (resetarAngulo)
-            InicializarEstado();
+            ReinicializarEstado();
     }
 
     public void DefinirAngulos(float novoYaw, float novoPitch)
@@ -179,10 +179,10 @@ public class Camera3Person : MonoBehaviour
     private void ResolverReferencias()
     {
         if (camera3Person == null)
-            camera3Person = GetComponent<Camera>();
+            camera3Person = GetComponent<UnityEngine.Camera>();
 
         if (camera3Person == null)
-            camera3Person = Camera.main;
+            camera3Person = UnityEngine.Camera.main;
     }
 
     private void InicializarEstado()
@@ -190,6 +190,12 @@ public class Camera3Person : MonoBehaviour
         if (inicializado)
             return;
 
+        ReinicializarEstado();
+        inicializado = true;
+    }
+
+    private void ReinicializarEstado()
+    {
         yaw = yawInicial != 0f ? yawInicial : transform.eulerAngles.y;
         pitch = Mathf.Clamp(pitchInicial, minPitch, maxPitch);
         distanciaAtual = distancia;
@@ -201,8 +207,6 @@ public class Camera3Person : MonoBehaviour
             ultimaTargetPos = target.position;
             possuiUltimaTarget = true;
         }
-
-        inicializado = true;
     }
 
     private void AplicarAtivacaoCamera()
@@ -369,7 +373,7 @@ public class Camera3Person : MonoBehaviour
             return true;
 
         Collider col = hit.collider;
-        if (!col.enabled || col.isTrigger && ignorarTriggers)
+        if (!col.enabled || (col.isTrigger && ignorarTriggers))
             return true;
 
         if (hit.distance < ignorarHitMuitoPertoDoAlvo)
