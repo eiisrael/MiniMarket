@@ -3,6 +3,1266 @@
 <style>
 :root{--bg:#04070d;--panel:#0f172a;--panel2:#111c31;--line:#30415f;--txt:#e5eefc;--muted:#9fb1d1;--danger:#ff4f5e;--ok:#3df2a4;--cam:#7dd3fc;--warn:#fbbf24}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0,#122842,#04070d 45%,#02040a);color:var(--txt);font-family:Segoe UI,Arial,sans-serif}header{position:sticky;top:0;z-index:10;padding:24px 30px;background:linear-gradient(135deg,rgba(15,23,42,.98),rgba(2,6,23,.96));border-bottom:1px solid var(--line);box-shadow:0 12px 30px rgba(0,0,0,.35)}h1{margin:0;color:var(--cam);font-size:28px}.subtitle{margin-top:7px;color:var(--muted);font-size:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:18px 30px 0}.card{background:linear-gradient(180deg,var(--panel),#07101f);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.card b{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.card span{display:block;margin-top:7px;font-size:20px;color:#fff}main{padding:20px 30px 80px}.entry{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-left:6px solid var(--cam);border-radius:14px;margin-bottom:14px;padding:14px 16px;box-shadow:0 10px 24px rgba(0,0,0,.28)}.entry.incident{border-left-color:var(--danger);box-shadow:0 0 0 1px rgba(255,79,94,.25),0 10px 28px rgba(255,79,94,.12)}.entry.system{border-left-color:var(--ok)}.entry.camera{border-left-color:var(--warn)}.entry.sample{opacity:.82}.meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.meta span{font-size:12px;color:#cbd5e1;background:#050b15;border:1px solid #334155;border-radius:999px;padding:3px 9px}h2{font-size:17px;margin:0 0 8px;color:#fff}pre{white-space:pre-wrap;margin:0;color:#dbeafe;line-height:1.45;font-size:13px}.hint{margin:18px 30px 0;padding:13px 16px;border:1px solid #24506d;border-radius:13px;background:rgba(125,211,252,.08);color:#dff6ff}
 </style></head><body><header><h1>MiniMarket Camera Realtime Log</h1><div class="subtitle">Monitor exclusivo da câmera. Detecta saltos bruscos, pausa o jogo e registra a causa provável.</div></header><section class="grid"><div class="card"><b>Status</b><span>Realtime</span></div><div class="card"><b>Incidente</b><span>Auto Pause</span></div><div class="card"><b>Arquivo</b><span>CameraRealtimeLog.htm</span></div><div class="card"><b>Spam</b><span>Cooldown</span></div></section><div class="hint">Quando houver mudança brusca, o Play será pausado e a MessageBox mostrará posição, rotação, FOV, input, estado da primeira pessoa e causa provável.</div><main><!-- CAMERA_LOG_ENTRIES -->
+<section class="system">
+<div class="meta"><span>2026-07-09 18:46:32.578</span><span>Sistema</span><span>frame 5918</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:45:10.062</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:44:22.412</span><span>Sistema</span><span>frame 2500</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="incident">
+<div class="meta"><span>2026-07-09 18:44:19.083</span><span>INCIDENTE</span><span>frame 2352</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - LOG NÃO BLOQUEANTE</h2>
+<pre>Frame: 2352 | Time: 26,502 | Unscaled: 26,893
+Camera: Camera_Player
+Pos: (172,504, -0,065, 140,370) | Rot Euler: (329,208, 234,384, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,987
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=68,200 Y=28,050
+CameraGTA: FP=False | Transição=False | Yaw=-1565,615 | Pitch=-45,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(62,802, 25,830)
+FPS aprox: 51
+Frame: 2352 | Time: 26,502 | Unscaled: 26,893
+Camera: Camera_Player
+Pos: (172,504, -0,065, 140,370) | Rot Euler: (329,208, 234,384, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,987
+Input: W=False A=False S=False D=False RMB=False LMB=True
+Mouse Raw: X=68,200 Y=28,050
+CameraGTA: FP=False | Transição=False | Yaw=-1565,615 | Pitch=-45,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(62,802, 25,830)
+FPS aprox: 51
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="incident">
+<div class="meta"><span>2026-07-09 18:44:14.599</span><span>INCIDENTE</span><span>frame 2155</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - LOG NÃO BLOQUEANTE</h2>
+<pre>Frame: 2155 | Time: 22,015 | Unscaled: 22,407
+Camera: Camera_Player
+Pos: (167,883, 1,250, 141,807) | Rot Euler: (353,283, 145,123, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,987
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,200 Y=0,200
+CameraGTA: FP=False | Transição=False | Yaw=-1654,877 | Pitch=-23,201 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,200, 0,200)
+FPS aprox: 3
+Frame: 2155 | Time: 22,015 | Unscaled: 22,407
+Camera: Camera_Player
+Pos: (167,883, 1,250, 141,807) | Rot Euler: (353,283, 145,123, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 3,987
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,200 Y=0,200
+CameraGTA: FP=False | Transição=False | Yaw=-1654,877 | Pitch=-23,201 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(-0,200, 0,200)
+FPS aprox: 3
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:43:52.441</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:40:12.519</span><span>Sistema</span><span>frame 29438</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:48.144</span><span>Camera</span><span>frame 17465</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 17465 | Time: 224,159 | Unscaled: 434,295
+Camera: Main Camera
+Pos: (172,617, 2,211, 146,729) | Rot Euler: (13,028, 306,398, 359,988) | FOV: 58,24
+Alvo: Character 01 | Distância Alvo: 2,494
+Input: W=True A=False S=False D=True RMB=True LMB=True
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=3531,415 | Pitch=-24,742 | Blend=0,102
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 41
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:49.453</span><span>Camera</span><span>frame 17543</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 17543 | Time: 225,468 | Unscaled: 435,604
+Camera: Main Camera
+Pos: (168,563, 3,187, 149,950) | Rot Euler: (33,676, 100,107, 359,111) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,527
+Input: W=True A=True S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=3354,924 | Pitch=14,623 | Blend=0,137
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 61
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:45.189</span><span>Camera</span><span>frame 17293</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 17293 | Time: 221,204 | Unscaled: 431,340
+Camera: Main Camera
+Pos: (173,481, 2,753, 153,019) | Rot Euler: (24,940, 222,784, 0,005) | FOV: 58,42
+Alvo: Character 01 | Distância Alvo: 3,037
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=3484,495 | Pitch=-9,898 | Blend=0,090
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 46
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:45.963</span><span>Camera</span><span>frame 17337</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 17337 | Time: 221,978 | Unscaled: 432,114
+Camera: Main Camera
+Pos: (172,094, 2,991, 151,751) | Rot Euler: (19,667, 239,077, 0,128) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,085
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=3479,160 | Pitch=2,587 | Blend=0,149
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 43
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:39.596</span><span>Camera</span><span>frame 16992</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 16992 | Time: 215,612 | Unscaled: 425,747
+Camera: Main Camera
+Pos: (173,087, 2,769, 150,483) | Rot Euler: (16,204, 256,553, 0,193) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 2,924
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,350 Y=-0,300
+CameraGTA: FP=False | Transição=True | Yaw=3854,399 | Pitch=-6,461 | Blend=0,142
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 49
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:21.775</span><span>Camera</span><span>frame 15956</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 15956 | Time: 197,790 | Unscaled: 407,926
+Camera: Main Camera
+Pos: (174,904, 3,229, 147,678) | Rot Euler: (34,046, 261,339, 0,000) | FOV: 58,49
+Alvo: Character 01 | Distância Alvo: 3,428
+Input: W=False A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=3879,223 | Pitch=2,565 | Blend=0,086
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 49
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:17.957</span><span>Camera</span><span>frame 15709</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 15709 | Time: 193,972 | Unscaled: 404,107
+Camera: Main Camera
+Pos: (177,851, 2,150, 140,983) | Rot Euler: (341,393, 342,309, 359,974) | FOV: 50,05
+Alvo: Character 01 | Distância Alvo: 1,895
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=3929,750 | Pitch=-22,141 | Blend=0,824
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 5
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:18.580</span><span>Camera</span><span>frame 15752</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 15752 | Time: 194,596 | Unscaled: 404,732
+Camera: Main Camera
+Pos: (177,743, 3,050, 141,199) | Rot Euler: (19,971, 315,623, 359,959) | FOV: 59,95
+Alvo: Character 01 | Distância Alvo: 3,172
+Input: W=True A=True S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=3919,646 | Pitch=5,665 | Blend=0,119
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 46
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:36:59.208</span><span>Camera</span><span>frame 14442</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 14442 | Time: 175,217 | Unscaled: 385,353
+Camera: Main Camera
+Pos: (173,961, 1,954, 139,857) | Rot Euler: (6,905, 350,866, 0,000) | FOV: 59,07
+Alvo: Character 01 | Distância Alvo: 2,494
+Input: W=True A=False S=False D=False RMB=True LMB=True
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=4310,931 | Pitch=-32,195 | Blend=0,051
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 82
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:37:01.613</span><span>Camera</span><span>frame 14577</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 14577 | Time: 177,629 | Unscaled: 387,765
+Camera: Main Camera
+Pos: (173,583, 2,939, 139,954) | Rot Euler: (24,207, 17,982, 0,281) | FOV: 59,93
+Alvo: Character 01 | Distância Alvo: 3,339
+Input: W=False A=False S=True D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,200
+CameraGTA: FP=False | Transição=True | Yaw=4338,530 | Pitch=1,573 | Blend=0,143
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=True
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 86
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:30:34.244</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:27:08.518</span><span>Sistema</span><span>frame 5078</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:09:26.472</span><span>Camera</span><span>frame 2621</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 2621 | Time: 49,086 | Unscaled: 109,323
+Camera: Main Camera
+Pos: (178,359, 1,716, 133,506) | Rot Euler: (359,176, 339,326, 0,000) | FOV: 59,01
+Alvo: Character 01 | Distância Alvo: 2,200
+Input: W=False A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=1431,633 | Pitch=-40,000 | Blend=0,055
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 77
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:09:28.503</span><span>Camera</span><span>frame 2798</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 2798 | Time: 51,117 | Unscaled: 111,353
+Camera: Main Camera
+Pos: (176,227, 2,854, 134,067) | Rot Euler: (19,957, 54,591, 0,033) | FOV: 58,38
+Alvo: Character 01 | Distância Alvo: 3,429
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-1,250 Y=-0,450
+CameraGTA: FP=False | Transição=True | Yaw=1494,353 | Pitch=-2,139 | Blend=0,142
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 84
+</pre>
+</section>
+
+<section class="incident">
+<div class="meta"><span>2026-07-09 18:07:43.818</span><span>INCIDENTE</span><span>frame 307</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - LOG NÃO BLOQUEANTE</h2>
+<pre>Frame: 307 | Time: 6,310 | Unscaled: 6,668
+Camera: Main Camera
+Pos: (173,738, 1,566, 136,459) | Rot Euler: (359,520, 206,903, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,102
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=7,000 Y=1,000
+CameraGTA: FP=False | Transição=False | Yaw=926,903 | Pitch=-40,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 5
+Frame: 307 | Time: 6,310 | Unscaled: 6,668
+Camera: Main Camera
+Pos: (173,738, 1,566, 136,459) | Rot Euler: (359,520, 206,903, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,102
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=7,000 Y=1,000
+CameraGTA: FP=False | Transição=False | Yaw=926,903 | Pitch=-40,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 5
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="incident">
+<div class="meta"><span>2026-07-09 18:07:38.827</span><span>INCIDENTE</span><span>frame 60</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - LOG NÃO BLOQUEANTE</h2>
+<pre>Frame: 60 | Time: 1,319 | Unscaled: 1,678
+Camera: Main Camera
+Pos: (171,488, 1,712, 138,837) | Rot Euler: (359,520, 270,301, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 1,894
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=21,400 Y=15,500
+CameraGTA: FP=False | Transição=False | Yaw=630,301 | Pitch=-40,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 5
+Frame: 60 | Time: 1,319 | Unscaled: 1,678
+Camera: Main Camera
+Pos: (171,488, 1,712, 138,837) | Rot Euler: (359,520, 270,301, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 1,894
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=21,400 Y=15,500
+CameraGTA: FP=False | Transição=False | Yaw=630,301 | Pitch=-40,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 5
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:07:37.371</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:07:29.157</span><span>Sistema</span><span>frame 626</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:07:16.252</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:07:03.023</span><span>Sistema</span><span>frame 4190</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:06:13.488</span><span>Camera</span><span>frame 747</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 747 | Time: 9,128 | Unscaled: 9,324
+Camera: Main Camera
+Pos: (165,924, 2,500, 140,233) | Rot Euler: (19,632, 264,242, 0,000) | FOV: 58,58
+Alvo: Character 01 | Distância Alvo: 2,756
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=271,315 | Pitch=-16,342 | Blend=0,080
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 52
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:06:15.355</span><span>Camera</span><span>frame 915</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 915 | Time: 10,996 | Unscaled: 11,192
+Camera: Main Camera
+Pos: (155,271, 2,883, 143,330) | Rot Euler: (13,520, 277,223, 359,269) | FOV: 59,93
+Alvo: Character 01 | Distância Alvo: 2,989
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,200 Y=-0,100
+CameraGTA: FP=False | Transição=True | Yaw=283,626 | Pitch=-1,497 | Blend=0,149
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 51
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:06:04.225</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:05:56.834</span><span>Sistema</span><span>frame 2772</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:05:28.651</span><span>Camera</span><span>frame 436</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 436 | Time: 5,427 | Unscaled: 5,801
+Camera: Main Camera
+Pos: (171,985, 1,842, 138,107) | Rot Euler: (13,828, 169,673, 358,789) | FOV: 59,93
+Alvo: Character 01 | Distância Alvo: 1,846
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=2,450 Y=0,500
+CameraGTA: FP=False | Transição=True | Yaw=205,146 | Pitch=-17,696 | Blend=0,149
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 80
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:05:25.249</span><span>Camera</span><span>frame 160</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 160 | Time: 2,025 | Unscaled: 2,399
+Camera: Main Camera
+Pos: (169,626, 1,649, 140,110) | Rot Euler: (1,695, 164,914, 0,000) | FOV: 58,87
+Alvo: Character 01 | Distância Alvo: 2,443
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,800 Y=-0,150
+CameraGTA: FP=True | Transição=True | Yaw=161,908 | Pitch=-37,347 | Blend=0,063
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 67
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:05:23.092</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:05:09.774</span><span>Sistema</span><span>frame 238</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:05:06.530</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:04:42.416</span><span>Sistema</span><span>frame 207</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:04:39.438</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:04:34.345</span><span>Sistema</span><span>frame 952</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:04:30.500</span><span>Camera</span><span>frame 744</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 744 | Time: 10,785 | Unscaled: 10,994
+Camera: Main Camera
+Pos: (172,524, 3,054, 148,491) | Rot Euler: (26,793, 299,533, 0,927) | FOV: 59,93
+Alvo: Character 01 | Distância Alvo: 3,086
+Input: W=False A=False S=True D=False RMB=False LMB=False
+Mouse Raw: X=0,400 Y=0,100
+CameraGTA: FP=False | Transição=True | Yaw=-76,135 | Pitch=5,659 | Blend=0,148
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 48
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:04:26.802</span><span>Camera</span><span>frame 524</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 524 | Time: 7,087 | Unscaled: 7,296
+Camera: Main Camera
+Pos: (175,154, 3,363, 148,278) | Rot Euler: (36,633, 276,132, 0,000) | FOV: 58,98
+Alvo: Character 01 | Distância Alvo: 3,532
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,050 Y=-0,050
+CameraGTA: FP=True | Transição=True | Yaw=-80,516 | Pitch=6,322 | Blend=0,056
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 75
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:04:23.418</span><span>Camera</span><span>frame 302</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 302 | Time: 3,704 | Unscaled: 3,913
+Camera: Main Camera
+Pos: (168,591, 3,045, 138,672) | Rot Euler: (33,017, 74,857, 0,082) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,577
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,150 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=73,660 | Pitch=13,534 | Blend=0,133
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 77
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:04:24.213</span><span>Camera</span><span>frame 357</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 357 | Time: 4,498 | Unscaled: 4,708
+Camera: Main Camera
+Pos: (172,551, 3,230, 138,624) | Rot Euler: (36,950, 28,234, 0,000) | FOV: 58,71
+Alvo: Character 01 | Distância Alvo: 3,930
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,800 Y=0,050
+CameraGTA: FP=True | Transição=True | Yaw=32,488 | Pitch=7,037 | Blend=0,073
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 58
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:04:25.465</span><span>Camera</span><span>frame 436</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 436 | Time: 5,751 | Unscaled: 5,960
+Camera: Main Camera
+Pos: (174,852, 3,082, 141,422) | Rot Euler: (26,785, 2,047, 0,272) | FOV: 59,93
+Alvo: Character 01 | Distância Alvo: 3,335
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,450 Y=-0,050
+CameraGTA: FP=False | Transição=True | Yaw=-0,793 | Pitch=7,538 | Blend=0,146
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 56
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:04:21.816</span><span>Camera</span><span>frame 156</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 156 | Time: 2,101 | Unscaled: 2,310
+Camera: Main Camera
+Pos: (168,391, 1,799, 138,409) | Rot Euler: (2,593, 66,885, 0,000) | FOV: 58,53
+Alvo: Character 01 | Distância Alvo: 2,653
+Input: W=False A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=63,996 | Pitch=-36,071 | Blend=0,083
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 50
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:04:19.568</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:04:13.538</span><span>Sistema</span><span>frame 2055</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:03:58.726</span><span>Camera</span><span>frame 799</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 799 | Time: 10,814 | Unscaled: 11,038
+Camera: Main Camera
+Pos: (167,253, 1,720, 134,494) | Rot Euler: (358,719, 311,623, 0,000) | FOV: 58,51
+Alvo: Character 01 | Distância Alvo: 1,948
+Input: W=False A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=304,189 | Pitch=-40,000 | Blend=0,085
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 50
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:03:59.618</span><span>Camera</span><span>frame 880</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 880 | Time: 11,706 | Unscaled: 11,930
+Camera: Main Camera
+Pos: (166,743, 1,953, 135,372) | Rot Euler: (358,826, 279,669, 0,125) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 1,708
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,050 Y=-0,250
+CameraGTA: FP=False | Transição=True | Yaw=282,316 | Pitch=-20,786 | Blend=0,137
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 99
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:03:47.773</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:03:13.609</span><span>Sistema</span><span>frame 622</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:03:11.145</span><span>Camera</span><span>frame 439</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 439 | Time: 4,691 | Unscaled: 4,847
+Camera: Main Camera
+Pos: (171,532, 2,794, 135,388) | Rot Euler: (18,190, 284,258, 0,001) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 2,936
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=284,253 | Pitch=-5,052 | Blend=0,127
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 55
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:03:07.148</span><span>Camera</span><span>frame 55</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 55 | Time: 0,694 | Unscaled: 0,850
+Camera: Main Camera
+Pos: (167,954, 4,455, 138,344) | Rot Euler: (57,862, 79,217, 0,000) | FOV: 59,26
+Alvo: Character 01 | Distância Alvo: 4,721
+Input: W=False A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=75,900 | Pitch=38,224 | Blend=0,041
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 103
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:03:06.359</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:03:01.835</span><span>Sistema</span><span>frame 930</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:57.289</span><span>Camera</span><span>frame 587</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 587 | Time: 6,931 | Unscaled: 7,200
+Camera: Main Camera
+Pos: (159,904, 2,868, 134,017) | Rot Euler: (20,096, 269,278, 0,027) | FOV: 59,93
+Alvo: Character 01 | Distância Alvo: 2,963
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,100 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=269,038 | Pitch=-1,800 | Blend=0,148
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 66
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:55.025</span><span>Camera</span><span>frame 384</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 384 | Time: 4,667 | Unscaled: 4,936
+Camera: Main Camera
+Pos: (169,689, 1,982, 139,350) | Rot Euler: (7,397, 210,766, 0,000) | FOV: 59,02
+Alvo: Character 01 | Distância Alvo: 2,429
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,750 Y=-0,150
+CameraGTA: FP=True | Transição=True | Yaw=203,890 | Pitch=-31,367 | Blend=0,054
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 78
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:02:50.150</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:02:39.471</span><span>Sistema</span><span>frame 1384</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:31.609</span><span>Camera</span><span>frame 772</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 772 | Time: 9,226 | Unscaled: 9,420
+Camera: Main Camera
+Pos: (150,750, 1,880, 140,525) | Rot Euler: (358,959, 248,391, 359,735) | FOV: 59,82
+Alvo: Character 01 | Distância Alvo: 1,648
+Input: W=True A=True S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=251,118 | Pitch=-27,386 | Blend=0,135
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 91
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:28.406</span><span>Camera</span><span>frame 501</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 501 | Time: 6,022 | Unscaled: 6,216
+Camera: Main Camera
+Pos: (156,892, 2,838, 128,766) | Rot Euler: (18,853, 36,885, 359,219) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,355
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,450 Y=0,100
+CameraGTA: FP=False | Transição=True | Yaw=388,438 | Pitch=-3,251 | Blend=0,134
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 56
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:29.999</span><span>Camera</span><span>frame 630</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 630 | Time: 7,615 | Unscaled: 7,808
+Camera: Main Camera
+Pos: (160,741, 2,114, 138,936) | Rot Euler: (10,705, 241,230, 0,000) | FOV: 58,76
+Alvo: Character 01 | Distância Alvo: 2,380
+Input: W=True A=False S=False D=True RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=251,118 | Pitch=-27,386 | Blend=0,069
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 61
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:30.430</span><span>Camera</span><span>frame 668</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 668 | Time: 8,047 | Unscaled: 8,240
+Camera: Main Camera
+Pos: (157,517, 1,922, 139,429) | Rot Euler: (359,604, 248,300, 359,661) | FOV: 59,55
+Alvo: Character 01 | Distância Alvo: 1,745
+Input: W=True A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=251,118 | Pitch=-27,386 | Blend=0,140
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 80
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:31.030</span><span>Camera</span><span>frame 721</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 721 | Time: 8,647 | Unscaled: 8,840
+Camera: Main Camera
+Pos: (154,983, 2,114, 141,396) | Rot Euler: (10,738, 246,452, 0,000) | FOV: 58,80
+Alvo: Character 01 | Distância Alvo: 2,381
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=251,118 | Pitch=-27,386 | Blend=0,067
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 63
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:25.625</span><span>Camera</span><span>frame 254</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 254 | Time: 3,241 | Unscaled: 3,435
+Camera: Main Camera
+Pos: (173,877, 2,112, 133,223) | Rot Euler: (14,348, 301,645, 0,000) | FOV: 58,86
+Alvo: Character 01 | Distância Alvo: 2,558
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,450 Y=-0,050
+CameraGTA: FP=True | Transição=True | Yaw=297,665 | Pitch=-23,182 | Blend=0,064
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 66
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:26.417</span><span>Camera</span><span>frame 323</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 323 | Time: 4,034 | Unscaled: 4,227
+Camera: Main Camera
+Pos: (167,707, 1,977, 134,335) | Rot Euler: (4,031, 174,246, 0,998) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 1,936
+Input: W=True A=False S=False D=True RMB=False LMB=False
+Mouse Raw: X=-0,250 Y=-0,050
+CameraGTA: FP=False | Transição=True | Yaw=171,484 | Pitch=-18,452 | Blend=0,149
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 104
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:02:26.601</span><span>Camera</span><span>frame 337</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 337 | Time: 4,217 | Unscaled: 4,410
+Camera: Main Camera
+Pos: (167,591, 2,489, 134,901) | Rot Euler: (19,714, 194,475, 0,000) | FOV: 59,11
+Alvo: Character 01 | Distância Alvo: 2,996
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=1,950 Y=-0,100
+CameraGTA: FP=True | Transição=True | Yaw=195,314 | Pitch=-16,771 | Blend=0,048
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 87
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:02:22.252</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:01:56.317</span><span>Sistema</span><span>frame 819</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:01:54.219</span><span>Camera</span><span>frame 660</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 660 | Time: 7,729 | Unscaled: 7,926
+Camera: Main Camera
+Pos: (171,374, 2,949, 139,490) | Rot Euler: (23,657, 241,575, 0,000) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,034
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=-118,423 | Pitch=2,136 | Blend=0,135
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 94
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:01:47.406</span><span>Camera</span><span>frame 68</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 68 | Time: 0,916 | Unscaled: 1,113
+Camera: Main Camera
+Pos: (167,849, 4,126, 139,323) | Rot Euler: (51,399, 108,894, 0,000) | FOV: 58,76
+Alvo: Character 01 | Distância Alvo: 4,525
+Input: W=False A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=100,309 | Pitch=28,503 | Blend=0,070
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 60
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:01:46.358</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:01:31.593</span><span>Sistema</span><span>frame 1493</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:01:28.285</span><span>Camera</span><span>frame 1246</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 1246 | Time: 15,596 | Unscaled: 15,957
+Camera: Main Camera
+Pos: (166,734, 2,966, 138,870) | Rot Euler: (23,822, 136,446, 0,167) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,449
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-0,700 Y=-0,050
+CameraGTA: FP=False | Transição=True | Yaw=851,649 | Pitch=2,936 | Blend=0,134
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 97
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:01:25.869</span><span>Camera</span><span>frame 1052</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 1052 | Time: 13,180 | Unscaled: 13,541
+Camera: Main Camera
+Pos: (161,516, 2,637, 136,434) | Rot Euler: (22,375, 69,929, 0,000) | FOV: 58,32
+Alvo: Character 01 | Distância Alvo: 3,450
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=795,763 | Pitch=-12,471 | Blend=0,096
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 44
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:01:15.684</span><span>Camera</span><span>frame 226</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 226 | Time: 2,995 | Unscaled: 3,356
+Camera: Main Camera
+Pos: (176,333, 2,953, 135,704) | Rot Euler: (28,917, 53,873, 0,000) | FOV: 58,61
+Alvo: Character 01 | Distância Alvo: 3,689
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=57,939 | Pitch=-4,131 | Blend=0,079
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 53
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 18:01:17.221</span><span>Camera</span><span>frame 372</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 372 | Time: 4,531 | Unscaled: 4,892
+Camera: Main Camera
+Pos: (181,239, 2,986, 139,664) | Rot Euler: (30,478, 144,961, 359,648) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,391
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,700 Y=0,300
+CameraGTA: FP=False | Transição=True | Yaw=153,657 | Pitch=3,560 | Blend=0,135
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 77
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:01:12.557</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:00:51.483</span><span>Sistema</span><span>frame 1513</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 18:00:31.927</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:59:56.751</span><span>Sistema</span><span>frame 1601</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:59:45.773</span><span>Camera</span><span>frame 829</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 829 | Time: 10,357 | Unscaled: 10,556
+Camera: Main Camera
+Pos: (176,572, 2,557, 138,656) | Rot Euler: (24,170, 267,981, 0,000) | FOV: 59,09
+Alvo: Character 01 | Distância Alvo: 2,961
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=-88,190 | Pitch=-10,983 | Blend=0,050
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 83
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:59:47.221</span><span>Camera</span><span>frame 956</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 956 | Time: 11,805 | Unscaled: 12,004
+Camera: Main Camera
+Pos: (169,400, 2,747, 138,403) | Rot Euler: (16,334, 244,957, 359,993) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 2,926
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=-115,062 | Pitch=-6,911 | Blend=0,136
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 57
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:59:41.259</span><span>Camera</span><span>frame 457</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 457 | Time: 5,843 | Unscaled: 6,042
+Camera: Main Camera
+Pos: (171,641, 2,069, 134,970) | Rot Euler: (9,576, 280,832, 0,000) | FOV: 58,82
+Alvo: Character 01 | Distância Alvo: 2,315
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=3,800 Y=-0,100
+CameraGTA: FP=True | Transição=True | Yaw=-81,440 | Pitch=-28,743 | Blend=0,066
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 64
+</pre>
+</section>
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:59:42.965</span><span>Camera</span><span>frame 596</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 596 | Time: 7,549 | Unscaled: 7,748
+Camera: Main Camera
+Pos: (166,410, 3,019, 137,857) | Rot Euler: (28,088, 123,093, 359,600) | FOV: 59,93
+Alvo: Character 01 | Distância Alvo: 3,511
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=113,371 | Pitch=5,191 | Blend=0,147
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 83
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:59:35.283</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:59:25.054</span><span>Sistema</span><span>frame 1420</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:59:06.533</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:58:49.039</span><span>Sistema</span><span>frame 770</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:58:37.947</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:57:11.391</span><span>Sistema</span><span>frame 8406</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:55:32.193</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:35:03.395</span><span>Sistema</span><span>frame 8563</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:34:56.343</span><span>Camera</span><span>frame 8195</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 8195 | Time: 133,005 | Unscaled: 191,093
+Camera: Main Camera
+Pos: (182,406, 2,115, 133,162) | Rot Euler: (19,025, 125,764, 359,257) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 2,133
+Input: W=True A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,350 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=126,115 | Pitch=2,422 | Blend=0,135
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 97
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:34:53.654</span><span>Camera</span><span>frame 8026</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 8026 | Time: 130,316 | Unscaled: 188,404
+Camera: Main Camera
+Pos: (178,673, 1,969, 122,513) | Rot Euler: (7,022, 20,577, 0,000) | FOV: 58,34
+Alvo: Character 01 | Distância Alvo: 2,575
+Input: W=True A=False S=False D=True RMB=True LMB=False
+Mouse Raw: X=-0,050 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=28,230 | Pitch=-23,619 | Blend=0,095
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 44
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:32:42.856</span><span>Camera</span><span>frame 3329</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 3329 | Time: 51,235 | Unscaled: 57,606
+Camera: Main Camera
+Pos: (176,608, 2,951, 138,420) | Rot Euler: (30,368, 318,600, 359,987) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,190
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=False | Transição=True | Yaw=318,714 | Pitch=13,636 | Blend=0,134
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 50
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 17:32:29.418</span><span>Camera</span><span>frame 2447</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 2447 | Time: 37,792 | Unscaled: 44,163
+Camera: Main Camera
+Pos: (131,352, 1,911, 140,754) | Rot Euler: (4,894, 36,445, 0,000) | FOV: 58,13
+Alvo: Character 01 | Distância Alvo: 2,528
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=33,748 | Pitch=-25,649 | Blend=0,109
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 39
+</pre>
+</section>
+
+<section class="incident">
+<div class="meta"><span>2026-07-09 17:31:48.673</span><span>INCIDENTE</span><span>frame 115</span></div>
+<h2>MUDANÇA BRUSCA DETECTADA - LOG NÃO BLOQUEANTE</h2>
+<pre>Frame: 115 | Time: 2,037 | Unscaled: 3,417
+Camera: Main Camera
+Pos: (168,365, 1,484, 139,342) | Rot Euler: (351,355, 118,852, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,231
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-2,300 Y=4,950
+CameraGTA: FP=False | Transição=False | Yaw=118,852 | Pitch=-40,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 2
+Frame: 115 | Time: 2,037 | Unscaled: 3,417
+Camera: Main Camera
+Pos: (168,365, 1,484, 139,342) | Rot Euler: (351,355, 118,852, 0,000) | FOV: 60,00
+Alvo: Character 01 | Distância Alvo: 2,231
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=-2,300 Y=4,950
+CameraGTA: FP=False | Transição=False | Yaw=118,852 | Pitch=-40,000 | Blend=0,000
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 2
+
+
+Arquivo salvo: C:\Users\Home\Desktop\MiniMarket\MiniMarket\CameraRealtimeLog.htm
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:31:45.520</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:04:40.394</span><span>Sistema</span><span>frame 6085</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:02:26.924</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:01:48.075</span><span>Sistema</span><span>frame 2179</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 17:01:11.018</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 04:02:54.632</span><span>Sistema</span><span>frame 2485</span></div>
+<h2>Aplicação finalizada</h2>
+<pre>Flush final do CameraRealtimeLog.</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 04:02:51.417</span><span>Camera</span><span>frame 2352</span></div>
+<h2>Saiu da primeira pessoa</h2>
+<pre>Frame: 2352 | Time: 44,890 | Unscaled: 113,111
+Camera: Main Camera
+Pos: (170,142, 3,786, 147,909) | Rot Euler: (65,855, 55,064, 0,000) | FOV: 59,94
+Alvo: Character 01 | Distância Alvo: 3,742
+Input: W=False A=False S=False D=False RMB=False LMB=False
+Mouse Raw: X=1,900 Y=-0,550
+CameraGTA: FP=False | Transição=True | Yaw=2215,064 | Pitch=53,422 | Blend=0,130
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 4
+</pre>
+</section>
+
+<section class="camera">
+<div class="meta"><span>2026-07-09 04:01:51.911</span><span>Camera</span><span>frame 2306</span></div>
+<h2>Entrou em primeira pessoa</h2>
+<pre>Frame: 2306 | Time: 43,515 | Unscaled: 53,598
+Camera: Main Camera
+Pos: (174,260, 2,745, 148,960) | Rot Euler: (27,497, 245,386, 0,000) | FOV: 57,78
+Alvo: Character 01 | Distância Alvo: 2,828
+Input: W=True A=False S=False D=False RMB=True LMB=False
+Mouse Raw: X=0,000 Y=0,000
+CameraGTA: FP=True | Transição=True | Yaw=2056,810 | Pitch=1,324 | Blend=0,132
+Smooth: Pos=0 Rot=0 MouseFP=0 AutoAlign=False
+VelocityInterna=(0,000, 0,000, 0,000) | MouseSuavizado=(0,000, 0,000)
+FPS aprox: 32
+</pre>
+</section>
+
+<section class="system">
+<div class="meta"><span>2026-07-09 04:00:59.076</span><span>Sistema</span><span>frame 0</span></div>
+<h2>Camera realtime logger iniciado</h2>
+<pre>Logger em modo não bloqueante: registra incidentes sem pausar gameplay/HUD/stamina.</pre>
+</section>
+
 <section class="entry sample">
 <div class="meta"><span>2026-07-09 03:25:37.135</span><span>Sample</span><span>frame 11274</span></div>
 <h2>Amostra câmera</h2>
