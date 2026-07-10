@@ -18,7 +18,7 @@ using UnityEngine.UI;
 public class Camera1Person : MonoBehaviour
 {
     [Header("Referências")]
-    public Camera camera1Person;
+    public UnityEngine.Camera camera1Person;
     public Transform corpoPersonagem;
     public Transform pontoPOV;
     public GetItemV2 getItem;
@@ -91,11 +91,11 @@ public class Camera1Person : MonoBehaviour
     public float YawAtual => yaw;
     public float PitchAtual => pitch;
     public bool ZoomAtivo => cameraAtiva && usarZoom && zoomEnquantoSegura && Input.GetMouseButton(botaoZoom);
-    public Camera Camera => camera1Person;
+    public UnityEngine.Camera UnityCamera => camera1Person;
 
     private void Reset()
     {
-        camera1Person = GetComponent<Camera>();
+        camera1Person = GetComponent<UnityEngine.Camera>();
         getItem = GetComponent<GetItemV2>();
     }
 
@@ -174,7 +174,7 @@ public class Camera1Person : MonoBehaviour
     private void ResolverReferencias()
     {
         if (camera1Person == null)
-            camera1Person = GetComponent<Camera>();
+            camera1Person = GetComponent<UnityEngine.Camera>();
 
         if (getItem == null)
             getItem = GetComponent<GetItemV2>();
