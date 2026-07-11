@@ -1,9 +1,10 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
 /// Movimentação baseada na direção horizontal da câmera.
 /// Usa CharacterController, aceleração suave, corrida, pulo, gravidade e rotação estável.
-/// Não processa input enquanto menu/pausa bloqueiam o gameplay.
+/// Também atualiza controladores Animator antigos e novos sem exigir nomes únicos.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
@@ -51,11 +52,28 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     [Min(0f)] public float recoveryDelay = 0.8f;
     [Min(0f)] public float minimumStaminaToStartRunning = 5f;
 
-    [Header("Animator")]
+    [Header("Animator - parâmetros principais")]
     public string speedParameter = "Speed";
     public string groundedParameter = "Grounded";
     public string verticalSpeedParameter = "VerticalSpeed";
     [Min(0f)] public float animatorDampTime = 0.08f;
+    public bool normalizedSpeedForAnimator = true;
+    public bool disableAnimatorRootMotion = true;
+    public bool keepAnimatorEnabled = true;
+
+    [Header("Animator - compatibilidade automática")]
+    [Tooltip("Atualiza parâmetros comuns como Walking, Running, IsRunning, IsGrounded, MoveX e MoveY.")]
+    public bool autoDetectCommonAnimatorParameters = true;
+
+    [Tooltip("Se o controlador não possuir parâmetros de locomoção, tenta estados Idle/Walk/Run/Jump diretamente.")]
+    public bool useStateFallbackWhenNoParameters = true;
+
+    public string idleStateName = "Idle";
+    public string walkStateName = "Walk";
+    public string runStateName = "Run";
+    public string jumpStateName = "Jump";
+    [Min(0f)] public float stateTransitionDuration = 0.12f;
+    public bool logAnimatorDiagnostics;
 
     [Header("Input externo / Mobile")]
     public bool useLegacyInput = true;
@@ -69,6 +87,12 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private float currentStamina;
     private float lastRunTime = -100f;
     private bool running;
+    private bool jumpedThisFrame;
+
+    private RuntimeAnimatorController cachedAnimatorController;
+    private readonly HashSet<int> floatParameters = new HashSet<int>();
+    private readonly HashSet<int> boolParameters = new HashSet<int>();
+    private readonly HashSet<int> triggerParameters = new HashSet<int>();
 
     private int speedHash;
     private int groundedHash;
@@ -76,6 +100,35 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private bool hasSpeedParameter;
     private bool hasGroundedParameter;
     private bool hasVerticalSpeedParameter;
+    private bool hasAnyLocomotionParameter;
+
+    private int idleStateHash;
+    private int walkStateHash;
+    private int runStateHash;
+    private int jumpStateHash;
+    private int currentFallbackStateHash;
+
+    private bool loggedMissingAnimator;
+    private bool loggedMissingController;
+    private bool loggedNoAnimationMapping;
+
+    private static readonly int WalkingHash = Animator.StringToHash("Walking");
+    private static readonly int IsWalkingHash = Animator.StringToHash("IsWalking");
+    private static readonly int RunningHash = Animator.StringToHash("Running");
+    private static readonly int IsRunningHash = Animator.StringToHash("IsRunning");
+    private static readonly int IsGroundedHash = Animator.StringToHash("IsGrounded");
+    private static readonly int JumpingHash = Animator.StringToHash("Jumping");
+    private static readonly int IsJumpingHash = Animator.StringToHash("IsJumping");
+    private static readonly int JumpHash = Animator.StringToHash("Jump");
+    private static readonly int VerticalVelocityHash = Animator.StringToHash("VerticalVelocity");
+    private static readonly int MoveXHash = Animator.StringToHash("MoveX");
+    private static readonly int MoveYHash = Animator.StringToHash("MoveY");
+    private static readonly int InputXHash = Animator.StringToHash("InputX");
+    private static readonly int InputYHash = Animator.StringToHash("InputY");
+    private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
+    private static readonly int VelocityHash = Animator.StringToHash("Velocity");
+    private static readonly int StaminaHash = Animator.StringToHash("Stamina");
+    private static readonly int IsTiredHash = Animator.StringToHash("IsTired");
 
     public Vector3 Velocity => horizontalVelocity + Vector3.up * verticalVelocity;
     public float CurrentSpeed => horizontalVelocity.magnitude;
@@ -101,25 +154,30 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     {
         controller = GetComponent<CharacterController>();
         currentStamina = Mathf.Max(1f, maxStamina);
+        RefreshAnimatorConfiguration();
+    }
 
-        if (animator == null)
-            animator = GetComponentInChildren<Animator>(true);
-
-        CacheAnimatorParameters();
+    private void OnEnable()
+    {
+        RefreshAnimatorConfiguration();
     }
 
     private void Start()
     {
         ResolveCamera();
+        RefreshAnimatorConfiguration();
     }
 
     private void Update()
     {
         ResolveCamera();
+        EnsureAnimatorConfigurationIsCurrent();
 
         float deltaTime = Mathf.Clamp(Time.deltaTime, 0f, 0.05f);
         if (deltaTime <= 0f)
             return;
+
+        jumpedThisFrame = false;
 
         bool inputBlocked = GameplayInputState.IsBlocked;
         Vector2 input = inputBlocked ? Vector2.zero : ReadMoveInput();
@@ -159,7 +217,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f)
             verticalVelocity = 0f;
 
-        UpdateAnimator(deltaTime);
+        UpdateAnimator(input, deltaTime);
         externalJump = false;
     }
 
@@ -185,6 +243,59 @@ public sealed class CameraRelativeMovement : MonoBehaviour
 
     public void RestaurarStaminaCompleta() => RestoreStaminaFull();
     public void RecarregarStaminaCompleta() => RestoreStaminaFull();
+
+    /// <summary>
+    /// Rebusca o Animator, desliga root motion e reconstrói o mapa de parâmetros/estados.
+    /// Pode ser chamado pelo setup do Editor depois de trocar o Animator Controller.
+    /// </summary>
+    public bool RefreshAnimatorConfiguration()
+    {
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>(true);
+
+        if (animator == null)
+        {
+            LogAnimatorWarningOnce(
+                "Animator não encontrado no personagem ou nos filhos.",
+                ref loggedMissingAnimator
+            );
+            ClearAnimatorCache();
+            return false;
+        }
+
+        if (keepAnimatorEnabled && !animator.enabled)
+            animator.enabled = true;
+
+        if (disableAnimatorRootMotion)
+            animator.applyRootMotion = false;
+
+        cachedAnimatorController = animator.runtimeAnimatorController;
+        CacheAnimatorParameters();
+        CacheFallbackStates();
+
+        if (cachedAnimatorController == null)
+        {
+            LogAnimatorWarningOnce(
+                "O componente Animator existe, mas Runtime Animator Controller está vazio.",
+                ref loggedMissingController
+            );
+            return false;
+        }
+
+        if (!hasAnyLocomotionParameter &&
+            idleStateHash == 0 &&
+            walkStateHash == 0 &&
+            runStateHash == 0)
+        {
+            LogAnimatorWarningOnce(
+                "Nenhum parâmetro ou estado de locomoção compatível foi encontrado. " +
+                "Use Speed/Walking/Running/IsRunning/MoveX/MoveY ou estados Idle/Walk/Run.",
+                ref loggedNoAnimationMapping
+            );
+        }
+
+        return true;
+    }
 
     private Vector2 ReadMoveInput()
     {
@@ -240,7 +351,11 @@ public sealed class CameraRelativeMovement : MonoBehaviour
                 verticalVelocity = groundedVerticalVelocity;
 
             if (!inputBlocked && allowJump && ReadJumpInput())
+            {
                 verticalVelocity = Mathf.Sqrt(Mathf.Max(0f, jumpHeight * 2f * gravity));
+                jumpedThisFrame = true;
+                SetTriggerIfExists(JumpHash);
+            }
         }
         else
         {
@@ -284,7 +399,9 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         if (!useStamina)
             return true;
 
-        return wasRunning ? currentStamina > 0.01f : currentStamina >= minimumStaminaToStartRunning;
+        return wasRunning
+            ? currentStamina > 0.01f
+            : currentStamina >= minimumStaminaToStartRunning;
     }
 
     private void UpdateStamina(float deltaTime)
@@ -311,46 +428,236 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         }
     }
 
+    private void EnsureAnimatorConfigurationIsCurrent()
+    {
+        if (animator == null)
+        {
+            RefreshAnimatorConfiguration();
+            return;
+        }
+
+        if (animator.runtimeAnimatorController != cachedAnimatorController)
+            RefreshAnimatorConfiguration();
+    }
+
     private void CacheAnimatorParameters()
     {
+        floatParameters.Clear();
+        boolParameters.Clear();
+        triggerParameters.Clear();
+
         hasSpeedParameter = false;
         hasGroundedParameter = false;
         hasVerticalSpeedParameter = false;
-
-        if (animator == null)
-            return;
+        hasAnyLocomotionParameter = false;
 
         speedHash = Animator.StringToHash(speedParameter ?? string.Empty);
         groundedHash = Animator.StringToHash(groundedParameter ?? string.Empty);
         verticalSpeedHash = Animator.StringToHash(verticalSpeedParameter ?? string.Empty);
+
+        if (animator == null || animator.runtimeAnimatorController == null)
+            return;
 
         AnimatorControllerParameter[] parameters = animator.parameters;
         for (int i = 0; i < parameters.Length; i++)
         {
             AnimatorControllerParameter parameter = parameters[i];
 
-            if (parameter.nameHash == speedHash && parameter.type == AnimatorControllerParameterType.Float)
-                hasSpeedParameter = true;
-            else if (parameter.nameHash == groundedHash && parameter.type == AnimatorControllerParameterType.Bool)
-                hasGroundedParameter = true;
-            else if (parameter.nameHash == verticalSpeedHash && parameter.type == AnimatorControllerParameterType.Float)
-                hasVerticalSpeedParameter = true;
+            switch (parameter.type)
+            {
+                case AnimatorControllerParameterType.Float:
+                    floatParameters.Add(parameter.nameHash);
+                    break;
+
+                case AnimatorControllerParameterType.Bool:
+                    boolParameters.Add(parameter.nameHash);
+                    break;
+
+                case AnimatorControllerParameterType.Trigger:
+                    triggerParameters.Add(parameter.nameHash);
+                    break;
+            }
         }
+
+        hasSpeedParameter = floatParameters.Contains(speedHash);
+        hasGroundedParameter = boolParameters.Contains(groundedHash);
+        hasVerticalSpeedParameter = floatParameters.Contains(verticalSpeedHash);
+
+        hasAnyLocomotionParameter =
+            hasSpeedParameter ||
+            floatParameters.Contains(MoveSpeedHash) ||
+            floatParameters.Contains(VelocityHash) ||
+            floatParameters.Contains(MoveXHash) ||
+            floatParameters.Contains(MoveYHash) ||
+            boolParameters.Contains(WalkingHash) ||
+            boolParameters.Contains(IsWalkingHash) ||
+            boolParameters.Contains(RunningHash) ||
+            boolParameters.Contains(IsRunningHash);
     }
 
-    private void UpdateAnimator(float deltaTime)
+    private void CacheFallbackStates()
     {
-        if (animator == null)
+        idleStateHash = 0;
+        walkStateHash = 0;
+        runStateHash = 0;
+        jumpStateHash = 0;
+        currentFallbackStateHash = 0;
+
+        if (animator == null || animator.runtimeAnimatorController == null)
             return;
 
+        idleStateHash = FindFirstStateHash(idleStateName, "Idle", "Standing", "Locomotion.Idle");
+        walkStateHash = FindFirstStateHash(walkStateName, "Walk", "Walking", "Locomotion.Walk");
+        runStateHash = FindFirstStateHash(runStateName, "Run", "Running", "Locomotion.Run");
+        jumpStateHash = FindFirstStateHash(jumpStateName, "Jump", "Jumping", "Locomotion.Jump");
+    }
+
+    private int FindFirstStateHash(params string[] candidates)
+    {
+        if (animator == null || candidates == null)
+            return 0;
+
+        for (int i = 0; i < candidates.Length; i++)
+        {
+            string candidate = candidates[i];
+            if (string.IsNullOrWhiteSpace(candidate))
+                continue;
+
+            int fullPathHash = Animator.StringToHash("Base Layer." + candidate);
+            if (animator.HasState(0, fullPathHash))
+                return fullPathHash;
+
+            int directHash = Animator.StringToHash(candidate);
+            if (animator.HasState(0, directHash))
+                return directHash;
+        }
+
+        return 0;
+    }
+
+    private void UpdateAnimator(Vector2 input, float deltaTime)
+    {
+        if (animator == null || animator.runtimeAnimatorController == null)
+            return;
+
+        if (keepAnimatorEnabled && !animator.enabled)
+            animator.enabled = true;
+
+        bool grounded = controller != null && controller.isGrounded;
+        bool moving = CurrentSpeed > 0.05f && input.sqrMagnitude > 0.001f;
+        bool walking = moving && !running;
+        bool jumping = !grounded || verticalVelocity > 0.1f;
+
+        float normalizedSpeed = runSpeed > 0.001f
+            ? Mathf.Clamp01(CurrentSpeed / runSpeed)
+            : 0f;
+
+        float speedValue = normalizedSpeedForAnimator ? normalizedSpeed : CurrentSpeed;
+
         if (hasSpeedParameter)
-            animator.SetFloat(speedHash, CurrentSpeed, animatorDampTime, deltaTime);
+            animator.SetFloat(speedHash, speedValue, animatorDampTime, deltaTime);
 
         if (hasGroundedParameter)
-            animator.SetBool(groundedHash, controller.isGrounded);
+            animator.SetBool(groundedHash, grounded);
 
         if (hasVerticalSpeedParameter)
             animator.SetFloat(verticalSpeedHash, verticalVelocity);
+
+        if (autoDetectCommonAnimatorParameters)
+        {
+            SetFloatIfExists(MoveSpeedHash, speedValue, deltaTime);
+            SetFloatIfExists(VelocityHash, speedValue, deltaTime);
+            SetFloatIfExists(VerticalVelocityHash, verticalVelocity, deltaTime, false);
+            SetFloatIfExists(MoveXHash, input.x, deltaTime);
+            SetFloatIfExists(MoveYHash, input.y, deltaTime);
+            SetFloatIfExists(InputXHash, input.x, deltaTime);
+            SetFloatIfExists(InputYHash, input.y, deltaTime);
+            SetFloatIfExists(StaminaHash, Stamina01, deltaTime, false);
+
+            SetBoolIfExists(WalkingHash, walking);
+            SetBoolIfExists(IsWalkingHash, walking);
+            SetBoolIfExists(RunningHash, running && moving);
+            SetBoolIfExists(IsRunningHash, running && moving);
+            SetBoolIfExists(IsGroundedHash, grounded);
+            SetBoolIfExists(JumpingHash, jumping);
+            SetBoolIfExists(IsJumpingHash, jumping);
+            SetBoolIfExists(IsTiredHash, EstaCansado);
+        }
+
+        if (jumpedThisFrame)
+            SetTriggerIfExists(JumpHash);
+
+        if (useStateFallbackWhenNoParameters && !hasAnyLocomotionParameter)
+            UpdateFallbackAnimatorState(moving, grounded);
+    }
+
+    private void UpdateFallbackAnimatorState(bool moving, bool grounded)
+    {
+        int desiredState = 0;
+
+        if (!grounded && jumpStateHash != 0)
+            desiredState = jumpStateHash;
+        else if (running && moving && runStateHash != 0)
+            desiredState = runStateHash;
+        else if (moving && walkStateHash != 0)
+            desiredState = walkStateHash;
+        else if (idleStateHash != 0)
+            desiredState = idleStateHash;
+
+        if (desiredState == 0 || desiredState == currentFallbackStateHash)
+            return;
+
+        currentFallbackStateHash = desiredState;
+        animator.CrossFade(desiredState, Mathf.Max(0f, stateTransitionDuration), 0);
+    }
+
+    private void SetFloatIfExists(int hash, float value, float deltaTime, bool damp = true)
+    {
+        if (!floatParameters.Contains(hash))
+            return;
+
+        if (damp && animatorDampTime > 0f)
+            animator.SetFloat(hash, value, animatorDampTime, deltaTime);
+        else
+            animator.SetFloat(hash, value);
+    }
+
+    private void SetBoolIfExists(int hash, bool value)
+    {
+        if (boolParameters.Contains(hash))
+            animator.SetBool(hash, value);
+    }
+
+    private void SetTriggerIfExists(int hash)
+    {
+        if (triggerParameters.Contains(hash))
+            animator.SetTrigger(hash);
+    }
+
+    private void ClearAnimatorCache()
+    {
+        cachedAnimatorController = null;
+        floatParameters.Clear();
+        boolParameters.Clear();
+        triggerParameters.Clear();
+        hasSpeedParameter = false;
+        hasGroundedParameter = false;
+        hasVerticalSpeedParameter = false;
+        hasAnyLocomotionParameter = false;
+        idleStateHash = 0;
+        walkStateHash = 0;
+        runStateHash = 0;
+        jumpStateHash = 0;
+        currentFallbackStateHash = 0;
+    }
+
+    private void LogAnimatorWarningOnce(string message, ref bool alreadyLogged)
+    {
+        if (!logAnimatorDiagnostics || alreadyLogged)
+            return;
+
+        alreadyLogged = true;
+        Debug.LogWarning("[CameraRelativeMovement] " + message, this);
     }
 
     private void ResolveCamera()
@@ -369,7 +676,21 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     {
         walkSpeed = Mathf.Max(0f, walkSpeed);
         runSpeed = Mathf.Max(walkSpeed, runSpeed);
+        acceleration = Mathf.Max(0f, acceleration);
+        deceleration = Mathf.Max(0f, deceleration);
+        gravity = Mathf.Max(0f, gravity);
+        terminalVelocity = Mathf.Max(0f, terminalVelocity);
         maxStamina = Mathf.Max(1f, maxStamina);
         currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        animatorDampTime = Mathf.Max(0f, animatorDampTime);
+        stateTransitionDuration = Mathf.Max(0f, stateTransitionDuration);
+
+        if (!Application.isPlaying)
+        {
+            controller = GetComponent<CharacterController>();
+
+            if (animator == null)
+                animator = GetComponentInChildren<Animator>(true);
+        }
     }
 }
