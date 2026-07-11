@@ -1,10 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Controlador definitivo da câmera do jogador.
-/// Uma única Camera e um único AudioListener atendem primeira e terceira pessoa.
-/// ThirdPersonCamera e FirstPersonCamera apenas calculam poses; este componente é
-/// o único que escreve posição, rotação e FOV.
+/// Controlador central da câmera do jogador.
+///
+/// Regras:
+/// - existe apenas uma Camera real e um AudioListener ativo;
+/// - ThirdPersonCamera e FirstPersonCamera apenas calculam poses;
+/// - este componente é o único autorizado a aplicar posição, rotação e FOV;
+/// - todas as saídas de pose recebem valores seguros antes de qualquer retorno;
+/// - referências ausentes não causam exceção nem variável local sem atribuição.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Camera))]
@@ -51,12 +55,19 @@ public sealed class PlayerCameraController : MonoBehaviour
     [Min(0.1f)] public float initialValidationDuration = 3f;
     [Min(0.05f)] public float initialValidationInterval = 0.25f;
 
+    [Header("Diagnóstico")]
+    public bool logMissingReferences;
+
     private ViewMode currentMode;
     private Vector3 positionVelocity;
     private bool previousMouseState;
     private float startTime;
     private float nextValidationTime;
     private bool cursorInitialized;
+    private bool initialized;
+    private bool loggedMissingThirdPerson;
+    private bool loggedMissingFirstPerson;
+    private bool loggedMissingPlayer;
 
     public ViewMode CurrentMode => currentMode;
     public bool IsFirstPerson => currentMode == ViewMode.FirstPerson;
@@ -65,6 +76,7 @@ public sealed class PlayerCameraController : MonoBehaviour
     private void Reset()
     {
         ResolveReferences();
+        ValidateConfiguration();
     }
 
     private void Awake()
@@ -76,6 +88,7 @@ public sealed class PlayerCameraController : MonoBehaviour
         EnforceSingleCameraAndListener();
         ForceGameplayCursor();
         ApplyRendererVisibility();
+        initialized = true;
 
         if (instantOnStart)
             ForceImmediatePose();
@@ -84,7 +97,22 @@ public sealed class PlayerCameraController : MonoBehaviour
     private void Start()
     {
         ResolveReferences();
+        InitializeModes();
         EnforceSingleCameraAndListener();
+
+        if (instantOnStart)
+            ForceImmediatePose();
+    }
+
+    private void OnEnable()
+    {
+        if (!initialized)
+            return;
+
+        ResolveReferences();
+        InitializeModes();
+        EnforceSingleCameraAndListener();
+        ApplyRendererVisibility();
 
         if (instantOnStart)
             ForceImmediatePose();
@@ -108,10 +136,17 @@ public sealed class PlayerCameraController : MonoBehaviour
             return;
 
         float deltaTime = SafeDeltaTime();
+
         if (IsFirstPerson)
-            firstPerson?.ReadInput(deltaTime);
+        {
+            if (firstPerson != null)
+                firstPerson.ReadInput(deltaTime);
+        }
         else
-            thirdPerson?.ReadInput(deltaTime);
+        {
+            if (thirdPerson != null)
+                thirdPerson.ReadInput(deltaTime);
+        }
     }
 
     private void LateUpdate()
@@ -128,7 +163,10 @@ public sealed class PlayerCameraController : MonoBehaviour
         if (currentMode == mode)
             return;
 
+        ResolveReferences();
+        InitializeModes();
         SynchronizeAngles(mode);
+
         currentMode = mode;
         positionVelocity = Vector3.zero;
         ApplyRendererVisibility();
@@ -144,6 +182,8 @@ public sealed class PlayerCameraController : MonoBehaviour
 
     public void ForceImmediatePose()
     {
+        ResolveReferences();
+        InitializeModes();
         UpdatePose(true);
     }
 
@@ -175,31 +215,20 @@ public sealed class PlayerCameraController : MonoBehaviour
             return;
 
         float deltaTime = SafeDeltaTime();
-        bool valid;
-        Vector3 targetPosition;
-        Quaternion targetRotation;
-        float targetFieldOfView;
 
-        if (IsFirstPerson)
-        {
-            valid = firstPerson != null && firstPerson.TryGetPose(
+        // Valores padrão garantem atribuição em todos os caminhos de execução.
+        Vector3 targetPosition = gameCamera.transform.position;
+        Quaternion targetRotation = gameCamera.transform.rotation;
+        float targetFieldOfView = gameCamera.fieldOfView;
+
+        if (!TryResolveTargetPose(
                 deltaTime,
                 out targetPosition,
                 out targetRotation,
-                out targetFieldOfView
-            );
-        }
-        else
+                out targetFieldOfView))
         {
-            valid = thirdPerson != null && thirdPerson.TryGetPose(
-                out targetPosition,
-                out targetRotation,
-                out targetFieldOfView
-            );
-        }
-
-        if (!valid)
             return;
+        }
 
         Transform cameraTransform = gameCamera.transform;
 
@@ -214,7 +243,7 @@ public sealed class PlayerCameraController : MonoBehaviour
                 cameraTransform.position,
                 targetPosition,
                 ref positionVelocity,
-                positionSmoothTime,
+                Mathf.Max(0.0001f, positionSmoothTime),
                 Mathf.Infinity,
                 deltaTime
             );
@@ -228,13 +257,59 @@ public sealed class PlayerCameraController : MonoBehaviour
                 );
         }
 
+        float safeFieldOfView = Mathf.Clamp(targetFieldOfView, 1f, 179f);
         gameCamera.fieldOfView = immediate || fieldOfViewSpeed <= 0.0001f
-            ? targetFieldOfView
+            ? safeFieldOfView
             : Mathf.Lerp(
                 gameCamera.fieldOfView,
-                targetFieldOfView,
+                safeFieldOfView,
                 1f - Mathf.Exp(-fieldOfViewSpeed * deltaTime)
             );
+    }
+
+    /// <summary>
+    /// Resolve a pose sem usar operadores de curto-circuito com parâmetros out.
+    /// Isso evita CS0165 quando um componente de modo está ausente.
+    /// </summary>
+    private bool TryResolveTargetPose(
+        float deltaTime,
+        out Vector3 targetPosition,
+        out Quaternion targetRotation,
+        out float targetFieldOfView)
+    {
+        Transform cameraTransform = gameCamera != null ? gameCamera.transform : transform;
+
+        targetPosition = cameraTransform.position;
+        targetRotation = cameraTransform.rotation;
+        targetFieldOfView = gameCamera != null ? gameCamera.fieldOfView : 60f;
+
+        if (IsFirstPerson)
+        {
+            if (firstPerson == null)
+            {
+                LogMissingReferenceOnce("FirstPersonCamera", ref loggedMissingFirstPerson);
+                return false;
+            }
+
+            return firstPerson.TryGetPose(
+                deltaTime,
+                out targetPosition,
+                out targetRotation,
+                out targetFieldOfView
+            );
+        }
+
+        if (thirdPerson == null)
+        {
+            LogMissingReferenceOnce("ThirdPersonCamera", ref loggedMissingThirdPerson);
+            return false;
+        }
+
+        return thirdPerson.TryGetPose(
+            out targetPosition,
+            out targetRotation,
+            out targetFieldOfView
+        );
     }
 
     private void ResolveReferences()
@@ -254,6 +329,16 @@ public sealed class PlayerCameraController : MonoBehaviour
         if (player == null && movement != null)
             player = movement.transform;
 
+        if (player == null)
+        {
+            CameraRelativeMovement foundMovement = Object.FindAnyObjectByType<CameraRelativeMovement>(FindObjectsInactive.Include);
+            if (foundMovement != null)
+            {
+                movement = foundMovement;
+                player = foundMovement.transform;
+            }
+        }
+
         if (thirdPerson != null && thirdPerson.target == null)
             thirdPerson.target = player;
 
@@ -262,15 +347,24 @@ public sealed class PlayerCameraController : MonoBehaviour
 
         if (movement != null)
         {
+            movement.playerCamera = this;
             movement.cameraTransform = ActiveCameraTransform;
             movement.cameraMode = null;
         }
+
+        if (player == null)
+            LogMissingReferenceOnce("Player/CameraRelativeMovement", ref loggedMissingPlayer);
     }
 
     private void InitializeModes()
     {
-        thirdPerson?.Initialize(transform);
-        firstPerson?.Initialize(transform);
+        Transform cameraTransform = gameCamera != null ? gameCamera.transform : transform;
+
+        if (thirdPerson != null)
+            thirdPerson.Initialize(cameraTransform);
+
+        if (firstPerson != null)
+            firstPerson.Initialize(cameraTransform);
     }
 
     private void SynchronizeAngles(ViewMode destination)
@@ -335,12 +429,16 @@ public sealed class PlayerCameraController : MonoBehaviour
             return;
 
         gameCamera.enabled = true;
-        gameCamera.gameObject.tag = "MainCamera";
+
+        if (!gameCamera.CompareTag("MainCamera"))
+            gameCamera.gameObject.tag = "MainCamera";
 
         AudioListener localListener = gameCamera.GetComponent<AudioListener>();
         if (localListener == null)
             localListener = gameCamera.gameObject.AddComponent<AudioListener>();
-        localListener.enabled = true;
+
+        if (!localListener.enabled)
+            localListener.enabled = true;
 
         if (disableOtherCameras)
         {
@@ -351,7 +449,9 @@ public sealed class PlayerCameraController : MonoBehaviour
                 if (otherCamera == null || otherCamera == gameCamera)
                     continue;
 
-                otherCamera.enabled = false;
+                if (otherCamera.enabled)
+                    otherCamera.enabled = false;
+
                 if (otherCamera.CompareTag("MainCamera"))
                     otherCamera.gameObject.tag = "Untagged";
             }
@@ -363,10 +463,40 @@ public sealed class PlayerCameraController : MonoBehaviour
             for (int i = 0; i < listeners.Length; i++)
             {
                 AudioListener listener = listeners[i];
-                if (listener != null && listener != localListener)
+                if (listener != null && listener != localListener && listener.enabled)
                     listener.enabled = false;
             }
         }
+    }
+
+    private void LogMissingReferenceOnce(string referenceName, ref bool alreadyLogged)
+    {
+        if (!logMissingReferences || alreadyLogged)
+            return;
+
+        alreadyLogged = true;
+        Debug.LogWarning(
+            "[PlayerCameraController] Referência ausente: " + referenceName +
+            ". Use Tools > Player System > Create or Repair Player System.",
+            this
+        );
+    }
+
+    private void ValidateConfiguration()
+    {
+        positionSmoothTime = Mathf.Max(0f, positionSmoothTime);
+        rotationSpeed = Mathf.Max(0f, rotationSpeed);
+        fieldOfViewSpeed = Mathf.Max(0f, fieldOfViewSpeed);
+        initialValidationDuration = Mathf.Max(0.1f, initialValidationDuration);
+        initialValidationInterval = Mathf.Max(0.05f, initialValidationInterval);
+    }
+
+    private void OnValidate()
+    {
+        ValidateConfiguration();
+
+        if (!Application.isPlaying)
+            ResolveReferences();
     }
 
     private float SafeDeltaTime()
