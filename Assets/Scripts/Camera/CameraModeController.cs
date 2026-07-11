@@ -1,12 +1,10 @@
-using System;
 using UnityEngine;
 
 /// <summary>
-/// Componente de compatibilidade temporário para cenas antigas.
+/// Componente silencioso de compatibilidade para cenas antigas.
 /// O sistema ativo é PlayerCameraController. Este componente não controla câmera,
 /// não lê input e não depende do antigo PlayerMove.
 /// </summary>
-[Obsolete("Use PlayerCameraController. This compatibility component can be removed from the scene.")]
 [DisallowMultipleComponent]
 public sealed class CameraModeController : MonoBehaviour
 {
