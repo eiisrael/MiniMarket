@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// GetItem realista baseado em física.
-/// Seleciona pelo centro da câmera, segura com mola/amortecimento, respeita paredes,
-/// preserva colisões, permite ajustar distância e arremessar o objeto.
+/// Manipulação física de objetos em primeira ou terceira pessoa.
+/// Seleciona pelo centro da câmera, destaca o alvo, segura com mola/amortecimento,
+/// respeita paredes e oferece entrada externa para botões mobile.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(1200)]
@@ -16,7 +16,7 @@ public sealed class GetItemController : MonoBehaviour
     public PlayerCameraController cameraController;
 
     [Header("Uso")]
-    public bool onlyInFirstPerson = true;
+    public bool onlyInFirstPerson = false;
     [Range(0, 2)] public int grabMouseButton = 0;
     public KeyCode throwKey = KeyCode.F;
 
@@ -26,6 +26,7 @@ public sealed class GetItemController : MonoBehaviour
     public LayerMask selectableLayers = ~0;
     public bool ignoreTriggers = true;
     [Min(0f)] public float selectionMemory = 0.08f;
+    public bool useScreenCenter = true;
 
     [Header("Distância ao segurar")]
     [Min(0.3f)] public float holdDistance = 2.25f;
@@ -89,6 +90,12 @@ public sealed class GetItemController : MonoBehaviour
     private RigidbodyInterpolation originalInterpolation;
     private CollisionDetectionMode originalCollisionMode;
 
+    private bool externalGrabDown;
+    private bool externalGrabUp;
+    private bool externalThrow;
+    private bool hasExternalScreenPosition;
+    private Vector2 externalScreenPosition;
+
     public GrabbableItem SelectedItem => selectedItem;
     public GrabbableItem HeldItem => heldItem;
     public bool IsHolding => heldItem != null;
@@ -104,16 +111,28 @@ public sealed class GetItemController : MonoBehaviour
         CachePlayerColliders();
     }
 
+    private void OnEnable()
+    {
+        ResolveReferences();
+        CachePlayerColliders();
+    }
+
     private void OnDisable()
     {
         Release(false);
         ClearSelection();
+        ResetExternalInput();
     }
 
     private void Update()
     {
         ResolveReferences();
         UpdateCameraVelocity();
+
+        bool grabDown = Input.GetMouseButtonDown(grabMouseButton) || externalGrabDown;
+        bool grabUp = Input.GetMouseButtonUp(grabMouseButton) || externalGrabUp;
+        bool throwRequested = Input.GetKeyDown(throwKey) || externalThrow;
+        ResetExternalInput();
 
         if (GameplayInputState.IsBlocked || !CanUseInCurrentView())
         {
@@ -127,20 +146,20 @@ public sealed class GetItemController : MonoBehaviour
         {
             UpdateSelection();
 
-            if (Input.GetMouseButtonDown(grabMouseButton) && selectedItem != null)
+            if (grabDown && selectedItem != null)
                 Grab(selectedItem);
         }
         else
         {
             UpdateHoldDistance();
 
-            if (Input.GetKeyDown(throwKey))
+            if (throwRequested)
             {
                 Release(true);
                 return;
             }
 
-            if (Input.GetMouseButtonUp(grabMouseButton))
+            if (grabUp)
                 Release(false);
         }
     }
@@ -151,21 +170,60 @@ public sealed class GetItemController : MonoBehaviour
             MoveHeldObject();
     }
 
+    public void RequestGrabPressed()
+    {
+        externalGrabDown = true;
+    }
+
+    public void RequestGrabReleased()
+    {
+        externalGrabUp = true;
+    }
+
+    public void RequestThrow()
+    {
+        externalThrow = true;
+    }
+
+    public void SetPointerScreenPosition(Vector2 screenPosition)
+    {
+        externalScreenPosition = screenPosition;
+        hasExternalScreenPosition = true;
+    }
+
+    public void ClearPointerScreenPosition()
+    {
+        hasExternalScreenPosition = false;
+    }
+
     public void ReleaseHeldItem()
     {
         Release(false);
     }
 
+    private void ResetExternalInput()
+    {
+        externalGrabDown = false;
+        externalGrabUp = false;
+        externalThrow = false;
+    }
+
     private void ResolveReferences()
     {
+        if (cameraController == null)
+            cameraController = GetComponent<PlayerCameraController>();
+
+        if (cameraSource == null && cameraController != null)
+            cameraSource = cameraController.gameCamera;
+
         if (cameraSource == null)
             cameraSource = GetComponent<Camera>();
 
         if (cameraSource == null && Camera.main != null)
             cameraSource = Camera.main;
 
-        if (cameraController == null)
-            cameraController = GetComponent<PlayerCameraController>();
+        if (playerRoot == null && cameraController != null)
+            playerRoot = cameraController.player;
     }
 
     private bool CanUseInCurrentView()
@@ -213,7 +271,7 @@ public sealed class GetItemController : MonoBehaviour
         if (cameraSource == null)
             return null;
 
-        Ray ray = cameraSource.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        Ray ray = BuildRay();
         QueryTriggerInteraction triggerMode = ignoreTriggers
             ? QueryTriggerInteraction.Ignore
             : QueryTriggerInteraction.Collide;
@@ -248,7 +306,24 @@ public sealed class GetItemController : MonoBehaviour
                 return item;
         }
 
+        if (drawDebug)
+            Debug.DrawRay(ray.origin, ray.direction * selectionDistance, Color.red);
+
         return null;
+    }
+
+    private Ray BuildRay()
+    {
+        if (useScreenCenter || !hasExternalScreenPosition)
+        {
+            return cameraSource.ViewportPointToRay(new Vector3(
+                0.5f + screenOffset.x,
+                0.5f + screenOffset.y,
+                0f
+            ));
+        }
+
+        return cameraSource.ScreenPointToRay(externalScreenPosition);
     }
 
     private void Grab(GrabbableItem item)
@@ -298,7 +373,7 @@ public sealed class GetItemController : MonoBehaviour
         SetPlayerCollisionIgnored(true);
 
         if (logEvents)
-            Debug.Log("[GetItem] Pegou: " + item.name);
+            Debug.Log("[GetItem] Pegou: " + item.name, item);
     }
 
     private void MoveHeldObject()
@@ -335,10 +410,10 @@ public sealed class GetItemController : MonoBehaviour
         if (!float.IsNaN(axis.x) && axis.sqrMagnitude > 0.0001f)
         {
             axis.Normalize();
-            float rotationSpringValue = rotationSpring * heldItem.rotationMultiplier;
-            float rotationDampingValue = rotationDamping * heldItem.dampingMultiplier;
-            Vector3 angularAcceleration = axis * (angle * Mathf.Deg2Rad * rotationSpringValue) -
-                                          heldBody.angularVelocity * rotationDampingValue;
+            float springValue = rotationSpring * heldItem.rotationMultiplier;
+            float dampingValue = rotationDamping * heldItem.dampingMultiplier;
+            Vector3 angularAcceleration = axis * (angle * Mathf.Deg2Rad * springValue) -
+                                          heldBody.angularVelocity * dampingValue;
             angularAcceleration = Vector3.ClampMagnitude(
                 angularAcceleration,
                 maximumAngularAcceleration
@@ -355,13 +430,7 @@ public sealed class GetItemController : MonoBehaviour
 
     private Vector3 CalculateSafeHoldPoint()
     {
-        Transform cameraTransform = cameraSource.transform;
-        Vector3 viewportPoint = new Vector3(
-            0.5f + screenOffset.x,
-            0.5f + screenOffset.y,
-            0f
-        );
-        Ray ray = cameraSource.ViewportPointToRay(viewportPoint);
+        Ray ray = BuildRay();
         Vector3 desiredPoint = ray.origin + ray.direction * currentHoldDistance;
 
         if (!preventWallClipping)
@@ -472,6 +541,9 @@ public sealed class GetItemController : MonoBehaviour
 
     private void RestoreOriginalBodyState()
     {
+        if (heldBody == null)
+            return;
+
         heldBody.useGravity = originalUseGravity;
         heldBody.isKinematic = originalIsKinematic;
         heldBody.linearDamping = originalLinearDamping;
@@ -613,20 +685,20 @@ public sealed class GetItemController : MonoBehaviour
         return Mathf.Max(0.05f, Mathf.Min(bounds.extents.x, bounds.extents.y, bounds.extents.z));
     }
 
-    private void SortHits(RaycastHit[] hits, int count)
+    private void SortHits(RaycastHit[] values, int count)
     {
         for (int i = 1; i < count; i++)
         {
-            RaycastHit value = hits[i];
+            RaycastHit value = values[i];
             int index = i - 1;
 
-            while (index >= 0 && hits[index].distance > value.distance)
+            while (index >= 0 && values[index].distance > value.distance)
             {
-                hits[index + 1] = hits[index];
+                values[index + 1] = values[index];
                 index--;
             }
 
-            hits[index + 1] = value;
+            values[index + 1] = value;
         }
     }
 
@@ -636,5 +708,6 @@ public sealed class GetItemController : MonoBehaviour
         holdDistance = Mathf.Clamp(holdDistance, minimumHoldDistance, maximumHoldDistance);
         selectionRadius = Mathf.Max(0.01f, selectionRadius);
         selectionDistance = Mathf.Max(0.1f, selectionDistance);
+        releaseErrorDistance = Mathf.Max(0.5f, releaseErrorDistance);
     }
 }
