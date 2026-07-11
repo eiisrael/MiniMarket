@@ -1,16 +1,14 @@
 using System;
 using System.Globalization;
-using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Controla o painel de menu do MiniMarket.
-/// - TAB abre/fecha por padrao.
-/// - Exibe Nome, Gold, Energia/Stamina em porcentagem e Empresas.
-/// - Botao Gemas Gratis restaura Energia/Stamina para 100%.
-/// - Botao Close fecha o painel.
-/// - Mantem cursor livre quando o menu esta aberto, mesmo se outro script tentar travar o mouse.
+/// Menu principal do jogador.
+///
+/// Exibe nome, gold, energia e empresas diretamente da fonte de dados atual.
+/// Não serializa referências para objetos DontDestroyOnLoad e bloqueia o input do
+/// gameplay de forma balanceada enquanto o menu está aberto.
 /// </summary>
 [DefaultExecutionOrder(10000)]
 [DisallowMultipleComponent]
@@ -23,22 +21,11 @@ public class MiniMarketMenuController : MonoBehaviour
     }
 
     [Header("Painel")]
-    [Tooltip("Arraste aqui o GameObject Menu. Se vazio, usa este GameObject.")]
     public GameObject painelMenu;
-
-    [Tooltip("Tecla que abre e fecha o menu.")]
     public KeyCode teclaMenu = KeyCode.Tab;
-
-    [Tooltip("Comecar com menu fechado.")]
     public bool iniciarFechado = true;
-
-    [Tooltip("Atualiza os textos em tempo real enquanto o painel estiver aberto.")]
     public bool atualizarEmTempoReal = true;
-
-    [Tooltip("CanvasGroup e mais seguro se este script estiver no proprio Menu.")]
     public ModoOcultarPainel modoOcultarPainel = ModoOcultarPainel.CanvasGroup;
-
-    [Tooltip("Se usar CanvasGroup, cria automaticamente quando nao existir.")]
     public bool criarCanvasGroupAutomaticamente = true;
 
     [Header("Textos do Menu")]
@@ -46,38 +33,28 @@ public class MiniMarketMenuController : MonoBehaviour
     public Text textoGold;
     public Text textoStamina;
     public Text textoEmpresas;
-
-    [Tooltip("Se ligado, escreve 'Nome:', 'Gold:', etc junto com o valor no mesmo Text.")]
     public bool incluirRotulosNosTextos = true;
 
-    [Header("Botoes")]
+    [Header("Botões")]
     public Button botaoClose;
     public Button botaoGemasGratis;
-
-    [Tooltip("Captura clique nos botoes manualmente tambem, caso o Button.onClick nao dispare por conflito de cursor/camera.")]
     public bool usarCliqueManualDeSeguranca = true;
 
-    [Header("Dados")]
-    public MiniMarketPlayerProfile perfil;
-    public PlayerGold playerGold;
-
-    [Tooltip("Arraste aqui o SCRIPT que possui stamina/energia. Nao arraste o Transform. Se errar, o script tenta corrigir sozinho.")]
-    public Component componenteStaminaOuMovimento;
-
+    [Header("Dados da cena")]
+    public CameraRelativeMovement movimento;
     public string nomeTemporario = "Player";
 
+    // Compatibilidade com cenas antigas. Não são serializados para impedir referência
+    // de SampleScene para objetos runtime em DontDestroyOnLoad.
+    [NonSerialized] public MiniMarketPlayerProfile perfil;
+    [NonSerialized] public PlayerGold playerGold;
+    [NonSerialized] public Component componenteStaminaOuMovimento;
+
     [Header("Energia / Stamina")]
-    [Tooltip("Quando ligado, procura automaticamente um script com campos/metodos de stamina ou energia.")]
-    public bool procurarComponenteStaminaAutomaticamente = true;
-
-    [Tooltip("Texto exibido quando nao encontrar o script/valor de energia.")]
     public string energiaNaoEncontradaTexto = "--%";
-
-    [Tooltip("Texto base antes da porcentagem.")]
     public string rotuloEnergia = "Energia";
-
-    [Tooltip("Ao clicar em Gemas Gratis, tenta restaurar Energia/Stamina para o maximo.")]
     public bool gemasGratisRecarregaEnergia = true;
+    [Min(0.1f)] public float intervaloAtualizacaoAberto = 0.25f;
 
     [Header("Cursor")]
     public bool desbloquearCursorQuandoMenuAberto = true;
@@ -85,86 +62,33 @@ public class MiniMarketMenuController : MonoBehaviour
     public bool travarCursorAoFechar = true;
 
     [Header("Debug")]
-    public bool logarEventos = true;
-    public bool logarComponenteEnergiaEncontrado = true;
+    public bool logarEventos;
 
-    private bool menuAberto;
-    private CanvasGroup canvasGroupMenu;
     private readonly CultureInfo culturaBR = new CultureInfo("pt-BR");
+    private MiniMarketPlayerDatabase database;
+    private CanvasGroup canvasGroupMenu;
+    private bool menuAberto;
+    private bool inputBlockApplied;
+    private bool subscriptionsApplied;
+    private float nextRefresh;
     private int ultimoFrameCliqueManual = -100;
 
-    private static readonly string[] nomesPercentualEnergia =
-    {
-        "PercentualStamina", "percentualStamina",
-        "StaminaPercentual", "staminaPercentual",
-        "StaminaNormalizada", "staminaNormalizada",
-        "PercentualEnergia", "percentualEnergia",
-        "EnergiaPercentual", "energiaPercentual",
-        "EnergiaNormalizada", "energiaNormalizada"
-    };
-
-    private static readonly string[] nomesEnergiaAtual =
-    {
-        "StaminaAtual", "staminaAtual",
-        "CurrentStamina", "currentStamina",
-        "Stamina", "stamina",
-        "EnergiaAtual", "energiaAtual",
-        "CurrentEnergy", "currentEnergy",
-        "Energia", "energia",
-        "energy", "Energy"
-    };
-
-    private static readonly string[] nomesEnergiaMaxima =
-    {
-        "StaminaMaxima", "staminaMaxima",
-        "MaxStamina", "maxStamina",
-        "StaminaMax", "staminaMax",
-        "staminaTotal", "StaminaTotal",
-        "EnergiaMaxima", "energiaMaxima",
-        "MaxEnergia", "maxEnergia",
-        "EnergiaMax", "energiaMax",
-        "energiaTotal", "EnergiaTotal",
-        "MaxEnergy", "maxEnergy"
-    };
-
-    private static readonly string[] metodosRestaurarEnergia =
-    {
-        "RecarregarStaminaCompleta",
-        "RecarregarStaminaTotal",
-        "RestaurarStaminaCompleta",
-        "RestaurarStaminaTotal",
-        "RestaurarTodaStamina",
-        "RecuperarStaminaTotal",
-        "EncherStamina",
-        "ResetarStamina",
-        "RecarregarEnergiaCompleta",
-        "RecarregarEnergiaTotal",
-        "RestaurarEnergiaCompleta",
-        "RestaurarEnergiaTotal",
-        "RestaurarTodaEnergia",
-        "RecuperarEnergiaTotal",
-        "EncherEnergia",
-        "ResetarEnergia"
-    };
+    public bool MenuAberto => menuAberto;
 
     private void Awake()
     {
         if (painelMenu == null)
             painelMenu = gameObject;
 
-        ResolverCanvasGroup();
-        ResolverReferencias();
-        ConectarBotoes();
+        ResolveCanvasGroup();
+        ResolveReferences(true);
+        ConnectButtons();
     }
 
     private void Start()
     {
-        ResolverCanvasGroup();
-        ResolverReferencias();
-        ConectarBotoes();
-
-        if (perfil != null && string.IsNullOrWhiteSpace(perfil.NomePersonagem))
-            perfil.NomePersonagem = nomeTemporario;
+        ResolveReferences(true);
+        Subscribe();
 
         if (iniciarFechado)
             FecharMenu(false);
@@ -176,17 +100,15 @@ public class MiniMarketMenuController : MonoBehaviour
 
     private void OnEnable()
     {
-        if (perfil == null)
-            perfil = MiniMarketPlayerProfile.ObterOuCriar();
-
-        if (perfil != null)
-            perfil.OnDadosAlterados += AtualizarTextos;
+        ResolveReferences(true);
+        Subscribe();
     }
 
     private void OnDisable()
     {
-        if (perfil != null)
-            perfil.OnDadosAlterados -= AtualizarTextos;
+        Unsubscribe();
+        ReleaseInputBlock();
+        menuAberto = false;
     }
 
     private void Update()
@@ -203,8 +125,11 @@ public class MiniMarketMenuController : MonoBehaviour
         if (usarCliqueManualDeSeguranca)
             VerificarCliqueManualNosBotoes();
 
-        if (atualizarEmTempoReal)
+        if (atualizarEmTempoReal && Time.unscaledTime >= nextRefresh)
+        {
+            nextRefresh = Time.unscaledTime + Mathf.Max(0.1f, intervaloAtualizacaoAberto);
             AtualizarTextos();
+        }
     }
 
     private void LateUpdate()
@@ -231,27 +156,29 @@ public class MiniMarketMenuController : MonoBehaviour
         FecharMenu(true);
     }
 
-    private void AbrirMenu(bool logar)
+    private void AbrirMenu(bool writeLog)
     {
-        ResolverCanvasGroup();
-        ResolverReferenciasLeves();
-        ConectarBotoes();
+        ResolveReferences(false);
+        ResolveCanvasGroup();
+        ConnectButtons();
 
         menuAberto = true;
-        AplicarVisibilidadePainel(true);
+        ApplyPanelVisibility(true);
+        ApplyInputBlock();
         AtualizarTextos();
 
         if (desbloquearCursorQuandoMenuAberto)
             LiberarCursor();
 
-        if (logar && logarEventos)
-            Debug.Log("[MiniMarketMenuController] Menu aberto pela tecla: " + teclaMenu);
+        if (writeLog && logarEventos)
+            Debug.Log("[MenuController] Menu aberto.", this);
     }
 
-    private void FecharMenu(bool logar)
+    private void FecharMenu(bool writeLog)
     {
         menuAberto = false;
-        AplicarVisibilidadePainel(false);
+        ApplyPanelVisibility(false);
+        ReleaseInputBlock();
 
         if (travarCursorAoFechar)
         {
@@ -259,100 +186,113 @@ public class MiniMarketMenuController : MonoBehaviour
             Cursor.visible = false;
         }
 
-        if (logar && logarEventos)
-            Debug.Log("[MiniMarketMenuController] Menu fechado.");
+        if (writeLog && logarEventos)
+            Debug.Log("[MenuController] Menu fechado.", this);
     }
 
-    private void AplicarVisibilidadePainel(bool visivel)
+    private void ApplyInputBlock()
+    {
+        if (inputBlockApplied)
+            return;
+
+        GameplayInputState.PushBlock();
+        inputBlockApplied = true;
+    }
+
+    private void ReleaseInputBlock()
+    {
+        if (!inputBlockApplied)
+            return;
+
+        GameplayInputState.PopBlock();
+        inputBlockApplied = false;
+    }
+
+    private void ApplyPanelVisibility(bool visible)
     {
         if (painelMenu == null)
             return;
 
         if (modoOcultarPainel == ModoOcultarPainel.SetActive)
         {
-            painelMenu.SetActive(visivel);
+            painelMenu.SetActive(visible);
             return;
         }
 
-        ResolverCanvasGroup();
+        ResolveCanvasGroup();
 
         if (!painelMenu.activeSelf)
             painelMenu.SetActive(true);
 
         if (canvasGroupMenu != null)
         {
-            canvasGroupMenu.alpha = visivel ? 1f : 0f;
-            canvasGroupMenu.interactable = visivel;
-            canvasGroupMenu.blocksRaycasts = visivel;
+            canvasGroupMenu.alpha = visible ? 1f : 0f;
+            canvasGroupMenu.interactable = visible;
+            canvasGroupMenu.blocksRaycasts = visible;
         }
         else
         {
-            painelMenu.SetActive(visivel);
+            painelMenu.SetActive(visible);
         }
     }
 
-    private void ResolverCanvasGroup()
+    private void ResolveCanvasGroup()
     {
-        if (painelMenu == null)
-            return;
-
-        if (canvasGroupMenu != null)
+        if (painelMenu == null || canvasGroupMenu != null)
             return;
 
         canvasGroupMenu = painelMenu.GetComponent<CanvasGroup>();
-
         if (canvasGroupMenu == null && criarCanvasGroupAutomaticamente)
             canvasGroupMenu = painelMenu.AddComponent<CanvasGroup>();
     }
 
-    private void VerificarCliqueManualNosBotoes()
-    {
-        if (!Input.GetMouseButtonDown(0))
-            return;
-
-        if (Time.frameCount == ultimoFrameCliqueManual)
-            return;
-
-        if (PonteiroSobreBotao(botaoClose))
-        {
-            ultimoFrameCliqueManual = Time.frameCount;
-            FecharMenu();
-            return;
-        }
-
-        if (PonteiroSobreBotao(botaoGemasGratis))
-        {
-            ultimoFrameCliqueManual = Time.frameCount;
-            RecarregarEnergiaComGemasGratis();
-        }
-    }
-
-    private bool PonteiroSobreBotao(Button botao)
-    {
-        if (botao == null || !botao.gameObject.activeInHierarchy)
-            return false;
-
-        RectTransform rect = botao.GetComponent<RectTransform>();
-        if (rect == null)
-            return false;
-
-        Canvas canvas = botao.GetComponentInParent<Canvas>();
-        Camera cameraUI = null;
-
-        if (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
-            cameraUI = canvas.worldCamera != null ? canvas.worldCamera : Camera.main;
-
-        return RectTransformUtility.RectangleContainsScreenPoint(rect, Input.mousePosition, cameraUI);
-    }
-
     public void AtualizarTextos()
     {
-        ResolverReferenciasLeves();
+        ResolveReferences(false);
 
-        AtualizarTextoNome();
-        AtualizarTextoGold();
-        AtualizarTextoEnergia();
-        AtualizarTextoEmpresas();
+        string nome = database != null ? database.NomePersonagem : nomeTemporario;
+        if (string.IsNullOrWhiteSpace(nome))
+            nome = nomeTemporario;
+
+        long gold = database != null
+            ? database.GoldAtual
+            : (playerGold != null ? playerGold.GoldAtual : 0);
+
+        int empresas = database != null
+            ? database.EmpresasCompradas
+            : (perfil != null ? perfil.EmpresasCompradas : 0);
+
+        float energia01 = -1f;
+        if (movimento != null)
+            energia01 = movimento.EnergiaPercentual01;
+        else if (database != null)
+            energia01 = database.EnergiaPercentual01;
+
+        if (textoNome != null)
+            textoNome.text = incluirRotulosNosTextos ? "Nome: " + nome : nome;
+
+        if (textoGold != null)
+        {
+            string valor = gold.ToString("N0", culturaBR);
+            textoGold.text = incluirRotulosNosTextos ? "Gold: " + valor : valor;
+        }
+
+        if (textoEmpresas != null)
+        {
+            string valor = empresas.ToString(culturaBR);
+            textoEmpresas.text = incluirRotulosNosTextos ? "Empresas: " + valor : valor;
+        }
+
+        if (textoStamina != null)
+        {
+            string valor = energia01 >= 0f
+                ? Mathf.RoundToInt(Mathf.Clamp01(energia01) * 100f).ToString(culturaBR) + "%"
+                : energiaNaoEncontradaTexto;
+
+            textoStamina.text = incluirRotulosNosTextos
+                ? rotuloEnergia + ": " + valor
+                : valor;
+        }
     }
 
     public void RecarregarStaminaComGemasGratis()
@@ -365,254 +305,90 @@ public class MiniMarketMenuController : MonoBehaviour
         if (!gemasGratisRecarregaEnergia)
             return;
 
-        ResolverReferenciasLeves();
+        ResolveReferences(false);
 
-        bool sucesso = TentarRestaurarEnergiaParaCemPorCento();
+        if (movimento != null)
+            movimento.RestoreStaminaFull();
+        else if (database != null)
+            database.RestaurarEnergiaCompleta();
+
         AtualizarTextos();
 
         if (menuAberto && manterCursorLivreEnquantoAberto)
             LiberarCursor();
 
         if (logarEventos)
+            Debug.Log("[MenuController] Energia restaurada.", this);
+    }
+
+    private void ResolveReferences(bool force)
+    {
+        if (force || movimento == null)
+            movimento = UnityEngine.Object.FindAnyObjectByType<CameraRelativeMovement>(FindObjectsInactive.Include);
+
+        if (force || database == null)
         {
-            if (sucesso)
-                Debug.Log("[MiniMarketMenuController] Gemas Gratis: energia/stamina restaurada para 100%.");
-            else
-                Debug.LogWarning("[MiniMarketMenuController] Gemas Gratis: nao encontrei campos/metodos de energia/stamina para restaurar.");
-        }
-    }
-
-    private void AtualizarTextoNome()
-    {
-        if (textoNome == null)
-            return;
-
-        string nome = perfil != null ? perfil.NomePersonagem : nomeTemporario;
-        if (string.IsNullOrWhiteSpace(nome))
-            nome = nomeTemporario;
-
-        textoNome.text = incluirRotulosNosTextos ? "Nome: " + nome : nome;
-    }
-
-    private void AtualizarTextoGold()
-    {
-        if (textoGold == null)
-            return;
-
-        string goldTexto = FormatarNumeroInteiro(LerGoldAtual());
-        textoGold.text = incluirRotulosNosTextos ? "Gold: " + goldTexto : goldTexto;
-    }
-
-    private void AtualizarTextoEnergia()
-    {
-        if (textoStamina == null)
-            return;
-
-        float porcentagem = LerPorcentagemEnergia();
-
-        string valor = porcentagem >= 0f
-            ? Mathf.RoundToInt(porcentagem).ToString(culturaBR) + "%"
-            : energiaNaoEncontradaTexto;
-
-        textoStamina.text = incluirRotulosNosTextos ? rotuloEnergia + ": " + valor : valor;
-    }
-
-    private void AtualizarTextoEmpresas()
-    {
-        if (textoEmpresas == null)
-            return;
-
-        int quantidade = perfil != null ? perfil.EmpresasCompradas : 0;
-        textoEmpresas.text = incluirRotulosNosTextos ? "Empresas: " + quantidade : quantidade.ToString(culturaBR);
-    }
-
-    private long LerGoldAtual()
-    {
-        if (playerGold == null)
-            return 0;
-
-        object valor = LerMembroNumerico(playerGold,
-            "GoldGlobal", "goldGlobal",
-            "GoldAtual", "goldAtual",
-            "Gold", "gold",
-            "goldInicial");
-
-        return ConverterParaLong(valor);
-    }
-
-    private float LerPorcentagemEnergia()
-    {
-        GarantirComponenteEnergiaValido();
-
-        if (componenteStaminaOuMovimento == null)
-            return -1f;
-
-        object percentualDireto = LerMembroNumerico(componenteStaminaOuMovimento, nomesPercentualEnergia);
-
-        if (percentualDireto != null)
-        {
-            float valor = ConverterParaFloat(percentualDireto);
-            if (valor <= 1.01f)
-                valor *= 100f;
-
-            return Mathf.Clamp(valor, 0f, 100f);
+            database = MiniMarketPlayerDatabase.Instance;
+            if (database == null && Application.isPlaying)
+                database = MiniMarketPlayerDatabase.ObterOuCriar();
         }
 
-        object atual = LerMembroNumerico(componenteStaminaOuMovimento, nomesEnergiaAtual);
-        object maxima = LerMembroNumerico(componenteStaminaOuMovimento, nomesEnergiaMaxima);
+        if (force || playerGold == null)
+            playerGold = PlayerGold.Instance != null
+                ? PlayerGold.Instance
+                : UnityEngine.Object.FindAnyObjectByType<PlayerGold>(FindObjectsInactive.Include);
 
-        if (atual == null)
-            atual = ProcurarMembroNumericoPorPalavras(componenteStaminaOuMovimento, true, "stamina", "energia", "energy");
+        if (force || perfil == null)
+            perfil = MiniMarketPlayerProfile.Instance;
 
-        if (maxima == null)
-            maxima = ProcurarMembroNumericoPorPalavras(componenteStaminaOuMovimento, false, "stamina", "energia", "energy");
-
-        if (atual == null || maxima == null)
-            return -1f;
-
-        float atualFloat = ConverterParaFloat(atual);
-        float maximaFloat = ConverterParaFloat(maxima);
-
-        if (maximaFloat <= 0.001f)
-            return -1f;
-
-        return Mathf.Clamp01(atualFloat / maximaFloat) * 100f;
+        componenteStaminaOuMovimento = movimento;
     }
 
-    private bool TentarRestaurarEnergiaParaCemPorCento()
+    private void Subscribe()
     {
-        GarantirComponenteEnergiaValido();
-
-        if (componenteStaminaOuMovimento == null)
-            return false;
-
-        bool chamouMetodo = TentarChamarMetodoSemParametro(componenteStaminaOuMovimento, metodosRestaurarEnergia);
-
-        object maxima = LerMembroNumerico(componenteStaminaOuMovimento, nomesEnergiaMaxima);
-
-        if (maxima == null)
-            maxima = ProcurarMembroNumericoPorPalavras(componenteStaminaOuMovimento, false, "stamina", "energia", "energy");
-
-        if (maxima != null)
-        {
-            bool setou = TentarDefinirMembroNumerico(componenteStaminaOuMovimento, ConverterParaFloat(maxima), nomesEnergiaAtual);
-
-            if (!setou)
-                setou = TentarDefinirMembroNumericoPorPalavras(componenteStaminaOuMovimento, ConverterParaFloat(maxima), true, "stamina", "energia", "energy");
-
-            return chamouMetodo || setou;
-        }
-
-        bool setouPercentual = TentarDefinirMembroNumerico(componenteStaminaOuMovimento, 1f, nomesPercentualEnergia);
-        return chamouMetodo || setouPercentual;
-    }
-
-    private void ResolverReferencias()
-    {
-        if (perfil == null)
-            perfil = MiniMarketPlayerProfile.ObterOuCriar();
-
-        if (playerGold == null)
-            playerGold = PlayerGold.Instance != null ? PlayerGold.Instance : FindObjectOfType<PlayerGold>();
-
-        GarantirComponenteEnergiaValido();
-    }
-
-    private void ResolverReferenciasLeves()
-    {
-        if (perfil == null)
-            perfil = MiniMarketPlayerProfile.ObterOuCriar();
-
-        if (playerGold == null)
-            playerGold = PlayerGold.Instance != null ? PlayerGold.Instance : FindObjectOfType<PlayerGold>();
-
-        GarantirComponenteEnergiaValido();
-    }
-
-    private void GarantirComponenteEnergiaValido()
-    {
-        if (ComponenteEnergiaEhValido(componenteStaminaOuMovimento))
+        if (subscriptionsApplied)
             return;
 
-        if (!procurarComponenteStaminaAutomaticamente)
+        if (database != null)
+            database.OnDatabaseChanged += HandleDatabaseChanged;
+        if (movimento != null)
+            movimento.OnStaminaChanged += AtualizarTextos;
+        if (playerGold != null)
+            playerGold.OnGoldAlterado += HandleGoldChanged;
+        if (perfil != null)
+            perfil.OnDadosAlterados += AtualizarTextos;
+
+        subscriptionsApplied = true;
+    }
+
+    private void Unsubscribe()
+    {
+        if (!subscriptionsApplied)
             return;
 
-        Component encontrado = EncontrarMelhorComponenteEnergia();
+        if (database != null)
+            database.OnDatabaseChanged -= HandleDatabaseChanged;
+        if (movimento != null)
+            movimento.OnStaminaChanged -= AtualizarTextos;
+        if (playerGold != null)
+            playerGold.OnGoldAlterado -= HandleGoldChanged;
+        if (perfil != null)
+            perfil.OnDadosAlterados -= AtualizarTextos;
 
-        if (encontrado != null)
-        {
-            componenteStaminaOuMovimento = encontrado;
-
-            if (logarComponenteEnergiaEncontrado)
-                Debug.Log("[MiniMarketMenuController] Componente de energia/stamina encontrado: " + encontrado.GetType().Name + " em " + encontrado.gameObject.name);
-        }
+        subscriptionsApplied = false;
     }
 
-    private bool ComponenteEnergiaEhValido(Component componente)
+    private void HandleDatabaseChanged(MiniMarketPlayerDatabase.MiniMarketPlayerData data)
     {
-        if (componente == null)
-            return false;
-
-        if (componente is Transform)
-            return false;
-
-        Type tipo = componente.GetType();
-
-        if (PossuiAlgumMembro(tipo, nomesPercentualEnergia))
-            return true;
-
-        if (PossuiAlgumMembro(tipo, nomesEnergiaAtual) && PossuiAlgumMembro(tipo, nomesEnergiaMaxima))
-            return true;
-
-        return TipoTemMembroComPalavras(tipo, "stamina", "energia", "energy");
+        AtualizarTextos();
     }
 
-    private Component EncontrarMelhorComponenteEnergia()
+    private void HandleGoldChanged(int value)
     {
-        MonoBehaviour[] scripts = FindObjectsOfType<MonoBehaviour>(true);
-
-        Component melhor = null;
-        int melhorPontuacao = -1;
-
-        for (int i = 0; i < scripts.Length; i++)
-        {
-            MonoBehaviour script = scripts[i];
-            if (script == null || script == this)
-                continue;
-
-            if (!ComponenteEnergiaEhValido(script))
-                continue;
-
-            int pontos = CalcularPontuacaoComponenteEnergia(script);
-
-            if (pontos > melhorPontuacao)
-            {
-                melhorPontuacao = pontos;
-                melhor = script;
-            }
-        }
-
-        return melhor;
+        AtualizarTextos();
     }
 
-    private int CalcularPontuacaoComponenteEnergia(Component componente)
-    {
-        int pontos = 0;
-        string nomeTipo = componente.GetType().Name.ToLowerInvariant();
-        string nomeObjeto = componente.gameObject.name.ToLowerInvariant();
-
-        if (nomeTipo.Contains("player")) pontos += 30;
-        if (nomeTipo.Contains("move")) pontos += 25;
-        if (nomeTipo.Contains("stamina")) pontos += 20;
-        if (nomeTipo.Contains("energia")) pontos += 20;
-        if (nomeTipo.Contains("hud")) pontos -= 20;
-        if (nomeObjeto.Contains("character")) pontos += 20;
-        if (nomeObjeto.Contains("player")) pontos += 20;
-
-        return pontos;
-    }
-
-    private void ConectarBotoes()
+    private void ConnectButtons()
     {
         if (botaoClose != null)
         {
@@ -628,312 +404,51 @@ public class MiniMarketMenuController : MonoBehaviour
         }
     }
 
+    private void VerificarCliqueManualNosBotoes()
+    {
+        if (!Input.GetMouseButtonDown(0) || Time.frameCount == ultimoFrameCliqueManual)
+            return;
+
+        if (PointerOverButton(botaoClose))
+        {
+            ultimoFrameCliqueManual = Time.frameCount;
+            FecharMenu();
+            return;
+        }
+
+        if (PointerOverButton(botaoGemasGratis))
+        {
+            ultimoFrameCliqueManual = Time.frameCount;
+            RecarregarEnergiaComGemasGratis();
+        }
+    }
+
+    private bool PointerOverButton(Button button)
+    {
+        if (button == null || !button.gameObject.activeInHierarchy)
+            return false;
+
+        RectTransform rect = button.GetComponent<RectTransform>();
+        if (rect == null)
+            return false;
+
+        Canvas canvas = button.GetComponentInParent<Canvas>();
+        Camera uiCamera = null;
+
+        if (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+            uiCamera = canvas.worldCamera != null ? canvas.worldCamera : Camera.main;
+
+        return RectTransformUtility.RectangleContainsScreenPoint(rect, Input.mousePosition, uiCamera);
+    }
+
     private void LiberarCursor()
     {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
 
-    private bool PossuiAlgumMembro(Type tipo, params string[] nomes)
+    private void OnValidate()
     {
-        if (tipo == null || nomes == null)
-            return false;
-
-        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        for (int i = 0; i < nomes.Length; i++)
-        {
-            if (tipo.GetField(nomes[i], flags) != null)
-                return true;
-
-            if (tipo.GetProperty(nomes[i], flags) != null)
-                return true;
-
-            if (tipo.GetMethod(nomes[i], flags) != null)
-                return true;
-        }
-
-        return false;
-    }
-
-    private bool TipoTemMembroComPalavras(Type tipo, params string[] palavras)
-    {
-        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        FieldInfo[] fields = tipo.GetFields(flags);
-        for (int i = 0; i < fields.Length; i++)
-        {
-            if (EhTipoNumerico(fields[i].FieldType) && NomeContemAlgumaPalavra(fields[i].Name, palavras))
-                return true;
-        }
-
-        PropertyInfo[] props = tipo.GetProperties(flags);
-        for (int i = 0; i < props.Length; i++)
-        {
-            if (props[i].CanRead && EhTipoNumerico(props[i].PropertyType) && NomeContemAlgumaPalavra(props[i].Name, palavras))
-                return true;
-        }
-
-        return false;
-    }
-
-    private object LerMembroNumerico(object alvo, params string[] nomes)
-    {
-        if (alvo == null || nomes == null)
-            return null;
-
-        Type tipo = alvo.GetType();
-        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        for (int i = 0; i < nomes.Length; i++)
-        {
-            FieldInfo field = tipo.GetField(nomes[i], flags);
-            if (field != null && EhTipoNumerico(field.FieldType))
-                return field.GetValue(alvo);
-
-            PropertyInfo prop = tipo.GetProperty(nomes[i], flags);
-            if (prop != null && prop.CanRead && EhTipoNumerico(prop.PropertyType))
-                return prop.GetValue(alvo, null);
-
-            MethodInfo method = tipo.GetMethod(nomes[i], flags, null, Type.EmptyTypes, null);
-            if (method != null && EhTipoNumerico(method.ReturnType))
-                return method.Invoke(alvo, null);
-        }
-
-        return null;
-    }
-
-    private object ProcurarMembroNumericoPorPalavras(object alvo, bool atual, params string[] palavras)
-    {
-        if (alvo == null)
-            return null;
-
-        Type tipo = alvo.GetType();
-        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        FieldInfo[] fields = tipo.GetFields(flags);
-        for (int i = 0; i < fields.Length; i++)
-        {
-            FieldInfo field = fields[i];
-            if (!EhTipoNumerico(field.FieldType))
-                continue;
-
-            if (!NomeContemAlgumaPalavra(field.Name, palavras))
-                continue;
-
-            bool pareceMaximo = NomePareceMaximo(field.Name);
-            if (atual && pareceMaximo)
-                continue;
-
-            if (!atual && !pareceMaximo)
-                continue;
-
-            return field.GetValue(alvo);
-        }
-
-        PropertyInfo[] props = tipo.GetProperties(flags);
-        for (int i = 0; i < props.Length; i++)
-        {
-            PropertyInfo prop = props[i];
-            if (!prop.CanRead || !EhTipoNumerico(prop.PropertyType))
-                continue;
-
-            if (!NomeContemAlgumaPalavra(prop.Name, palavras))
-                continue;
-
-            bool pareceMaximo = NomePareceMaximo(prop.Name);
-            if (atual && pareceMaximo)
-                continue;
-
-            if (!atual && !pareceMaximo)
-                continue;
-
-            return prop.GetValue(alvo, null);
-        }
-
-        return null;
-    }
-
-    private bool TentarDefinirMembroNumerico(object alvo, float valor, params string[] nomes)
-    {
-        if (alvo == null || nomes == null)
-            return false;
-
-        Type tipo = alvo.GetType();
-        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        for (int i = 0; i < nomes.Length; i++)
-        {
-            FieldInfo field = tipo.GetField(nomes[i], flags);
-            if (field != null && EhTipoNumerico(field.FieldType))
-            {
-                field.SetValue(alvo, ConverterParaTipo(valor, field.FieldType));
-                return true;
-            }
-
-            PropertyInfo prop = tipo.GetProperty(nomes[i], flags);
-            if (prop != null && prop.CanWrite && EhTipoNumerico(prop.PropertyType))
-            {
-                prop.SetValue(alvo, ConverterParaTipo(valor, prop.PropertyType), null);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool TentarDefinirMembroNumericoPorPalavras(object alvo, float valor, bool atual, params string[] palavras)
-    {
-        if (alvo == null)
-            return false;
-
-        Type tipo = alvo.GetType();
-        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        FieldInfo[] fields = tipo.GetFields(flags);
-        for (int i = 0; i < fields.Length; i++)
-        {
-            FieldInfo field = fields[i];
-            if (!EhTipoNumerico(field.FieldType))
-                continue;
-
-            if (!NomeContemAlgumaPalavra(field.Name, palavras))
-                continue;
-
-            bool pareceMaximo = NomePareceMaximo(field.Name);
-            if (atual && pareceMaximo)
-                continue;
-
-            if (!atual && !pareceMaximo)
-                continue;
-
-            field.SetValue(alvo, ConverterParaTipo(valor, field.FieldType));
-            return true;
-        }
-
-        PropertyInfo[] props = tipo.GetProperties(flags);
-        for (int i = 0; i < props.Length; i++)
-        {
-            PropertyInfo prop = props[i];
-            if (!prop.CanWrite || !EhTipoNumerico(prop.PropertyType))
-                continue;
-
-            if (!NomeContemAlgumaPalavra(prop.Name, palavras))
-                continue;
-
-            bool pareceMaximo = NomePareceMaximo(prop.Name);
-            if (atual && pareceMaximo)
-                continue;
-
-            if (!atual && !pareceMaximo)
-                continue;
-
-            prop.SetValue(alvo, ConverterParaTipo(valor, prop.PropertyType), null);
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TentarChamarMetodoSemParametro(object alvo, params string[] nomes)
-    {
-        if (alvo == null || nomes == null)
-            return false;
-
-        Type tipo = alvo.GetType();
-        BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        for (int i = 0; i < nomes.Length; i++)
-        {
-            MethodInfo method = tipo.GetMethod(nomes[i], flags, null, Type.EmptyTypes, null);
-            if (method == null)
-                continue;
-
-            method.Invoke(alvo, null);
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool NomeContemAlgumaPalavra(string nome, params string[] palavras)
-    {
-        if (string.IsNullOrEmpty(nome))
-            return false;
-
-        string nomeLower = nome.ToLowerInvariant();
-
-        for (int i = 0; i < palavras.Length; i++)
-        {
-            if (!string.IsNullOrEmpty(palavras[i]) && nomeLower.Contains(palavras[i].ToLowerInvariant()))
-                return true;
-        }
-
-        return false;
-    }
-
-    private bool NomePareceMaximo(string nome)
-    {
-        string n = nome.ToLowerInvariant();
-        return n.Contains("max") || n.Contains("maxima") || n.Contains("maximum") || n.Contains("total");
-    }
-
-    private bool EhTipoNumerico(Type tipo)
-    {
-        return tipo == typeof(int) ||
-               tipo == typeof(long) ||
-               tipo == typeof(float) ||
-               tipo == typeof(double) ||
-               tipo == typeof(decimal) ||
-               tipo == typeof(short) ||
-               tipo == typeof(uint) ||
-               tipo == typeof(ulong);
-    }
-
-    private object ConverterParaTipo(float valor, Type tipo)
-    {
-        if (tipo == typeof(int)) return Mathf.RoundToInt(valor);
-        if (tipo == typeof(long)) return (long)Mathf.RoundToInt(valor);
-        if (tipo == typeof(double)) return (double)valor;
-        if (tipo == typeof(decimal)) return (decimal)valor;
-        if (tipo == typeof(short)) return (short)Mathf.RoundToInt(valor);
-        if (tipo == typeof(uint)) return (uint)Mathf.Max(0, Mathf.RoundToInt(valor));
-        if (tipo == typeof(ulong)) return (ulong)Mathf.Max(0, Mathf.RoundToInt(valor));
-        return valor;
-    }
-
-    private float ConverterParaFloat(object valor)
-    {
-        if (valor == null)
-            return 0f;
-
-        try
-        {
-            return Convert.ToSingle(valor, CultureInfo.InvariantCulture);
-        }
-        catch
-        {
-            return 0f;
-        }
-    }
-
-    private long ConverterParaLong(object valor)
-    {
-        if (valor == null)
-            return 0;
-
-        try
-        {
-            return Convert.ToInt64(valor, CultureInfo.InvariantCulture);
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private string FormatarNumeroInteiro(long valor)
-    {
-        return valor.ToString("N0", culturaBR);
+        intervaloAtualizacaoAberto = Mathf.Max(0.1f, intervaloAtualizacaoAberto);
     }
 }
