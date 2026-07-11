@@ -3,13 +3,13 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Bloqueia mouse/zoom/GetItem enquanto o menu estiver aberto.
+/// Bloqueia mouse, zoom e GetItem enquanto o menu estiver aberto.
 ///
-/// Versao otimizada:
-/// - nao usa GetComponentsInChildren em todo frame;
-/// - caches de CanvasGroup/Graphic sao atualizados apenas no intervalo de busca;
-/// - estados das cameras sao alterados somente na transicao abrir/fechar;
-/// - cursor e restaurado sem disputar com Camera3Person/Camera1Person.
+/// Regras:
+/// - caches de UI são atualizados apenas por intervalo;
+/// - estados são alterados somente ao abrir/fechar;
+/// - componentes colocados como filhos não chamam DontDestroyOnLoad;
+/// - ao fechar, cursor e câmera voltam sem precisar marcar/desmarcar Ativo.
 /// </summary>
 [DefaultExecutionOrder(-50000)]
 [DisallowMultipleComponent]
@@ -61,13 +61,13 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
     private CanvasGroup[] canvasGroupsAuto = new CanvasGroup[0];
     private readonly List<MenuManualCache> cachesManuais = new List<MenuManualCache>(4);
 
-    private float proximaBusca;
-    private bool jaViuCursorTravado;
-    private bool bloqueioAplicado;
-
     private ThirdPersonState[] thirdStates = new ThirdPersonState[0];
     private FirstPersonState[] firstStates = new FirstPersonState[0];
     private GetItemState[] getItemStates = new GetItemState[0];
+
+    private float proximaBusca;
+    private bool jaViuCursorTravado;
+    private bool bloqueioAplicado;
 
     private sealed class MenuManualCache
     {
@@ -127,7 +127,12 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
         }
 
         instancia = this;
-        DontDestroyOnLoad(gameObject);
+
+        // Objetos filhos não podem receber DontDestroyOnLoad diretamente.
+        // A instância automática já nasce como objeto raiz e persistente.
+        if (transform.parent == null)
+            DontDestroyOnLoad(gameObject);
+
         AtualizarCaches(true);
     }
 
@@ -137,11 +142,19 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
         MenuAberto = false;
     }
 
+    private void OnDestroy()
+    {
+        if (instancia == this)
+            instancia = null;
+    }
+
     private void Update()
     {
         if (!ativo)
         {
-            RestaurarTudo(true);
+            if (MenuAberto || bloqueioAplicado)
+                RestaurarTudo(true);
+
             MenuAberto = false;
             return;
         }
@@ -179,6 +192,7 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
         {
             if (Cursor.lockState != CursorLockMode.None)
                 Cursor.lockState = CursorLockMode.None;
+
             if (!Cursor.visible)
                 Cursor.visible = true;
         }
@@ -186,10 +200,18 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
         {
             if (Cursor.lockState != CursorLockMode.Locked)
                 Cursor.lockState = CursorLockMode.Locked;
+
             if (Cursor.visible)
                 Cursor.visible = false;
+
             jaViuCursorTravado = true;
         }
+    }
+
+    [ContextMenu("Menu Input/Rebuscar referências agora")]
+    public void RebuscarAgora()
+    {
+        AtualizarCaches(true);
     }
 
     private void AtualizarCaches(bool forcar)
@@ -211,7 +233,9 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
 
     private bool PrecisaRebuscarCameras()
     {
-        return ArrayVazioOuInvalido(thirdPersonCameras) || ArrayVazioOuInvalido(firstPersonCameras);
+        return ArrayVazioOuInvalido(thirdPersonCameras) ||
+               ArrayVazioOuInvalido(firstPersonCameras) ||
+               getItems == null;
     }
 
     private bool ArrayVazioOuInvalido<T>(T[] array) where T : Object
@@ -245,7 +269,9 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
             cache.raiz = raiz;
 
             if (procurarCanvasGroupNosFilhos)
+            {
                 cache.grupos = raiz.GetComponentsInChildren<CanvasGroup>(true);
+            }
             else
             {
                 CanvasGroup grupoRaiz = raiz.GetComponent<CanvasGroup>();
@@ -288,15 +314,19 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
         if (objetosMenu != null)
         {
             for (int i = 0; i < objetosMenu.Length; i++)
+            {
                 if (objetosMenu[i] != null)
                     return true;
+            }
         }
 
         if (canvasGroupsMenu != null)
         {
             for (int i = 0; i < canvasGroupsMenu.Length; i++)
+            {
                 if (canvasGroupsMenu[i] != null)
                     return true;
+            }
         }
 
         return false;
@@ -313,8 +343,10 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
             if (cache.temGrupos)
             {
                 for (int g = 0; g < cache.grupos.Length; g++)
+                {
                     if (CanvasGroupEstaAberto(cache.grupos[g]))
                         return true;
+                }
 
                 continue;
             }
@@ -324,13 +356,19 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
                 for (int g = 0; g < cache.graficos.Length; g++)
                 {
                     Graphic grafico = cache.graficos[g];
-                    if (grafico != null && grafico.gameObject.activeInHierarchy && grafico.enabled && grafico.color.a > 0.05f)
+                    if (grafico != null &&
+                        grafico.gameObject.activeInHierarchy &&
+                        grafico.enabled &&
+                        grafico.color.a > 0.05f)
+                    {
                         return true;
+                    }
                 }
 
                 continue;
             }
 
+            // Sem CanvasGroup ou Graphic: activeInHierarchy representa o estado.
             return true;
         }
 
@@ -343,8 +381,10 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
             return false;
 
         for (int i = 0; i < canvasGroupsMenu.Length; i++)
+        {
             if (CanvasGroupEstaAberto(canvasGroupsMenu[i]))
                 return true;
+        }
 
         return false;
     }
@@ -369,7 +409,8 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
         if (grupo == null || !grupo.gameObject.activeInHierarchy)
             return false;
 
-        return !exigirCanvasGroupVisivel || (grupo.alpha > 0.05f && (grupo.blocksRaycasts || grupo.interactable));
+        return !exigirCanvasGroupVisivel ||
+               (grupo.alpha > 0.05f && (grupo.blocksRaycasts || grupo.interactable));
     }
 
     private bool NomePareceMenu(Transform atual)
@@ -377,12 +418,14 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
         while (atual != null)
         {
             string nome = atual.name.ToLowerInvariant();
+
             for (int i = 0; i < nomesMenu.Length; i++)
             {
                 string chave = nomesMenu[i];
                 if (!string.IsNullOrEmpty(chave) && nome.Contains(chave.ToLowerInvariant()))
                     return true;
             }
+
             atual = atual.parent;
         }
 
@@ -391,7 +434,9 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
 
     private void AplicarBloqueio()
     {
-        SalvarEstadosAtuais();
+        if (!bloqueioAplicado)
+            SalvarEstadosAtuais();
+
         bloqueioAplicado = true;
 
         if (desbloquearCursorComMenuAberto)
@@ -408,7 +453,9 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
 
             if (bloquearThirdPersonMouse)
                 cam.aceitarInputMouse = false;
+
             cam.travarCursorAoAtivar = false;
+
             if (bloquearZoomEnquantoMenuAberto)
                 cam.usarZoom = false;
         }
@@ -421,24 +468,28 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
 
             if (bloquearFirstPersonMouse)
                 cam.aceitarInputMouse = false;
+
             cam.travarCursorAoAtivar = false;
+
             if (bloquearZoomEnquantoMenuAberto)
                 cam.usarZoom = false;
+
             cam.exibirMira = false;
         }
 
-        if (bloquearGetItemEnquantoMenuAberto)
-        {
-            for (int i = 0; i < getItems.Length; i++)
-            {
-                GetItemV2 item = getItems[i];
-                if (item == null)
-                    continue;
+        if (!bloquearGetItemEnquantoMenuAberto)
+            return;
 
-                if (soltarObjetoAoAbrirMenu)
-                    item.SoltarObjeto();
-                item.enabled = false;
-            }
+        for (int i = 0; i < getItems.Length; i++)
+        {
+            GetItemV2 item = getItems[i];
+            if (item == null)
+                continue;
+
+            if (soltarObjetoAoAbrirMenu)
+                item.SoltarObjeto();
+
+            item.enabled = false;
         }
     }
 
@@ -473,7 +524,13 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
 
         getItemStates = new GetItemState[getItems.Length];
         for (int i = 0; i < getItemStates.Length; i++)
-            getItemStates[i] = new GetItemState { item = getItems[i], enabled = getItems[i] != null && getItems[i].enabled };
+        {
+            getItemStates[i] = new GetItemState
+            {
+                item = getItems[i],
+                enabled = getItems[i] != null && getItems[i].enabled
+            };
+        }
     }
 
     private void RestaurarTudo(bool forcar)
@@ -487,7 +544,10 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
             if (cam == null)
                 continue;
 
-            cam.aceitarInputMouse = forcarInputCameraAoFecharMenu ? true : thirdStates[i].aceitarInputMouse;
+            cam.aceitarInputMouse = forcarInputCameraAoFecharMenu
+                ? true
+                : thirdStates[i].aceitarInputMouse;
+
             cam.usarZoom = thirdStates[i].usarZoom;
             cam.travarCursorAoAtivar = thirdStates[i].travarCursor;
         }
@@ -498,7 +558,10 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
             if (cam == null)
                 continue;
 
-            cam.aceitarInputMouse = forcarInputCameraAoFecharMenu ? true : firstStates[i].aceitarInputMouse;
+            cam.aceitarInputMouse = forcarInputCameraAoFecharMenu
+                ? true
+                : firstStates[i].aceitarInputMouse;
+
             cam.usarZoom = firstStates[i].usarZoom;
             cam.travarCursorAoAtivar = firstStates[i].travarCursor;
             cam.exibirMira = firstStates[i].exibirMira;
@@ -510,7 +573,8 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
             if (item == null)
                 continue;
 
-            item.enabled = restaurarGetItemAoFecharMenu ? getItemStates[i].enabled : item.enabled;
+            if (restaurarGetItemAoFecharMenu)
+                item.enabled = getItemStates[i].enabled;
         }
 
         bloqueioAplicado = false;
@@ -526,12 +590,16 @@ public class CameraV2MenuInputBlocker : MonoBehaviour
     private bool AlgumaCameraAtiva()
     {
         for (int i = 0; i < thirdPersonCameras.Length; i++)
+        {
             if (thirdPersonCameras[i] != null && thirdPersonCameras[i].cameraAtiva)
                 return true;
+        }
 
         for (int i = 0; i < firstPersonCameras.Length; i++)
+        {
             if (firstPersonCameras[i] != null && firstPersonCameras[i].cameraAtiva)
                 return true;
+        }
 
         return false;
     }
