@@ -2,10 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Controlador central do Camera System V2.
-///
-/// Use em um GameObject vazio: CameraSystemV2.
-/// Ele alterna entre ThirdPersonCAM e FirstPersonCAM sem depender dos scripts antigos.
-/// Também controla AudioListener para evitar dois listeners ativos.
+/// Alterna ThirdPersonCAM/FirstPersonCAM, controla AudioListener e mantém o
+/// PlayerMove apontando para a câmera realmente ativa.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(19900)]
@@ -16,6 +14,7 @@ public class CameraV2Controller : MonoBehaviour
     public Camera1Person firstPersonCAM;
     public Transform playerTarget;
     public Transform pov;
+    public PlayerMove playerMove;
 
     [Header("Input")]
     public bool usarBotaoDireitoParaPrimeiraPessoa = true;
@@ -27,17 +26,45 @@ public class CameraV2Controller : MonoBehaviour
     public bool iniciarEmTerceiraPessoa = true;
     public bool sincronizarYawAoTrocar = true;
 
+    [Header("Movimento do Player")]
+    public bool atualizarCameraTransformDoPlayer = true;
+
     [Header("Áudio")]
     public bool controlarAudioListeners = true;
 
     [Header("Segurança")]
     public bool desativarCameraAntigaSeEncontrar = false;
+    public bool ignorarInputComMenuAberto = true;
     public bool logarEventos = false;
 
     private bool primeiraPessoaAtiva;
     private bool ultimoBotao;
 
     public bool PrimeiraPessoaAtiva => primeiraPessoaAtiva;
+    public Transform CameraAtivaTransform
+    {
+        get
+        {
+            if (primeiraPessoaAtiva && firstPersonCAM != null)
+                return firstPersonCAM.transform;
+
+            if (thirdPersonCAM != null)
+                return thirdPersonCAM.transform;
+
+            return firstPersonCAM != null ? firstPersonCAM.transform : null;
+        }
+    }
+
+    public UnityEngine.Camera CameraAtiva
+    {
+        get
+        {
+            if (primeiraPessoaAtiva && firstPersonCAM != null)
+                return firstPersonCAM.UnityCamera;
+
+            return thirdPersonCAM != null ? thirdPersonCAM.UnityCamera : null;
+        }
+    }
 
     private void Awake()
     {
@@ -54,6 +81,12 @@ public class CameraV2Controller : MonoBehaviour
     private void Update()
     {
         ResolverReferenciasLeve();
+
+        if (ignorarInputComMenuAberto && CameraV2MenuInputBlocker.MenuAberto)
+        {
+            ultimoBotao = false;
+            return;
+        }
 
         if (usarBotaoDireitoParaPrimeiraPessoa)
         {
@@ -73,11 +106,16 @@ public class CameraV2Controller : MonoBehaviour
             SetPrimeiraPessoa(!primeiraPessoaAtiva);
     }
 
+    private void LateUpdate()
+    {
+        AtualizarCameraTransformPlayer();
+    }
+
     public void SetPrimeiraPessoa(bool ativa)
     {
         ResolverReferenciasLeve();
 
-        if (primeiraPessoaAtiva == ativa && thirdPersonCAM != null && firstPersonCAM != null)
+        if (primeiraPessoaAtiva == ativa)
         {
             AplicarAtivacao();
             return;
@@ -95,11 +133,7 @@ public class CameraV2Controller : MonoBehaviour
 
     private void ResolverReferencias()
     {
-        if (thirdPersonCAM == null)
-            thirdPersonCAM = Object.FindFirstObjectByType<Camera3Person>(FindObjectsInactive.Include);
-
-        if (firstPersonCAM == null)
-            firstPersonCAM = Object.FindFirstObjectByType<Camera1Person>(FindObjectsInactive.Include);
+        ResolverReferenciasLeve();
 
         if (thirdPersonCAM != null && playerTarget != null)
             thirdPersonCAM.target = playerTarget;
@@ -121,6 +155,12 @@ public class CameraV2Controller : MonoBehaviour
 
         if (firstPersonCAM == null)
             firstPersonCAM = Object.FindFirstObjectByType<Camera1Person>(FindObjectsInactive.Include);
+
+        if (playerMove == null)
+            playerMove = Object.FindFirstObjectByType<PlayerMove>(FindObjectsInactive.Include);
+
+        if (playerTarget == null && playerMove != null)
+            playerTarget = playerMove.transform;
     }
 
     private void AplicarEstadoInicial()
@@ -132,12 +172,13 @@ public class CameraV2Controller : MonoBehaviour
     private void AplicarAtivacao()
     {
         if (thirdPersonCAM != null)
-            thirdPersonCAM.cameraAtiva = !primeiraPessoaAtiva;
+            thirdPersonCAM.SetAtiva(!primeiraPessoaAtiva);
 
         if (firstPersonCAM != null)
             firstPersonCAM.SetAtiva(primeiraPessoaAtiva);
 
         AtualizarAudioListeners();
+        AtualizarCameraTransformPlayer();
     }
 
     private void AtualizarAudioListeners()
@@ -148,11 +189,21 @@ public class CameraV2Controller : MonoBehaviour
         AudioListener thirdListener = thirdPersonCAM != null ? thirdPersonCAM.GetComponent<AudioListener>() : null;
         AudioListener firstListener = firstPersonCAM != null ? firstPersonCAM.GetComponent<AudioListener>() : null;
 
-        if (thirdListener != null)
+        if (thirdListener != null && thirdListener.enabled != !primeiraPessoaAtiva)
             thirdListener.enabled = !primeiraPessoaAtiva;
 
-        if (firstListener != null)
+        if (firstListener != null && firstListener.enabled != primeiraPessoaAtiva)
             firstListener.enabled = primeiraPessoaAtiva;
+    }
+
+    private void AtualizarCameraTransformPlayer()
+    {
+        if (!atualizarCameraTransformDoPlayer || playerMove == null)
+            return;
+
+        Transform ativa = CameraAtivaTransform;
+        if (ativa != null && playerMove.cameraTransform != ativa)
+            playerMove.cameraTransform = ativa;
     }
 
     private void SincronizarAngulos(bool indoParaPrimeiraPessoa)
