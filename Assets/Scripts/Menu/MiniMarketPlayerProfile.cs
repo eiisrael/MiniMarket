@@ -2,25 +2,25 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Fachada de perfil do jogador.
-/// Mantem compatibilidade com os scripts existentes, mas agora le/escreve no MiniMarketPlayerDatabase.
+/// Fachada compatível para nome e empresas do jogador.
+/// Os dados reais pertencem ao MiniMarketPlayerDatabase.
 /// </summary>
 [DisallowMultipleComponent]
 public class MiniMarketPlayerProfile : MonoBehaviour
 {
     public static MiniMarketPlayerProfile Instance { get; private set; }
 
-    [Header("Dados Temporarios")]
-    [Tooltip("Nome temporario ate existir login/conta online.")]
+    [Header("Dados padrão")]
     public string nomePadrao = "Player";
 
     [Header("Banco de Dados")]
     public bool usarBancoDeDados = true;
 
     [Header("Debug")]
-    public bool logarAlteracoes = true;
+    public bool logarAlteracoes;
 
     private MiniMarketPlayerDatabase banco;
+    private bool subscribed;
 
     public event Action OnDadosAlterados;
 
@@ -29,16 +29,13 @@ public class MiniMarketPlayerProfile : MonoBehaviour
         get
         {
             ResolverBanco();
-
-            if (usarBancoDeDados && banco != null)
-                return banco.NomePersonagem;
-
-            return string.IsNullOrWhiteSpace(nomePadrao) ? "Player" : nomePadrao;
+            return usarBancoDeDados && banco != null
+                ? banco.NomePersonagem
+                : (string.IsNullOrWhiteSpace(nomePadrao) ? "Player" : nomePadrao);
         }
         set
         {
             ResolverBanco();
-
             string novoNome = string.IsNullOrWhiteSpace(value) ? nomePadrao : value.Trim();
 
             if (usarBancoDeDados && banco != null)
@@ -66,6 +63,10 @@ public class MiniMarketPlayerProfile : MonoBehaviour
         }
 
         Instance = this;
+
+        if (transform.parent != null)
+            transform.SetParent(null);
+
         DontDestroyOnLoad(gameObject);
         ResolverBanco();
 
@@ -79,15 +80,19 @@ public class MiniMarketPlayerProfile : MonoBehaviour
             Instance = this;
 
         ResolverBanco();
-
-        if (banco != null)
-            banco.OnDatabaseChanged += AoBancoAlterado;
+        Subscribe();
     }
 
     private void OnDisable()
     {
-        if (banco != null)
-            banco.OnDatabaseChanged -= AoBancoAlterado;
+        Unsubscribe();
+    }
+
+    private void OnDestroy()
+    {
+        Unsubscribe();
+        if (Instance == this)
+            Instance = null;
     }
 
     public static MiniMarketPlayerProfile ObterOuCriar()
@@ -95,16 +100,20 @@ public class MiniMarketPlayerProfile : MonoBehaviour
         if (Instance != null)
             return Instance;
 
-        MiniMarketPlayerProfile encontrado = FindObjectOfType<MiniMarketPlayerProfile>(true);
+        if (!Application.isPlaying)
+            return null;
+
+        MiniMarketPlayerProfile encontrado =
+            UnityEngine.Object.FindAnyObjectByType<MiniMarketPlayerProfile>(FindObjectsInactive.Include);
+
         if (encontrado != null)
         {
             Instance = encontrado;
-            return Instance;
+            return encontrado;
         }
 
         GameObject go = new GameObject("MiniMarket_PlayerProfile");
-        Instance = go.AddComponent<MiniMarketPlayerProfile>();
-        return Instance;
+        return go.AddComponent<MiniMarketPlayerProfile>();
     }
 
     public bool EmpresaJaComprada(string empresaId)
@@ -116,7 +125,6 @@ public class MiniMarketPlayerProfile : MonoBehaviour
     public bool RegistrarEmpresaComprada(string empresaId)
     {
         ResolverBanco();
-
         if (!usarBancoDeDados || banco == null)
             return false;
 
@@ -125,8 +133,12 @@ public class MiniMarketPlayerProfile : MonoBehaviour
 
         if (logarAlteracoes)
         {
-            string msg = registrou ? "Empresa comprada registrada: " : "Empresa ja registrada: ";
-            Debug.Log("[MiniMarketPlayerProfile] " + msg + empresaId + " | Total: " + EmpresasCompradas);
+            Debug.Log(
+                "[PlayerProfile] " +
+                (registrou ? "Empresa registrada: " : "Empresa já registrada: ") +
+                empresaId,
+                this
+            );
         }
 
         return registrou;
@@ -135,13 +147,12 @@ public class MiniMarketPlayerProfile : MonoBehaviour
     public void DefinirEmpresasCompradasParaTeste(int quantidade)
     {
         ResolverBanco();
-
         if (banco == null)
             return;
 
-        banco.ResetarBancoLocal();
-
+        banco.ResetarEmpresasCompradas();
         quantidade = Mathf.Max(0, quantidade);
+
         for (int i = 0; i < quantidade; i++)
             banco.RegistrarEmpresaComprada("TESTE_EMPRESA_" + i);
 
@@ -152,10 +163,8 @@ public class MiniMarketPlayerProfile : MonoBehaviour
     public void ResetarPerfilCompleto()
     {
         ResolverBanco();
-
         if (banco != null)
             banco.ResetarBancoLocal();
-
         DispararAlteracao();
     }
 
@@ -163,20 +172,35 @@ public class MiniMarketPlayerProfile : MonoBehaviour
     public void ResetarEmpresasCompradas()
     {
         ResolverBanco();
-
         if (banco != null)
-            banco.ResetarBancoLocal();
-
+            banco.ResetarEmpresasCompradas();
         DispararAlteracao();
     }
 
     private void ResolverBanco()
     {
-        if (!usarBancoDeDados)
+        if (!usarBancoDeDados || banco != null || !Application.isPlaying)
             return;
 
-        if (banco == null)
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
+        banco = MiniMarketPlayerDatabase.ObterOuCriar();
+    }
+
+    private void Subscribe()
+    {
+        if (subscribed || banco == null)
+            return;
+
+        banco.OnDatabaseChanged += AoBancoAlterado;
+        subscribed = true;
+    }
+
+    private void Unsubscribe()
+    {
+        if (!subscribed || banco == null)
+            return;
+
+        banco.OnDatabaseChanged -= AoBancoAlterado;
+        subscribed = false;
     }
 
     private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
