@@ -1,16 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// MiniMarket Camera V2 - Third Person CAM.
-///
-/// Use no GameObject: ThirdPersonCAM.
-/// Objetivo: câmera em terceira pessoa estilo GTA, fluida, segura e totalmente editável no Inspector em runtime.
-///
-/// Regras do V2:
-/// - Este script é a autoridade da terceira pessoa.
-/// - Não depende do CameraGTAFollowHardcore antigo.
-/// - Não força valores do Inspector em loop.
-/// - Evita pulo visual, snap agressivo, colisão no chão e câmera entrando no personagem.
+/// MiniMarket Camera V2 - terceira pessoa estilo GTA.
+/// Sem alocacoes por frame, colisao NonAlloc, cursor/menu seguro e FOV atualizado apenas quando necessario.
+/// Todos os campos continuam editaveis em runtime pelo Inspector.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(20000)]
@@ -108,12 +101,21 @@ public class Camera3Person : MonoBehaviour
     private float pitch;
     private float distanciaAtual;
     private float distanciaDesejadaAtual;
+    private float distanciaSeguraAtual;
     private float tempoSemMouse;
     private bool inicializado;
+    private bool colisaoNoFrame;
+    private string ultimoColliderColisao = string.Empty;
 
     public float YawAtual => yaw;
     public float PitchAtual => pitch;
-    public bool ZoomAtivo => usarZoom && zoomEnquantoSeguraBotao && Input.GetMouseButton(botaoZoomMira);
+    public float DistanciaAtual => distanciaAtual;
+    public float DistanciaSeguraAtual => distanciaSeguraAtual;
+    public float FovAtual => camera3Person != null ? camera3Person.fieldOfView : 0f;
+    public bool ColisaoNoFrame => colisaoNoFrame;
+    public string UltimoColliderColisao => ultimoColliderColisao;
+    public bool InputMouseAtivo => cameraAtiva && aceitarInputMouse && !CameraV2MenuInputBlocker.MenuAberto;
+    public bool ZoomAtivo => InputMouseAtivo && usarZoom && zoomEnquantoSeguraBotao && Input.GetMouseButton(botaoZoomMira);
     public UnityEngine.Camera UnityCamera => camera3Person;
 
     private void Reset()
@@ -132,34 +134,34 @@ public class Camera3Person : MonoBehaviour
     private void OnEnable()
     {
         ResolverReferencias();
-        AplicarAtivacaoCamera();
         InicializarEstado();
+        AplicarAtivacaoCamera();
     }
 
     private void OnDisable()
     {
-        if (controlarCameraComponent && camera3Person != null)
+        if (controlarCameraComponent && camera3Person != null && camera3Person.enabled)
             camera3Person.enabled = false;
     }
 
     private void LateUpdate()
     {
-        if (!cameraAtiva)
-        {
-            AplicarAtivacaoCamera();
-            return;
-        }
-
         ResolverReferencias();
         AplicarAtivacaoCamera();
 
-        if (target == null || camera3Person == null)
+        if (!cameraAtiva || target == null || camera3Person == null)
             return;
 
         float dt = DeltaTimeSeguro();
         LerMouse(dt);
         AtualizarAutoAlinhar(dt);
         AtualizarCamera(dt);
+    }
+
+    public void SetAtiva(bool ativa)
+    {
+        cameraAtiva = ativa;
+        AplicarAtivacaoCamera();
     }
 
     public void DefinirTarget(Transform novoTarget, bool resetarAngulo = false)
@@ -196,10 +198,11 @@ public class Camera3Person : MonoBehaviour
 
     private void ReinicializarEstado()
     {
-        yaw = yawInicial != 0f ? yawInicial : transform.eulerAngles.y;
+        yaw = Mathf.Abs(yawInicial) > 0.001f ? yawInicial : transform.eulerAngles.y;
         pitch = Mathf.Clamp(pitchInicial, minPitch, maxPitch);
-        distanciaAtual = distancia;
-        distanciaDesejadaAtual = distancia;
+        distanciaAtual = Mathf.Max(0.5f, distancia);
+        distanciaDesejadaAtual = distanciaAtual;
+        distanciaSeguraAtual = distanciaAtual;
         velocidadePosicao = Vector3.zero;
 
         if (target != null)
@@ -211,19 +214,22 @@ public class Camera3Person : MonoBehaviour
 
     private void AplicarAtivacaoCamera()
     {
-        if (controlarCameraComponent && camera3Person != null)
+        if (controlarCameraComponent && camera3Person != null && camera3Person.enabled != cameraAtiva)
             camera3Person.enabled = cameraAtiva;
 
-        if (cameraAtiva && travarCursorAoAtivar)
-        {
+        if (!cameraAtiva || !travarCursorAoAtivar || CameraV2MenuInputBlocker.MenuAberto)
+            return;
+
+        if (Cursor.lockState != CursorLockMode.Locked)
             Cursor.lockState = CursorLockMode.Locked;
+
+        if (Cursor.visible)
             Cursor.visible = false;
-        }
     }
 
     private void LerMouse(float dt)
     {
-        if (!aceitarInputMouse || Cursor.lockState != CursorLockMode.Locked)
+        if (!InputMouseAtivo || Cursor.lockState != CursorLockMode.Locked)
         {
             tempoSemMouse += dt;
             return;
@@ -231,9 +237,9 @@ public class Camera3Person : MonoBehaviour
 
         float mouseX = Input.GetAxisRaw(mouseXAxis);
         float mouseY = Input.GetAxisRaw(mouseYAxis);
-        Vector2 input = new Vector2(mouseX, mouseY);
+        float magnitudeQuadrada = mouseX * mouseX + mouseY * mouseY;
 
-        if (input.sqrMagnitude <= deadZoneMouse * deadZoneMouse)
+        if (magnitudeQuadrada <= deadZoneMouse * deadZoneMouse)
         {
             tempoSemMouse += dt;
             return;
@@ -241,8 +247,8 @@ public class Camera3Person : MonoBehaviour
 
         tempoSemMouse = 0f;
         float mult = ZoomAtivo ? Mathf.Max(0.01f, multiplicadorMouseNoZoom) : 1f;
-        yaw += input.x * sensibilidadeX * mult * dt;
-        pitch += (inverterY ? input.y : -input.y) * sensibilidadeY * mult * dt;
+        yaw += mouseX * sensibilidadeX * mult * dt;
+        pitch += (inverterY ? mouseY : -mouseY) * sensibilidadeY * mult * dt;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
     }
 
@@ -268,11 +274,11 @@ public class Camera3Person : MonoBehaviour
         delta.y = 0f;
         ultimaTargetPos = target.position;
 
-        if (delta.magnitude < velocidadeMinimaParaAutoAlinhar * Mathf.Max(dt, 0.0001f))
+        float limite = velocidadeMinimaParaAutoAlinhar * Mathf.Max(dt, 0.0001f);
+        if (delta.sqrMagnitude < limite * limite)
             return;
 
-        float alvoYaw = target.eulerAngles.y;
-        yaw = Mathf.LerpAngle(yaw, alvoYaw, Suavizacao(velocidadeAutoAlinhar, dt));
+        yaw = Mathf.LerpAngle(yaw, target.eulerAngles.y, Suavizacao(velocidadeAutoAlinhar, dt));
     }
 
     private void AtualizarCamera(float dt)
@@ -283,21 +289,21 @@ public class Camera3Person : MonoBehaviour
 
         float distanciaAlvo = zoom ? distanciaZoom : distancia;
         float lateralAlvo = zoom ? offsetLateralMira : offsetLateral;
-
         distanciaDesejadaAtual = Mathf.Lerp(distanciaDesejadaAtual, distanciaAlvo, Suavizacao(velocidadeDistanciaZoom, dt));
 
-        Vector3 direcaoTras = orbit * Vector3.back;
-        Vector3 direcaoLado = orbit * Vector3.right;
-        Vector3 posicaoIdeal = foco + direcaoTras * distanciaDesejadaAtual + direcaoLado * lateralAlvo + Vector3.up * alturaExtra;
+        Vector3 posicaoIdeal = foco + orbit * Vector3.back * distanciaDesejadaAtual + orbit * Vector3.right * lateralAlvo + Vector3.up * alturaExtra;
+        Vector3 vetor = posicaoIdeal - foco;
+        float distanciaNormal = vetor.magnitude;
+        if (distanciaNormal <= 0.001f)
+            return;
 
-        float distanciaNormal = Vector3.Distance(foco, posicaoIdeal);
-        Vector3 direcao = distanciaNormal > 0.001f ? (posicaoIdeal - foco) / distanciaNormal : direcaoTras;
-        float distanciaSegura = usarColisao ? CalcularDistanciaSegura(foco, direcao, distanciaNormal) : distanciaNormal;
+        Vector3 direcao = vetor / distanciaNormal;
+        distanciaSeguraAtual = usarColisao ? CalcularDistanciaSegura(foco, direcao, distanciaNormal) : distanciaNormal;
 
         if (limitarMudancaDistanciaPorFrame)
-            distanciaAtual = Mathf.MoveTowards(distanciaAtual, distanciaSegura, maxDeltaDistanciaPorFrame);
+            distanciaAtual = Mathf.MoveTowards(distanciaAtual, distanciaSeguraAtual, maxDeltaDistanciaPorFrame);
         else
-            distanciaAtual = distanciaSegura;
+            distanciaAtual = distanciaSeguraAtual;
 
         Vector3 posicaoFinal = foco + direcao * distanciaAtual;
         Quaternion rotacaoFinal = preservarRotacaoDaOrbita ? orbit : Quaternion.LookRotation(foco - posicaoFinal, Vector3.up);
@@ -313,10 +319,8 @@ public class Camera3Person : MonoBehaviour
             if (usarSuavizacao && tempoSuavizacaoPosicao > 0.0001f)
             {
                 Vector3 novaPos = Vector3.SmoothDamp(transform.position, posicaoFinal, ref velocidadePosicao, tempoSuavizacaoPosicao, Mathf.Infinity, dt);
-
-                if (maxDeltaPosicaoPorFrame > 0f && Vector3.Distance(transform.position, novaPos) > maxDeltaPosicaoPorFrame)
+                if (maxDeltaPosicaoPorFrame > 0f)
                     novaPos = Vector3.MoveTowards(transform.position, novaPos, maxDeltaPosicaoPorFrame);
-
                 transform.position = novaPos;
             }
             else
@@ -325,8 +329,9 @@ public class Camera3Person : MonoBehaviour
                 velocidadePosicao = Vector3.zero;
             }
 
-            float tRot = Suavizacao(velocidadeRotacao, dt);
-            transform.rotation = velocidadeRotacao <= 0.0001f ? rotacaoFinal : Quaternion.Slerp(transform.rotation, rotacaoFinal, tRot);
+            transform.rotation = velocidadeRotacao <= 0.0001f
+                ? rotacaoFinal
+                : Quaternion.Slerp(transform.rotation, rotacaoFinal, Suavizacao(velocidadeRotacao, dt));
         }
 
         AtualizarFov(dt, zoom);
@@ -340,18 +345,18 @@ public class Camera3Person : MonoBehaviour
 
     private Vector3 ObterFoco()
     {
-        if (lookAtOverride != null)
-            return lookAtOverride.position;
-
-        return target.position + targetOffset;
+        return lookAtOverride != null ? lookAtOverride.position : target.position + targetOffset;
     }
 
     private float CalcularDistanciaSegura(Vector3 foco, Vector3 direcao, float distanciaNormal)
     {
-        float minPermitida = Mathf.Clamp(Mathf.Max(distanciaMinima, distanciaMinimaVisual), 0.05f, distanciaNormal);
+        float minima = Mathf.Clamp(Mathf.Max(distanciaMinima, distanciaMinimaVisual), 0.05f, distanciaNormal);
         float segura = distanciaNormal;
-        QueryTriggerInteraction triggerMode = ignorarTriggers ? QueryTriggerInteraction.Ignore : QueryTriggerInteraction.Collide;
-        int count = Physics.SphereCastNonAlloc(foco, raioColisao, direcao, hits, distanciaNormal + margemParede, layersColisao, triggerMode);
+        colisaoNoFrame = false;
+        ultimoColliderColisao = string.Empty;
+
+        QueryTriggerInteraction modoTrigger = ignorarTriggers ? QueryTriggerInteraction.Ignore : QueryTriggerInteraction.Collide;
+        int count = Physics.SphereCastNonAlloc(foco, raioColisao, direcao, hits, distanciaNormal + margemParede, layersColisao, modoTrigger);
 
         for (int i = 0; i < count; i++)
         {
@@ -359,21 +364,22 @@ public class Camera3Person : MonoBehaviour
             if (DeveIgnorarHit(hit))
                 continue;
 
-            float d = Mathf.Max(minPermitida, hit.distance - margemParede);
+            float d = Mathf.Max(minima, hit.distance - margemParede);
             if (d < segura)
+            {
                 segura = d;
+                colisaoNoFrame = true;
+                ultimoColliderColisao = hit.collider != null ? hit.collider.name : string.Empty;
+            }
         }
 
-        return Mathf.Clamp(segura, minPermitida, distanciaNormal);
+        return Mathf.Clamp(segura, minima, distanciaNormal);
     }
 
     private bool DeveIgnorarHit(RaycastHit hit)
     {
-        if (hit.collider == null)
-            return true;
-
         Collider col = hit.collider;
-        if (!col.enabled || (col.isTrigger && ignorarTriggers))
+        if (col == null || !col.enabled || (col.isTrigger && ignorarTriggers))
             return true;
 
         if (hit.distance < ignorarHitMuitoPertoDoAlvo)
@@ -401,6 +407,13 @@ public class Camera3Person : MonoBehaviour
             return;
 
         float alvo = zoom ? fovZoom : fovNormal;
+        if (Mathf.Abs(camera3Person.fieldOfView - alvo) <= 0.01f)
+        {
+            if (camera3Person.fieldOfView != alvo)
+                camera3Person.fieldOfView = alvo;
+            return;
+        }
+
         camera3Person.fieldOfView = Mathf.Lerp(camera3Person.fieldOfView, alvo, Suavizacao(velocidadeFov, dt));
     }
 
@@ -412,9 +425,7 @@ public class Camera3Person : MonoBehaviour
 
     private float Suavizacao(float velocidade, float dt)
     {
-        if (velocidade <= 0.0001f)
-            return 1f;
-        return 1f - Mathf.Exp(-velocidade * dt);
+        return velocidade <= 0.0001f ? 1f : 1f - Mathf.Exp(-velocidade * dt);
     }
 
     private void OnValidate()
