@@ -1,10 +1,12 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Movimentação baseada na direção horizontal da câmera.
-/// Usa CharacterController, aceleração suave, corrida, pulo, gravidade e rotação estável.
-/// Também atualiza controladores Animator antigos e novos sem exigir nomes únicos.
+/// Movimentação do personagem baseada na direção horizontal da câmera.
+///
+/// Inclui aceleração suave, corrida, pulo, gravidade, Animator compatível,
+/// input externo para mobile e energia segmentada persistida no banco local.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
@@ -44,13 +46,27 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     public bool allowRun = true;
     [Range(0f, 1f)] public float minimumInputToRun = 0.65f;
 
-    [Header("Stamina")]
+    [Header("Stamina / Energia")]
     public bool useStamina = true;
     [Min(1f)] public float maxStamina = 100f;
+    [SerializeField, Min(0f)] private float currentStamina = 100f;
     [Min(0f)] public float runDrainPerSecond = 15f;
     [Min(0f)] public float recoveryPerSecond = 11f;
     [Min(0f)] public float recoveryDelay = 0.8f;
     [Min(0f)] public float minimumStaminaToStartRunning = 5f;
+
+    [Header("Energia segmentada")]
+    public bool useSegmentedEnergy = true;
+    [Min(1)] public int maxEnergySegments = 5;
+    [SerializeField, Min(0)] private int currentEnergySegments = 5;
+    [SerializeField, Min(0f)] private float energyRechargeReserve;
+    public bool refillBarWhenSegmentIsConsumed = true;
+    public bool rechargeAdditionalSegments = true;
+
+    [Header("Persistência")]
+    public bool usePlayerDatabase = true;
+    [Min(0.05f)] public float minimumDatabaseDifference = 0.25f;
+    [Min(0.25f)] public float databaseSyncInterval = 0.75f;
 
     [Header("Animator - parâmetros principais")]
     public string speedParameter = "Speed";
@@ -62,12 +78,8 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     public bool keepAnimatorEnabled = true;
 
     [Header("Animator - compatibilidade automática")]
-    [Tooltip("Atualiza parâmetros comuns como Walking, Running, IsRunning, IsGrounded, MoveX e MoveY.")]
     public bool autoDetectCommonAnimatorParameters = true;
-
-    [Tooltip("Se o controlador não possuir parâmetros de locomoção, tenta estados Idle/Walk/Run/Jump diretamente.")]
     public bool useStateFallbackWhenNoParameters = true;
-
     public string idleStateName = "Idle";
     public string walkStateName = "Walk";
     public string runStateName = "Run";
@@ -84,10 +96,18 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private bool externalJump;
     private Vector3 horizontalVelocity;
     private float verticalVelocity;
-    private float currentStamina;
     private float lastRunTime = -100f;
     private bool running;
     private bool jumpedThisFrame;
+
+    private MiniMarketPlayerDatabase database;
+    private bool applyingDatabaseState;
+    private bool staminaDirty;
+    private float nextDatabaseSync;
+    private float lastSavedStamina;
+    private float lastSavedReserve;
+    private int lastSavedSegments;
+    private int lastSavedMaxSegments;
 
     private RuntimeAnimatorController cachedAnimatorController;
     private readonly HashSet<int> floatParameters = new HashSet<int>();
@@ -109,7 +129,6 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private int currentFallbackStateHash;
 
     private bool loggedMissingAnimator;
-    private bool loggedMissingController;
     private bool loggedNoAnimationMapping;
 
     private static readonly int WalkingHash = Animator.StringToHash("Walking");
@@ -130,6 +149,8 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private static readonly int StaminaHash = Animator.StringToHash("Stamina");
     private static readonly int IsTiredHash = Animator.StringToHash("IsTired");
 
+    public event Action OnStaminaChanged;
+
     public Vector3 Velocity => horizontalVelocity + Vector3.up * verticalVelocity;
     public float CurrentSpeed => horizontalVelocity.magnitude;
     public bool IsRunning => running;
@@ -138,34 +159,74 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     public float MaxStamina => maxStamina;
     public float Stamina01 => maxStamina > 0.001f ? Mathf.Clamp01(currentStamina / maxStamina) : 0f;
 
-    // Compatibilidade para HUD/Menu que leem nomes antigos por reflexão.
     public float StaminaAtual => CurrentStamina;
     public float StaminaMaxima => MaxStamina;
     public float StaminaPercentual01 => Stamina01;
     public bool EstaCorrendo => IsRunning;
     public bool EstaGastandoStamina => IsRunning && useStamina;
-    public bool EstaCansado => useStamina && currentStamina <= 0.01f;
-    public int StaminaSegmentosMaximos => 5;
-    public int StaminaSegmentosAtuais => Mathf.Clamp(Mathf.CeilToInt(Stamina01 * StaminaSegmentosMaximos), 0, StaminaSegmentosMaximos);
+    public bool EstaCansado => useStamina && currentEnergySegments <= 0 && currentStamina <= 0.01f;
+    public int StaminaSegmentosMaximos => useSegmentedEnergy ? Mathf.Max(1, maxEnergySegments) : 1;
+    public int StaminaSegmentosAtuais => useSegmentedEnergy
+        ? Mathf.Clamp(currentEnergySegments, 0, StaminaSegmentosMaximos)
+        : (currentStamina > 0.001f ? 1 : 0);
     public string StaminaSegmentadaTexto => StaminaSegmentosAtuais + "/" + StaminaSegmentosMaximos;
-    public float StaminaRecargaReserva => 0f;
+    public float StaminaRecargaReserva => energyRechargeReserve;
+
+    public float EnergiaPercentual01
+    {
+        get
+        {
+            if (!useSegmentedEnergy)
+                return Stamina01;
+
+            float barrasCompletas = Mathf.Max(0, StaminaSegmentosAtuais - 1);
+            float barraAtual = StaminaSegmentosAtuais > 0 ? Stamina01 : 0f;
+            return Mathf.Clamp01((barrasCompletas + barraAtual) / StaminaSegmentosMaximos);
+        }
+    }
 
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
-        currentStamina = Mathf.Max(1f, maxStamina);
+        maxStamina = Mathf.Max(1f, maxStamina);
+        maxEnergySegments = Mathf.Max(1, maxEnergySegments);
+        currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        currentEnergySegments = Mathf.Clamp(currentEnergySegments, 0, maxEnergySegments);
+        energyRechargeReserve = Mathf.Clamp(energyRechargeReserve, 0f, maxStamina);
+
         RefreshAnimatorConfiguration();
+        ResolveDatabase(true);
     }
 
     private void OnEnable()
     {
         RefreshAnimatorConfiguration();
+        ResolveDatabase(true);
+        SubscribeDatabase();
     }
 
     private void Start()
     {
         ResolveCamera();
         RefreshAnimatorConfiguration();
+        ResolveDatabase(true);
+    }
+
+    private void OnDisable()
+    {
+        SaveStaminaToDatabase(true);
+        UnsubscribeDatabase();
+    }
+
+    private void OnApplicationPause(bool paused)
+    {
+        if (paused)
+            SaveStaminaToDatabase(true);
+    }
+
+    private void OnApplicationQuit()
+    {
+        SaveStaminaToDatabase(true);
     }
 
     private void Update()
@@ -218,6 +279,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
             verticalVelocity = 0f;
 
         UpdateAnimator(input, deltaTime);
+        TrySyncDatabase();
         externalJump = false;
     }
 
@@ -238,64 +300,20 @@ public sealed class CameraRelativeMovement : MonoBehaviour
 
     public void RestoreStaminaFull()
     {
-        currentStamina = Mathf.Max(1f, maxStamina);
+        maxStamina = Mathf.Max(1f, maxStamina);
+        maxEnergySegments = Mathf.Max(1, maxEnergySegments);
+        currentStamina = maxStamina;
+        currentEnergySegments = useSegmentedEnergy ? maxEnergySegments : 1;
+        energyRechargeReserve = 0f;
+        running = false;
+        MarkStaminaChanged();
+        SaveStaminaToDatabase(true);
     }
 
     public void RestaurarStaminaCompleta() => RestoreStaminaFull();
     public void RecarregarStaminaCompleta() => RestoreStaminaFull();
-
-    /// <summary>
-    /// Rebusca o Animator, desliga root motion e reconstrói o mapa de parâmetros/estados.
-    /// Pode ser chamado pelo setup do Editor depois de trocar o Animator Controller.
-    /// </summary>
-    public bool RefreshAnimatorConfiguration()
-    {
-        if (animator == null)
-            animator = GetComponentInChildren<Animator>(true);
-
-        if (animator == null)
-        {
-            LogAnimatorWarningOnce(
-                "Animator não encontrado no personagem ou nos filhos.",
-                ref loggedMissingAnimator
-            );
-            ClearAnimatorCache();
-            return false;
-        }
-
-        if (keepAnimatorEnabled && !animator.enabled)
-            animator.enabled = true;
-
-        if (disableAnimatorRootMotion)
-            animator.applyRootMotion = false;
-
-        cachedAnimatorController = animator.runtimeAnimatorController;
-        CacheAnimatorParameters();
-        CacheFallbackStates();
-
-        if (cachedAnimatorController == null)
-        {
-            LogAnimatorWarningOnce(
-                "O componente Animator existe, mas Runtime Animator Controller está vazio.",
-                ref loggedMissingController
-            );
-            return false;
-        }
-
-        if (!hasAnyLocomotionParameter &&
-            idleStateHash == 0 &&
-            walkStateHash == 0 &&
-            runStateHash == 0)
-        {
-            LogAnimatorWarningOnce(
-                "Nenhum parâmetro ou estado de locomoção compatível foi encontrado. " +
-                "Use Speed/Walking/Running/IsRunning/MoveX/MoveY ou estados Idle/Walk/Run.",
-                ref loggedNoAnimationMapping
-            );
-        }
-
-        return true;
-    }
+    public void RestaurarEnergiaCompleta() => RestoreStaminaFull();
+    public void RecarregarEnergiaCompleta() => RestoreStaminaFull();
 
     private Vector2 ReadMoveInput()
     {
@@ -354,7 +372,6 @@ public sealed class CameraRelativeMovement : MonoBehaviour
             {
                 verticalVelocity = Mathf.Sqrt(Mathf.Max(0f, jumpHeight * 2f * gravity));
                 jumpedThisFrame = true;
-                SetTriggerIfExists(JumpHash);
             }
         }
         else
@@ -399,44 +416,280 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         if (!useStamina)
             return true;
 
+        if (EstaCansado)
+            return false;
+
         return wasRunning
-            ? currentStamina > 0.01f
-            : currentStamina >= minimumStaminaToStartRunning;
+            ? currentStamina > 0.01f || StaminaSegmentosAtuais > 1
+            : currentStamina >= minimumStaminaToStartRunning || StaminaSegmentosAtuais > 1;
     }
 
     private void UpdateStamina(float deltaTime)
     {
         maxStamina = Mathf.Max(1f, maxStamina);
+        maxEnergySegments = Mathf.Max(1, maxEnergySegments);
+
+        float previousStamina = currentStamina;
+        float previousReserve = energyRechargeReserve;
+        int previousSegments = currentEnergySegments;
 
         if (!useStamina)
         {
             currentStamina = maxStamina;
-            return;
+            currentEnergySegments = useSegmentedEnergy ? maxEnergySegments : 1;
+            energyRechargeReserve = 0f;
         }
-
-        if (running && horizontalVelocity.sqrMagnitude > 0.05f)
+        else if (running && horizontalVelocity.sqrMagnitude > 0.05f)
         {
             currentStamina = Mathf.Max(0f, currentStamina - runDrainPerSecond * deltaTime);
             lastRunTime = Time.time;
 
             if (currentStamina <= 0.001f)
-                running = false;
+                ConsumeEnergySegment();
         }
         else if (Time.time - lastRunTime >= recoveryDelay)
         {
-            currentStamina = Mathf.Min(maxStamina, currentStamina + recoveryPerSecond * deltaTime);
+            RecoverEnergy(deltaTime);
         }
+
+        currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        currentEnergySegments = Mathf.Clamp(currentEnergySegments, 0, maxEnergySegments);
+        energyRechargeReserve = Mathf.Clamp(energyRechargeReserve, 0f, maxStamina);
+
+        if (Mathf.Abs(previousStamina - currentStamina) > 0.001f ||
+            Mathf.Abs(previousReserve - energyRechargeReserve) > 0.001f ||
+            previousSegments != currentEnergySegments)
+        {
+            MarkStaminaChanged();
+        }
+    }
+
+    private void ConsumeEnergySegment()
+    {
+        if (!useSegmentedEnergy)
+        {
+            currentStamina = 0f;
+            running = false;
+            return;
+        }
+
+        if (currentEnergySegments > 1)
+        {
+            currentEnergySegments--;
+            currentStamina = refillBarWhenSegmentIsConsumed ? maxStamina : 0f;
+            return;
+        }
+
+        currentEnergySegments = 0;
+        currentStamina = 0f;
+        running = false;
+    }
+
+    private void RecoverEnergy(float deltaTime)
+    {
+        float recovery = Mathf.Max(0f, recoveryPerSecond) * deltaTime;
+        if (recovery <= 0f)
+            return;
+
+        if (!useSegmentedEnergy)
+        {
+            currentStamina = Mathf.Min(maxStamina, currentStamina + recovery);
+            return;
+        }
+
+        if (currentEnergySegments <= 0)
+        {
+            currentStamina = Mathf.Min(maxStamina, currentStamina + recovery);
+            if (currentStamina > 0.001f)
+                currentEnergySegments = 1;
+            return;
+        }
+
+        if (currentStamina < maxStamina - 0.001f)
+        {
+            currentStamina = Mathf.Min(maxStamina, currentStamina + recovery);
+            return;
+        }
+
+        if (!rechargeAdditionalSegments || currentEnergySegments >= maxEnergySegments)
+        {
+            energyRechargeReserve = 0f;
+            return;
+        }
+
+        energyRechargeReserve += recovery;
+        while (energyRechargeReserve >= maxStamina && currentEnergySegments < maxEnergySegments)
+        {
+            energyRechargeReserve -= maxStamina;
+            currentEnergySegments++;
+        }
+
+        if (currentEnergySegments >= maxEnergySegments)
+            energyRechargeReserve = 0f;
+    }
+
+    private void MarkStaminaChanged()
+    {
+        staminaDirty = true;
+        OnStaminaChanged?.Invoke();
+    }
+
+    private void ResolveDatabase(bool loadState)
+    {
+        if (!usePlayerDatabase || !Application.isPlaying)
+            return;
+
+        if (database == null)
+            database = MiniMarketPlayerDatabase.ObterOuCriar();
+
+        if (database == null)
+            return;
+
+        database.GarantirStaminaInicial(currentStamina, maxStamina);
+
+        if (loadState)
+            ApplyDatabaseState(database.Dados);
+    }
+
+    private void SubscribeDatabase()
+    {
+        if (database == null)
+            return;
+
+        database.OnDatabaseChanged -= OnDatabaseChanged;
+        database.OnDatabaseChanged += OnDatabaseChanged;
+    }
+
+    private void UnsubscribeDatabase()
+    {
+        if (database != null)
+            database.OnDatabaseChanged -= OnDatabaseChanged;
+    }
+
+    private void OnDatabaseChanged(MiniMarketPlayerDatabase.MiniMarketPlayerData data)
+    {
+        if (applyingDatabaseState || data == null)
+            return;
+
+        bool databaseDiffers =
+            Mathf.Abs(data.staminaAtual - currentStamina) > 0.01f ||
+            Mathf.Abs(data.staminaMaxima - maxStamina) > 0.01f ||
+            data.energiaSegmentosAtuais != currentEnergySegments ||
+            data.energiaSegmentosMaximos != maxEnergySegments ||
+            Mathf.Abs(data.energiaRecargaReserva - energyRechargeReserve) > 0.01f;
+
+        if (databaseDiffers && !staminaDirty)
+            ApplyDatabaseState(data);
+    }
+
+    private void ApplyDatabaseState(MiniMarketPlayerDatabase.MiniMarketPlayerData data)
+    {
+        if (data == null)
+            return;
+
+        applyingDatabaseState = true;
+
+        maxStamina = Mathf.Max(1f, data.staminaMaxima);
+        currentStamina = Mathf.Clamp(data.staminaAtual, 0f, maxStamina);
+        maxEnergySegments = Mathf.Max(1, data.energiaSegmentosMaximos);
+        currentEnergySegments = Mathf.Clamp(data.energiaSegmentosAtuais, 0, maxEnergySegments);
+        energyRechargeReserve = Mathf.Clamp(data.energiaRecargaReserva, 0f, maxStamina);
+
+        CaptureSavedState();
+        staminaDirty = false;
+        applyingDatabaseState = false;
+        OnStaminaChanged?.Invoke();
+    }
+
+    private void TrySyncDatabase()
+    {
+        if (!staminaDirty || !usePlayerDatabase || Time.unscaledTime < nextDatabaseSync)
+            return;
+
+        bool meaningfulDifference =
+            Mathf.Abs(lastSavedStamina - currentStamina) >= minimumDatabaseDifference ||
+            Mathf.Abs(lastSavedReserve - energyRechargeReserve) >= minimumDatabaseDifference ||
+            lastSavedSegments != currentEnergySegments ||
+            lastSavedMaxSegments != maxEnergySegments;
+
+        if (meaningfulDifference)
+            SaveStaminaToDatabase(false);
+    }
+
+    private void SaveStaminaToDatabase(bool saveNow)
+    {
+        if (!usePlayerDatabase || !Application.isPlaying || MiniMarketPlayerDatabase.EncerrandoAplicacao)
+            return;
+
+        ResolveDatabase(false);
+        if (database == null)
+            return;
+
+        applyingDatabaseState = true;
+        database.DefinirEnergiaSegmentada(
+            currentStamina,
+            maxStamina,
+            currentEnergySegments,
+            maxEnergySegments,
+            energyRechargeReserve,
+            saveNow
+        );
+        applyingDatabaseState = false;
+
+        CaptureSavedState();
+        staminaDirty = false;
+        nextDatabaseSync = Time.unscaledTime + Mathf.Max(0.25f, databaseSyncInterval);
+    }
+
+    private void CaptureSavedState()
+    {
+        lastSavedStamina = currentStamina;
+        lastSavedReserve = energyRechargeReserve;
+        lastSavedSegments = currentEnergySegments;
+        lastSavedMaxSegments = maxEnergySegments;
+    }
+
+    public bool RefreshAnimatorConfiguration()
+    {
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>(true);
+
+        if (animator == null)
+        {
+            LogAnimatorWarningOnce(
+                "Animator não encontrado no personagem ou nos filhos.",
+                ref loggedMissingAnimator
+            );
+            ClearAnimatorCache();
+            return false;
+        }
+
+        if (keepAnimatorEnabled)
+            animator.enabled = true;
+        if (disableAnimatorRootMotion)
+            animator.applyRootMotion = false;
+
+        cachedAnimatorController = animator.runtimeAnimatorController;
+        CacheAnimatorParameters();
+        CacheFallbackStates();
+
+        bool ready = cachedAnimatorController != null &&
+                     (hasAnyLocomotionParameter || idleStateHash != 0 || walkStateHash != 0);
+
+        if (!ready)
+        {
+            LogAnimatorWarningOnce(
+                "Animator Controller sem parâmetros/estados de locomoção reconhecidos.",
+                ref loggedNoAnimationMapping
+            );
+        }
+
+        return ready;
     }
 
     private void EnsureAnimatorConfigurationIsCurrent()
     {
-        if (animator == null)
-        {
-            RefreshAnimatorConfiguration();
-            return;
-        }
-
-        if (animator.runtimeAnimatorController != cachedAnimatorController)
+        if (animator == null || animator.runtimeAnimatorController != cachedAnimatorController)
             RefreshAnimatorConfiguration();
     }
 
@@ -445,7 +698,6 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         floatParameters.Clear();
         boolParameters.Clear();
         triggerParameters.Clear();
-
         hasSpeedParameter = false;
         hasGroundedParameter = false;
         hasVerticalSpeedParameter = false;
@@ -462,17 +714,14 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         for (int i = 0; i < parameters.Length; i++)
         {
             AnimatorControllerParameter parameter = parameters[i];
-
             switch (parameter.type)
             {
                 case AnimatorControllerParameterType.Float:
                     floatParameters.Add(parameter.nameHash);
                     break;
-
                 case AnimatorControllerParameterType.Bool:
                     boolParameters.Add(parameter.nameHash);
                     break;
-
                 case AnimatorControllerParameterType.Trigger:
                     triggerParameters.Add(parameter.nameHash);
                     break;
@@ -551,15 +800,12 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         float normalizedSpeed = runSpeed > 0.001f
             ? Mathf.Clamp01(CurrentSpeed / runSpeed)
             : 0f;
-
         float speedValue = normalizedSpeedForAnimator ? normalizedSpeed : CurrentSpeed;
 
         if (hasSpeedParameter)
             animator.SetFloat(speedHash, speedValue, animatorDampTime, deltaTime);
-
         if (hasGroundedParameter)
             animator.SetBool(groundedHash, grounded);
-
         if (hasVerticalSpeedParameter)
             animator.SetFloat(verticalSpeedHash, verticalVelocity);
 
@@ -572,7 +818,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
             SetFloatIfExists(MoveYHash, input.y, deltaTime);
             SetFloatIfExists(InputXHash, input.x, deltaTime);
             SetFloatIfExists(InputYHash, input.y, deltaTime);
-            SetFloatIfExists(StaminaHash, Stamina01, deltaTime, false);
+            SetFloatIfExists(StaminaHash, EnergiaPercentual01, deltaTime, false);
 
             SetBoolIfExists(WalkingHash, walking);
             SetBoolIfExists(IsWalkingHash, walking);
@@ -663,7 +909,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private void ResolveCamera()
     {
         if (playerCamera == null)
-            playerCamera = Object.FindAnyObjectByType<PlayerCameraController>(FindObjectsInactive.Include);
+            playerCamera = UnityEngine.Object.FindAnyObjectByType<PlayerCameraController>(FindObjectsInactive.Include);
 
         if (cameraTransform == null && playerCamera != null)
             cameraTransform = playerCamera.ActiveCameraTransform;
@@ -682,13 +928,18 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         terminalVelocity = Mathf.Max(0f, terminalVelocity);
         maxStamina = Mathf.Max(1f, maxStamina);
         currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
+        maxEnergySegments = Mathf.Max(1, maxEnergySegments);
+        currentEnergySegments = Mathf.Clamp(currentEnergySegments, 0, maxEnergySegments);
+        energyRechargeReserve = Mathf.Clamp(energyRechargeReserve, 0f, maxStamina);
+        minimumStaminaToStartRunning = Mathf.Clamp(minimumStaminaToStartRunning, 0f, maxStamina);
+        databaseSyncInterval = Mathf.Max(0.25f, databaseSyncInterval);
+        minimumDatabaseDifference = Mathf.Max(0.05f, minimumDatabaseDifference);
         animatorDampTime = Mathf.Max(0f, animatorDampTime);
         stateTransitionDuration = Mathf.Max(0f, stateTransitionDuration);
 
         if (!Application.isPlaying)
         {
             controller = GetComponent<CharacterController>();
-
             if (animator == null)
                 animator = GetComponentInChildren<Animator>(true);
         }
