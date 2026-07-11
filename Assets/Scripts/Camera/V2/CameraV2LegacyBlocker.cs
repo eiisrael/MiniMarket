@@ -1,14 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// Bloqueador de scripts antigos quando o Camera System V2 estiver presente.
-///
-/// Evita que CameraGTAFollowHardcore, estabilizadores antigos, collision smoothers antigos
-/// e grabber antigo continuem mexendo na Main Camera enquanto o V2 está ativo.
-///
-/// Use em CameraSystemV2 ou deixe o auto-create funcionar.
+/// Bloqueia scripts antigos quando o Camera System V2 estiver presente.
+/// Componentes colocados manualmente como filhos permanecem na cena e não tentam
+/// usar DontDestroyOnLoad; a instância automática é criada como objeto raiz persistente.
 /// </summary>
 [DefaultExecutionOrder(19800)]
+[DisallowMultipleComponent]
 public class CameraV2LegacyBlocker : MonoBehaviour
 {
     [Header("Ativação")]
@@ -50,6 +48,12 @@ public class CameraV2LegacyBlocker : MonoBehaviour
         "MiniMarketGrabberRuntimeStabilizer"
     };
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetarStatics()
+    {
+        instancia = null;
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CriarAutomaticamente()
     {
@@ -58,7 +62,7 @@ public class CameraV2LegacyBlocker : MonoBehaviour
 
         GameObject go = new GameObject("MiniMarket_CameraV2LegacyBlocker");
         DontDestroyOnLoad(go);
-        instancia = go.AddComponent<CameraV2LegacyBlocker>();
+        go.AddComponent<CameraV2LegacyBlocker>();
     }
 
     private void Awake()
@@ -70,9 +74,20 @@ public class CameraV2LegacyBlocker : MonoBehaviour
         }
 
         instancia = this;
-        DontDestroyOnLoad(gameObject);
+
+        // DontDestroyOnLoad só aceita GameObject raiz. Objetos de cena configurados
+        // manualmente não precisam ser persistidos; cada cena pode possuir seu blocker.
+        if (transform.parent == null)
+            DontDestroyOnLoad(gameObject);
+
         tempoInicio = Time.unscaledTime;
         BloquearSeV2Existe();
+    }
+
+    private void OnDestroy()
+    {
+        if (instancia == this)
+            instancia = null;
     }
 
     private void LateUpdate()
@@ -89,7 +104,7 @@ public class CameraV2LegacyBlocker : MonoBehaviour
         if (Time.unscaledTime < proximaVerificacao)
             return;
 
-        proximaVerificacao = Time.unscaledTime + intervaloRepeticao;
+        proximaVerificacao = Time.unscaledTime + Mathf.Max(0.1f, intervaloRepeticao);
         BloquearSeV2Existe();
     }
 
@@ -109,7 +124,11 @@ public class CameraV2LegacyBlocker : MonoBehaviour
 
             string nomeTipo = mb.GetType().Name;
 
-            if (bloquearCameraGTAAntiga && NomeEstaNaLista(nomeTipo, scriptsCameraAntigos))
+            bool cameraAntiga = NomeEstaNaLista(nomeTipo, scriptsCameraAntigos);
+            bool estabilizadorAntigo = nomeTipo.StartsWith("MiniMarketCamera") || nomeTipo == "MiniMarketFirstPersonCameraStabilizer";
+
+            if ((bloquearCameraGTAAntiga && cameraAntiga) ||
+                (bloquearEstabilizadoresAntigos && estabilizadorAntigo && cameraAntiga))
             {
                 if (mb.enabled)
                 {
@@ -129,20 +148,23 @@ public class CameraV2LegacyBlocker : MonoBehaviour
                 continue;
             }
 
-            if (bloquearCrosshairAntigo && nomeTipo == "CrosshairAim")
+            if (bloquearCrosshairAntigo && nomeTipo == "CrosshairAim" && mb.enabled)
             {
-                if (mb.enabled)
-                {
-                    mb.enabled = false;
-                    bloqueados++;
-                }
+                mb.enabled = false;
+                bloqueados++;
             }
         }
 
         if (logarBloqueios && bloqueados > 0 && Time.unscaledTime - ultimoLog > 1f)
         {
             ultimoLog = Time.unscaledTime;
-            MiniMarketUpgradeLogger.Log("CameraV2", "Scripts antigos bloqueados", "Quantidade: " + bloqueados + ". Camera/GetItem V2 assumiu o controle.", "camera-v2-legacy-block", 1f);
+            MiniMarketUpgradeLogger.Log(
+                "CameraV2",
+                "Scripts antigos bloqueados",
+                "Quantidade: " + bloqueados + ". Camera/GetItem V2 assumiu o controle.",
+                "camera-v2-legacy-block",
+                1f
+            );
         }
     }
 
