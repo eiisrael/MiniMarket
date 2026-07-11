@@ -7,10 +7,8 @@ using UnityEngine;
 
 /// <summary>
 /// Fonte única de verdade dos dados locais do jogador.
-///
-/// Salva nome, gold, gemas, stamina/energia segmentada, empresas, propriedades,
-/// última cena/posição e tempo jogado. O formato V2 migra automaticamente saves V1,
-/// usa gravação atômica com backup e evita referências serializadas entre cenas.
+/// Salva identidade, economia, energia segmentada, empresas, propriedades,
+/// posição e tempo jogado. Suporta migração MMDB1 -> MMDB2 e backup atômico.
 /// </summary>
 [DefaultExecutionOrder(-10000)]
 [DisallowMultipleComponent]
@@ -23,7 +21,8 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     private const string NomeArquivoBanco = "player_database.mmdb";
     private const string PrefixoArquivoV1 = "MMDB1";
     private const string PrefixoArquivoV2 = "MMDB2";
-    private const string SaltTexto = "MiniMarket.LocalSecureDatabase.v2.ErickIsrael";
+    private const string SaltV1 = "MiniMarket.LocalSecureDatabase.v1.ErickIsrael";
+    private const string SaltV2 = "MiniMarket.LocalSecureDatabase.v2.ErickIsrael";
 
     private const string KeySegmentosAtuaisLegado = "MiniMarket.Player.StaminaSegmentosAtuais";
     private const string KeySegmentosMaximosLegado = "MiniMarket.Player.StaminaSegmentosMaximos";
@@ -55,8 +54,8 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     private string caminhoBackup;
     private bool carregado;
     private bool salvamentoPendente;
-    private float proximoSalvamentoPermitido;
     private bool destruindo;
+    private float proximoSalvamentoPermitido;
     private float ultimoTempoRealtime;
 
     public event Action<MiniMarketPlayerData> OnDatabaseChanged;
@@ -239,7 +238,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         {
             Instance = encontrado;
             encontrado.GarantirCarregado();
-            return Instance;
+            return encontrado;
         }
 
         GameObject go = new GameObject("MiniMarket_PlayerDatabase");
@@ -273,9 +272,12 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         try
         {
             string conteudo = File.ReadAllText(caminhoBanco, Encoding.UTF8);
-            string json = usarCriptografiaLocal ? DescriptografarConteudo(conteudo, out bool eraV1) : conteudo;
-            MiniMarketPlayerData carregadoDoDisco = JsonUtility.FromJson<MiniMarketPlayerData>(json);
+            bool eraV1 = false;
+            string json = usarCriptografiaLocal
+                ? DescriptografarConteudo(conteudo, out eraV1)
+                : conteudo;
 
+            MiniMarketPlayerData carregadoDoDisco = JsonUtility.FromJson<MiniMarketPlayerData>(json);
             if (carregadoDoDisco == null)
                 throw new InvalidDataException("JSON do banco retornou null.");
 
@@ -286,9 +288,9 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
             return carregadoDoDisco;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            Debug.LogWarning("[PlayerDatabase] Falha ao carregar save principal: " + ex.Message);
+            Debug.LogWarning("[PlayerDatabase] Falha ao carregar save principal: " + exception.Message);
 
             MiniMarketPlayerData backup = TentarCarregarBackup();
             if (backup != null)
@@ -311,7 +313,11 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         try
         {
             string conteudo = File.ReadAllText(caminhoBackup, Encoding.UTF8);
-            string json = usarCriptografiaLocal ? DescriptografarConteudo(conteudo, out _) : conteudo;
+            bool eraV1 = false;
+            string json = usarCriptografiaLocal
+                ? DescriptografarConteudo(conteudo, out eraV1)
+                : conteudo;
+
             return JsonUtility.FromJson<MiniMarketPlayerData>(json);
         }
         catch
@@ -324,18 +330,21 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     {
         long agora = ObterUnixAgora();
         int maxSegmentos = Mathf.Max(1, energiaSegmentosMaximosPadrao);
+        float maxStamina = Mathf.Max(1f, staminaMaximaPadrao);
 
         return new MiniMarketPlayerData
         {
             schemaVersion = VersaoSchemaAtual,
-            playerId = string.IsNullOrWhiteSpace(playerIdPadrao) ? "LOCAL_PLAYER_001" : playerIdPadrao.Trim(),
+            playerId = string.IsNullOrWhiteSpace(playerIdPadrao)
+                ? "LOCAL_PLAYER_001"
+                : playerIdPadrao.Trim(),
             nome = string.IsNullOrWhiteSpace(nomePadrao) ? "Player" : nomePadrao.Trim(),
             goldInicializado = false,
             gold = Mathf.Max(0, goldInicialPadrao),
             gemas = Mathf.Max(0, gemasIniciaisPadrao),
             staminaInicializada = false,
-            staminaMaxima = Mathf.Max(1f, staminaMaximaPadrao),
-            staminaAtual = Mathf.Max(1f, staminaMaximaPadrao),
+            staminaAtual = maxStamina,
+            staminaMaxima = maxStamina,
             energiaSegmentosAtuais = maxSegmentos,
             energiaSegmentosMaximos = maxSegmentos,
             energiaRecargaReserva = 0f,
@@ -364,7 +373,9 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
         if (string.IsNullOrWhiteSpace(dados.playerId))
         {
-            dados.playerId = string.IsNullOrWhiteSpace(playerIdPadrao) ? "LOCAL_PLAYER_001" : playerIdPadrao.Trim();
+            dados.playerId = string.IsNullOrWhiteSpace(playerIdPadrao)
+                ? "LOCAL_PLAYER_001"
+                : playerIdPadrao.Trim();
             mudou = true;
         }
 
@@ -389,6 +400,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
             0f,
             dados.staminaMaxima
         );
+        dados.tempoJogadoSegundos = Math.Max(0d, dados.tempoJogadoSegundos);
 
         if (dados.empresasCompradas == null)
         {
@@ -414,13 +426,18 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
     private void MigrarDadosLegados()
     {
-        int maximo = PlayerPrefs.GetInt(
-            KeySegmentosMaximosLegado,
-            Mathf.Max(1, energiaSegmentosMaximosPadrao)
-        );
+        int maximoPadrao = Mathf.Max(1, energiaSegmentosMaximosPadrao);
+        int maximo = PlayerPrefs.HasKey(KeySegmentosMaximosLegado)
+            ? PlayerPrefs.GetInt(KeySegmentosMaximosLegado, maximoPadrao)
+            : (dados.energiaSegmentosMaximos > 0 ? dados.energiaSegmentosMaximos : maximoPadrao);
 
-        int atual = PlayerPrefs.GetInt(KeySegmentosAtuaisLegado, maximo);
-        float reserva = PlayerPrefs.GetFloat(KeyRecargaReservaLegado, 0f);
+        int atual = PlayerPrefs.HasKey(KeySegmentosAtuaisLegado)
+            ? PlayerPrefs.GetInt(KeySegmentosAtuaisLegado, maximo)
+            : (dados.energiaSegmentosAtuais > 0 ? dados.energiaSegmentosAtuais : maximo);
+
+        float reserva = PlayerPrefs.HasKey(KeyRecargaReservaLegado)
+            ? PlayerPrefs.GetFloat(KeyRecargaReservaLegado, 0f)
+            : dados.energiaRecargaReserva;
 
         dados.energiaSegmentosMaximos = Mathf.Max(1, maximo);
         dados.energiaSegmentosAtuais = Mathf.Clamp(atual, 0, dados.energiaSegmentosMaximos);
@@ -466,7 +483,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
                 }
                 catch
                 {
-                    // Android/WebGL e alguns file systems não suportam File.Replace.
+                    // Android e alguns sistemas de arquivos não suportam File.Replace.
                 }
 
                 if (!substituido)
@@ -484,14 +501,15 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
             }
 
             salvamentoPendente = false;
-            proximoSalvamentoPermitido = Time.unscaledTime + Mathf.Max(0.25f, intervaloSalvamentoDiferido);
+            proximoSalvamentoPermitido = Time.unscaledTime +
+                                          Mathf.Max(0.25f, intervaloSalvamentoDiferido);
 
             if (logarEventos)
                 Debug.Log("[PlayerDatabase] Banco salvo: " + caminhoBanco);
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            Debug.LogError("[PlayerDatabase] Falha ao salvar banco: " + ex.Message);
+            Debug.LogError("[PlayerDatabase] Falha ao salvar banco: " + exception.Message);
         }
     }
 
@@ -620,7 +638,9 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         dados.staminaMaxima = Mathf.Max(1f, staminaMaximaInicial);
         dados.staminaAtual = Mathf.Clamp(staminaAtualInicial, 0f, dados.staminaMaxima);
         dados.energiaSegmentosMaximos = Mathf.Max(1, energiaSegmentosMaximosPadrao);
-        dados.energiaSegmentosAtuais = dados.staminaAtual > 0f ? dados.energiaSegmentosMaximos : 0;
+        dados.energiaSegmentosAtuais = dados.staminaAtual > 0f
+            ? dados.energiaSegmentosMaximos
+            : 0;
         dados.energiaRecargaReserva = 0f;
         dados.staminaInicializada = true;
         NotificarAlteracao(true);
@@ -852,7 +872,11 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         return propriedade;
     }
 
-    public void SalvarPosicaoMundo(string cena, Vector3 posicao, Vector3 rotacaoEuler, bool salvarAgora = false)
+    public void SalvarPosicaoMundo(
+        string cena,
+        Vector3 posicao,
+        Vector3 rotacaoEuler,
+        bool salvarAgora = false)
     {
         GarantirCarregado();
         dados.ultimaCena = cena ?? string.Empty;
@@ -862,7 +886,10 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         NotificarAlteracao(salvarAgora);
     }
 
-    public bool TentarObterPosicaoMundo(out string cena, out Vector3 posicao, out Vector3 rotacaoEuler)
+    public bool TentarObterPosicaoMundo(
+        out string cena,
+        out Vector3 posicao,
+        out Vector3 rotacaoEuler)
     {
         GarantirCarregado();
         cena = dados.ultimaCena;
@@ -891,6 +918,13 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         salvamentoPendente = true;
         Salvar();
         OnDatabaseChanged?.Invoke(dados);
+    }
+
+    [ContextMenu("Banco/Mostrar caminho no Console")]
+    public void LogarCaminhoBanco()
+    {
+        GarantirCarregado();
+        Debug.Log("[PlayerDatabase] " + caminhoBanco);
     }
 
     private void RemoverDuplicatasEmpresas()
@@ -932,7 +966,9 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
             ? Mathf.Clamp01(data.staminaAtual / data.staminaMaxima)
             : 0f;
 
-        return Mathf.Clamp01((barrasCompletas + barraAtual) / data.energiaSegmentosMaximos);
+        return Mathf.Clamp01(
+            (barrasCompletas + barraAtual) / data.energiaSegmentosMaximos
+        );
     }
 
     private long ObterUnixAgora()
@@ -947,12 +983,13 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
             if (string.IsNullOrEmpty(caminhoBanco) || !File.Exists(caminhoBanco))
                 return;
 
-            string destino = caminhoBanco + ".corrupt_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".bak";
+            string destino = caminhoBanco + ".corrupt_" +
+                             DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + ".bak";
             File.Copy(caminhoBanco, destino, true);
         }
         catch
         {
-            // O jogo continua mesmo se não for possível criar o backup diagnóstico.
+            // O jogo continua mesmo sem o backup diagnóstico.
         }
     }
 
@@ -998,11 +1035,11 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         if (string.IsNullOrWhiteSpace(conteudo))
             throw new InvalidDataException("Conteúdo vazio.");
 
-        if (!conteudo.StartsWith(PrefixoArquivoV1 + ":", StringComparison.Ordinal) &&
-            !conteudo.StartsWith(PrefixoArquivoV2 + ":", StringComparison.Ordinal))
-        {
+        bool temPrefixoV1 = conteudo.StartsWith(PrefixoArquivoV1 + ":", StringComparison.Ordinal);
+        bool temPrefixoV2 = conteudo.StartsWith(PrefixoArquivoV2 + ":", StringComparison.Ordinal);
+
+        if (!temPrefixoV1 && !temPrefixoV2)
             return conteudo;
-        }
 
         string[] partes = conteudo.Split(':');
         if (partes.Length != 4)
@@ -1016,7 +1053,11 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         return DescriptografarPacote(iv, cifra, assinatura, eraV1);
     }
 
-    private string DescriptografarPacote(byte[] iv, byte[] cifra, byte[] assinatura, bool legado)
+    private string DescriptografarPacote(
+        byte[] iv,
+        byte[] cifra,
+        byte[] assinatura,
+        bool legado)
     {
         byte[] chaveAes = DerivarChave("AES", 32, legado);
         byte[] chaveHmac = DerivarChave("HMAC", 32, legado);
@@ -1046,32 +1087,27 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
     private byte[] DerivarChave(string proposito, int bytes, bool legado)
     {
+        string salt = legado ? SaltV1 : SaltV2;
         string baseSegredo;
-        string saltBase;
 
         if (legado)
         {
-            const string saltLegado = "MiniMarket.LocalSecureDatabase.v1.ErickIsrael";
             baseSegredo = Application.companyName + "|" +
                           Application.productName + "|" +
                           SystemInfo.deviceUniqueIdentifier + "|" +
-                          saltLegado + "|" +
+                          salt + "|" +
                           proposito;
-            saltBase = saltLegado;
         }
         else
         {
-            // V2 não depende do identificador do aparelho. Isso evita perder o save após
-            // reinstalações, troca de dispositivo ou mudanças de identificador no mobile.
             baseSegredo = Application.companyName + "|" +
                           Application.productName + "|" +
-                          SaltTexto + "|" +
+                          salt + "|" +
                           proposito;
-            saltBase = SaltTexto;
         }
 
-        byte[] salt = Encoding.UTF8.GetBytes(saltBase + "|" + proposito);
-        using (Rfc2898DeriveBytes kdf = new Rfc2898DeriveBytes(baseSegredo, salt, 12000))
+        byte[] saltBytes = Encoding.UTF8.GetBytes(salt + "|" + proposito);
+        using (Rfc2898DeriveBytes kdf = new Rfc2898DeriveBytes(baseSegredo, saltBytes, 12000))
             return kdf.GetBytes(bytes);
     }
 
