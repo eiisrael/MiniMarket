@@ -4,11 +4,11 @@ using UnityEngine;
 /// Controlador central da câmera do jogador.
 ///
 /// Regras:
-/// - existe apenas uma Camera real e um AudioListener ativo;
+/// - existe apenas uma Camera real e um AudioListener de gameplay ativos;
 /// - ThirdPersonCamera e FirstPersonCamera apenas calculam poses;
-/// - este componente é o único autorizado a aplicar posição, rotação e FOV;
-/// - todas as saídas de pose recebem valores seguros antes de qualquer retorno;
-/// - referências ausentes não causam exceção nem variável local sem atribuição.
+/// - câmeras auxiliares que renderizam para RenderTexture, como minimapa, são preservadas;
+/// - sistemas temporários, como a compra de terrenos, podem assumir a câmera com
+///   SetExternalPoseControl sem disputar posição/rotação com este controlador.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Camera))]
@@ -52,6 +52,10 @@ public sealed class PlayerCameraController : MonoBehaviour
     [Header("Segurança")]
     public bool disableOtherCameras = true;
     public bool disableOtherAudioListeners = true;
+
+    [Tooltip("Não desliga câmeras que renderizam para RenderTexture, como o minimapa.")]
+    public bool preserveRenderTextureCameras = true;
+
     [Min(0.1f)] public float initialValidationDuration = 3f;
     [Min(0.05f)] public float initialValidationInterval = 0.25f;
 
@@ -65,12 +69,14 @@ public sealed class PlayerCameraController : MonoBehaviour
     private float nextValidationTime;
     private bool cursorInitialized;
     private bool initialized;
+    private bool externalPoseControl;
     private bool loggedMissingThirdPerson;
     private bool loggedMissingFirstPerson;
     private bool loggedMissingPlayer;
 
     public ViewMode CurrentMode => currentMode;
     public bool IsFirstPerson => currentMode == ViewMode.FirstPerson;
+    public bool ExternalPoseControl => externalPoseControl;
     public Transform ActiveCameraTransform => gameCamera != null ? gameCamera.transform : transform;
 
     private void Reset()
@@ -114,7 +120,7 @@ public sealed class PlayerCameraController : MonoBehaviour
         EnforceSingleCameraAndListener();
         ApplyRendererVisibility();
 
-        if (instantOnStart)
+        if (instantOnStart && !externalPoseControl)
             ForceImmediatePose();
     }
 
@@ -122,12 +128,16 @@ public sealed class PlayerCameraController : MonoBehaviour
     {
         ResolveReferences();
 
-        if (Time.unscaledTime - startTime <= initialValidationDuration &&
+        if (!externalPoseControl &&
+            Time.unscaledTime - startTime <= initialValidationDuration &&
             Time.unscaledTime >= nextValidationTime)
         {
             nextValidationTime = Time.unscaledTime + Mathf.Max(0.05f, initialValidationInterval);
             EnforceSingleCameraAndListener();
         }
+
+        if (externalPoseControl)
+            return;
 
         HandleModeInput();
         ApplyCursorState();
@@ -152,6 +162,10 @@ public sealed class PlayerCameraController : MonoBehaviour
     private void LateUpdate()
     {
         ResolveReferences();
+
+        if (externalPoseControl)
+            return;
+
         UpdatePose(false);
 
         if (movement != null && movement.cameraTransform != ActiveCameraTransform)
@@ -171,7 +185,7 @@ public sealed class PlayerCameraController : MonoBehaviour
         positionVelocity = Vector3.zero;
         ApplyRendererVisibility();
 
-        if (instantOnModeChange)
+        if (instantOnModeChange && !externalPoseControl)
             ForceImmediatePose();
     }
 
@@ -180,8 +194,32 @@ public sealed class PlayerCameraController : MonoBehaviour
         SetMode(IsFirstPerson ? ViewMode.ThirdPerson : ViewMode.FirstPerson);
     }
 
+    /// <summary>
+    /// Entrega temporariamente a autoridade do Transform/FOV da câmera para outro sistema.
+    /// Usado pela câmera de compra. A própria Camera permanece habilitada.
+    /// </summary>
+    public void SetExternalPoseControl(bool active)
+    {
+        if (externalPoseControl == active)
+            return;
+
+        externalPoseControl = active;
+        positionVelocity = Vector3.zero;
+        previousMouseState = false;
+
+        if (!active)
+        {
+            EnforceSingleCameraAndListener();
+            ApplyRendererVisibility();
+            ForceImmediatePose();
+        }
+    }
+
     public void ForceImmediatePose()
     {
+        if (externalPoseControl)
+            return;
+
         ResolveReferences();
         InitializeModes();
         UpdatePose(true);
@@ -215,8 +253,6 @@ public sealed class PlayerCameraController : MonoBehaviour
             return;
 
         float deltaTime = SafeDeltaTime();
-
-        // Valores padrão garantem atribuição em todos os caminhos de execução.
         Vector3 targetPosition = gameCamera.transform.position;
         Quaternion targetRotation = gameCamera.transform.rotation;
         float targetFieldOfView = gameCamera.fieldOfView;
@@ -267,10 +303,6 @@ public sealed class PlayerCameraController : MonoBehaviour
             );
     }
 
-    /// <summary>
-    /// Resolve a pose sem usar operadores de curto-circuito com parâmetros out.
-    /// Isso evita CS0165 quando um componente de modo está ausente.
-    /// </summary>
     private bool TryResolveTargetPose(
         float deltaTime,
         out Vector3 targetPosition,
@@ -394,7 +426,7 @@ public sealed class PlayerCameraController : MonoBehaviour
 
     private void ForceGameplayCursor()
     {
-        if (!lockCursorDuringGameplay)
+        if (!lockCursorDuringGameplay || externalPoseControl)
             return;
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -404,7 +436,7 @@ public sealed class PlayerCameraController : MonoBehaviour
 
     private void ApplyCursorState()
     {
-        if (!lockCursorDuringGameplay)
+        if (!lockCursorDuringGameplay || externalPoseControl)
             return;
 
         if (!cursorInitialized)
@@ -425,7 +457,7 @@ public sealed class PlayerCameraController : MonoBehaviour
 
     private void EnforceSingleCameraAndListener()
     {
-        if (gameCamera == null)
+        if (externalPoseControl || gameCamera == null)
             return;
 
         gameCamera.enabled = true;
@@ -447,6 +479,9 @@ public sealed class PlayerCameraController : MonoBehaviour
             {
                 Camera otherCamera = cameras[i];
                 if (otherCamera == null || otherCamera == gameCamera)
+                    continue;
+
+                if (preserveRenderTextureCameras && otherCamera.targetTexture != null)
                     continue;
 
                 if (otherCamera.enabled)
