@@ -7,17 +7,14 @@ using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Remove referências serializadas de objetos de cena para objetos runtime da cena
-/// DontDestroyOnLoad. Essas referências não podem ser salvas pelo Unity e causam o warning
-/// "Cross scene references are not supported".
-///
-/// A limpeza ocorre no Edit Mode e antes de entrar no Play Mode. Referências runtime devem
-/// ser resolvidas por singleton/busca durante Awake/OnEnable, nunca armazenadas na cena.
+/// Remove exclusivamente referências serializadas de objetos de cena para objetos runtime
+/// da cena DontDestroyOnLoad. Essas referências não podem ser persistidas pelo Unity.
+/// Referências legítimas entre cenas aditivas não são alteradas.
 /// </summary>
 [InitializeOnLoad]
 public static class CrossSceneReferenceCleaner
 {
-    private const double ScanIntervalSeconds = 0.75d;
+    private const double ScanIntervalSeconds = 2d;
     private static double nextScanTime;
     private static bool isCleaning;
 
@@ -57,7 +54,7 @@ public static class CrossSceneReferenceCleaner
                         if (component == null || component is Transform)
                             continue;
 
-                        cleared += CleanComponent(component, scene, ref sceneChanged);
+                        cleared += CleanComponent(component, ref sceneChanged);
                     }
                 }
 
@@ -72,7 +69,7 @@ public static class CrossSceneReferenceCleaner
             {
                 Debug.Log(
                     "[CrossSceneReferenceCleaner] " + cleared +
-                    " referência(s) inválida(s) para DontDestroyOnLoad foram removidas e as cenas foram salvas."
+                    " referência(s) inválida(s) para DontDestroyOnLoad foram removidas."
                 );
             }
         }
@@ -100,14 +97,14 @@ public static class CrossSceneReferenceCleaner
 
     private static void OnPlayModeStateChanged(PlayModeStateChange state)
     {
-        if (state == PlayModeStateChange.EnteredEditMode)
-        {
-            nextScanTime = 0d;
-            EditorApplication.delayCall += CleanLoadedScenes;
-        }
+        if (state != PlayModeStateChange.EnteredEditMode)
+            return;
+
+        nextScanTime = 0d;
+        EditorApplication.delayCall += CleanLoadedScenes;
     }
 
-    private static int CleanComponent(Component owner, Scene ownerScene, ref bool sceneChanged)
+    private static int CleanComponent(Component owner, ref bool sceneChanged)
     {
         int cleared = 0;
         SerializedObject serializedObject;
@@ -135,19 +132,14 @@ public static class CrossSceneReferenceCleaner
             if (reference == null || !TryGetScene(reference, out Scene referenceScene))
                 continue;
 
-            if (!referenceScene.IsValid() || referenceScene == ownerScene)
-                continue;
+            bool pointsToRuntimeScene = referenceScene.IsValid() &&
+                                        string.Equals(
+                                            referenceScene.name,
+                                            "DontDestroyOnLoad",
+                                            StringComparison.Ordinal
+                                        );
 
-            bool runtimeScene = string.Equals(
-                referenceScene.name,
-                "DontDestroyOnLoad",
-                StringComparison.Ordinal
-            );
-
-            bool differentLoadedScene = referenceScene.isLoaded && ownerScene.isLoaded &&
-                                        !string.Equals(referenceScene.path, ownerScene.path, StringComparison.Ordinal);
-
-            if (!runtimeScene && !differentLoadedScene)
+            if (!pointsToRuntimeScene)
                 continue;
 
             iterator.objectReferenceValue = null;
