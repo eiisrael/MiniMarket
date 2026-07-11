@@ -2,8 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Mostrador de energia segmentada no HUD.
-/// Exemplo: 5/5, 4/5, 3/5, 2/5, 1/5, 0/5.
+/// HUD leve de energia segmentada.
+/// Atualiza em intervalo controlado, nao procura PlayerMove a cada tick e so altera o Text quando o valor muda.
 /// </summary>
 [DisallowMultipleComponent]
 public class MiniMarketEnergySegmentHUD : MonoBehaviour
@@ -17,25 +17,32 @@ public class MiniMarketEnergySegmentHUD : MonoBehaviour
     public string formatoTexto = "{0}/{1}";
 
     [Header("Atualizacao")]
-    [Min(0.02f)] public float intervaloAtualizacao = 0.08f;
+    [Tooltip("0.20 e fluido visualmente e muito mais leve que atualizar a cada frame.")]
+    [Min(0.05f)] public float intervaloAtualizacao = 0.20f;
+
+    [Min(0.25f)] public float intervaloBuscaPlayer = 1f;
     public bool atualizarMesmoDesativado = false;
 
     [Header("Debug")]
     public bool logarSeNaoEncontrarPlayer = false;
 
     private float proximaAtualizacao;
+    private float proximaBusca;
     private int ultimoAtual = -1;
     private int ultimoMaximo = -1;
+    private bool ultimoFantasma;
 
     private void Awake()
     {
-        ResolverReferencias();
+        ResolverReferencias(true);
         AtualizarTexto(true);
     }
 
     private void OnEnable()
     {
-        ResolverReferencias();
+        ResolverReferencias(true);
+        ultimoAtual = -1;
+        ultimoMaximo = -1;
         AtualizarTexto(true);
     }
 
@@ -44,49 +51,54 @@ public class MiniMarketEnergySegmentHUD : MonoBehaviour
         if (!atualizarMesmoDesativado && textoEnergia != null && !textoEnergia.gameObject.activeInHierarchy)
             return;
 
+        if (playerMove == null && Time.unscaledTime >= proximaBusca)
+            ResolverReferencias(false);
+
         if (Time.unscaledTime < proximaAtualizacao)
             return;
 
-        proximaAtualizacao = Time.unscaledTime + intervaloAtualizacao;
+        proximaAtualizacao = Time.unscaledTime + Mathf.Max(0.05f, intervaloAtualizacao);
         AtualizarTexto(false);
     }
 
     public void AtualizarTexto(bool forcar)
     {
-        ResolverReferencias();
+        if (textoEnergia == null)
+            textoEnergia = GetComponent<Text>();
 
         if (textoEnergia == null)
             return;
 
-        int atual = CalcularSegmentosAtuais();
+        bool fantasma = MiniMarketSegmentedStaminaRuntimeGuard.ForcarHudZeroNoSegmentoFantasma;
+        int atual = fantasma ? 0 : CalcularSegmentosAtuais();
         int maximo = CalcularSegmentosMaximos();
 
-        if (!forcar && atual == ultimoAtual && maximo == ultimoMaximo)
+        if (!forcar && atual == ultimoAtual && maximo == ultimoMaximo && fantasma == ultimoFantasma)
             return;
 
         ultimoAtual = atual;
         ultimoMaximo = maximo;
-
+        ultimoFantasma = fantasma;
         textoEnergia.text = string.Format(formatoTexto, atual, maximo);
     }
 
-    private void ResolverReferencias()
+    private void ResolverReferencias(bool forcar)
     {
         if (textoEnergia == null)
             textoEnergia = GetComponent<Text>();
 
-        if (playerMove == null)
-            playerMove = FindObjectOfType<PlayerMove>(true);
+        if (!forcar && playerMove != null)
+            return;
+
+        proximaBusca = Time.unscaledTime + Mathf.Max(0.25f, intervaloBuscaPlayer);
+        playerMove = Object.FindFirstObjectByType<PlayerMove>(FindObjectsInactive.Include);
 
         if (playerMove == null && logarSeNaoEncontrarPlayer)
-            Debug.LogWarning("[MiniMarketEnergySegmentHUD] PlayerMove nao encontrado para mostrar energia 5/5.");
+            Debug.LogWarning("[MiniMarketEnergySegmentHUD] PlayerMove nao encontrado para mostrar energia.");
     }
 
     private int CalcularSegmentosAtuais()
     {
-        if (MiniMarketSegmentedStaminaRuntimeGuard.ForcarHudZeroNoSegmentoFantasma)
-            return 0;
-
         if (playerMove != null)
             return Mathf.Clamp(playerMove.StaminaSegmentosAtuais, 0, Mathf.Max(1, playerMove.StaminaSegmentosMaximos));
 
@@ -95,9 +107,8 @@ public class MiniMarketEnergySegmentHUD : MonoBehaviour
 
     private int CalcularSegmentosMaximos()
     {
-        if (playerMove != null)
-            return Mathf.Max(1, playerMove.StaminaSegmentosMaximos);
-
-        return Mathf.Max(1, barrasMaximasFallback);
+        return playerMove != null
+            ? Mathf.Max(1, playerMove.StaminaSegmentosMaximos)
+            : Mathf.Max(1, barrasMaximasFallback);
     }
 }
