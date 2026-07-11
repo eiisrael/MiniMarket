@@ -2,113 +2,288 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// HUD leve de energia segmentada.
-/// Atualiza em intervalo controlado, nao procura PlayerMove a cada tick e so altera o Text quando o valor muda.
+/// HUD de stamina/energia segmentada.
+///
+/// A atualização principal é dirigida por eventos do movimento e do banco; existe apenas
+/// uma verificação lenta de segurança para cenas carregadas depois. Funciona em desktop
+/// e mobile sem trabalho de reflexão nem busca por frame.
 /// </summary>
 [DisallowMultipleComponent]
 public class MiniMarketEnergySegmentHUD : MonoBehaviour
 {
-    [Header("Referencias")]
+    [Header("Referências")]
     public Text textoEnergia;
-    public PlayerMove playerMove;
+    public Image barraEnergia;
+    public Image iconeEnergia;
+    public CameraRelativeMovement movimento;
 
-    [Header("Configuracao")]
+    [Header("Sprites opcionais")]
+    public Sprite energiaAltaSprite;
+    public Sprite energiaMediaSprite;
+    public Sprite energiaBaixaSprite;
+
+    [Header("Cores")]
+    public Color corAlta = new Color(0.15f, 0.9f, 0.25f, 1f);
+    public Color corMedia = new Color(1f, 0.78f, 0.08f, 1f);
+    public Color corBaixa = new Color(1f, 0.18f, 0.08f, 1f);
+    [Range(0f, 1f)] public float limiteMedio = 0.55f;
+    [Range(0f, 1f)] public float limiteBaixo = 0.25f;
+
+    [Header("Texto")]
     [Min(1)] public int barrasMaximasFallback = 5;
     public string formatoTexto = "{0}/{1}";
+    public bool mostrarPercentualDaBarra;
+    public string formatoComPercentual = "{0}/{1}  {2}%";
 
-    [Header("Atualizacao")]
-    [Tooltip("0.20 e fluido visualmente e muito mais leve que atualizar a cada frame.")]
-    [Min(0.05f)] public float intervaloAtualizacao = 0.20f;
-
-    [Min(0.25f)] public float intervaloBuscaPlayer = 1f;
-    public bool atualizarMesmoDesativado = false;
+    [Header("Atualização")]
+    [Min(0.25f)] public float intervaloBuscaReferencias = 1f;
+    [Min(0.1f)] public float intervaloVerificacaoSeguranca = 0.25f;
+    public bool atualizarMesmoDesativado;
 
     [Header("Debug")]
-    public bool logarSeNaoEncontrarPlayer = false;
+    public bool logarSeNaoEncontrarPlayer;
 
-    private float proximaAtualizacao;
+    private MiniMarketPlayerDatabase database;
     private float proximaBusca;
+    private float proximaVerificacao;
     private int ultimoAtual = -1;
     private int ultimoMaximo = -1;
-    private bool ultimoFantasma;
+    private int ultimoPercentual = -1;
+    private float ultimoFill = -1f;
+    private bool inscritoMovimento;
+    private bool inscritoBanco;
 
     private void Awake()
     {
-        ResolverReferencias(true);
-        AtualizarTexto(true);
+        ResolveReferences(true);
+        Subscribe();
+        Refresh(true);
     }
 
     private void OnEnable()
     {
-        ResolverReferencias(true);
-        ultimoAtual = -1;
-        ultimoMaximo = -1;
-        AtualizarTexto(true);
+        ResolveReferences(true);
+        Subscribe();
+        InvalidateCache();
+        Refresh(true);
+    }
+
+    private void OnDisable()
+    {
+        Unsubscribe();
     }
 
     private void Update()
     {
-        if (!atualizarMesmoDesativado && textoEnergia != null && !textoEnergia.gameObject.activeInHierarchy)
+        if (!atualizarMesmoDesativado && !gameObject.activeInHierarchy)
             return;
 
-        if (playerMove == null && Time.unscaledTime >= proximaBusca)
-            ResolverReferencias(false);
+        if ((movimento == null || database == null) && Time.unscaledTime >= proximaBusca)
+        {
+            ResolveReferences(false);
+            Subscribe();
+        }
 
-        if (Time.unscaledTime < proximaAtualizacao)
+        if (Time.unscaledTime < proximaVerificacao)
             return;
 
-        proximaAtualizacao = Time.unscaledTime + Mathf.Max(0.05f, intervaloAtualizacao);
-        AtualizarTexto(false);
+        proximaVerificacao = Time.unscaledTime + Mathf.Max(0.1f, intervaloVerificacaoSeguranca);
+        Refresh(false);
     }
 
     public void AtualizarTexto(bool forcar)
     {
-        if (textoEnergia == null)
-            textoEnergia = GetComponent<Text>();
+        Refresh(forcar);
+    }
 
-        if (textoEnergia == null)
-            return;
+    public void Refresh(bool force)
+    {
+        ResolveUIReferences();
 
-        bool fantasma = MiniMarketSegmentedStaminaRuntimeGuard.ForcarHudZeroNoSegmentoFantasma;
-        int atual = fantasma ? 0 : CalcularSegmentosAtuais();
-        int maximo = CalcularSegmentosMaximos();
+        int atual;
+        int maximo;
+        float barra01;
+        float total01;
 
-        if (!forcar && atual == ultimoAtual && maximo == ultimoMaximo && fantasma == ultimoFantasma)
+        if (movimento != null)
+        {
+            atual = movimento.StaminaSegmentosAtuais;
+            maximo = movimento.StaminaSegmentosMaximos;
+            barra01 = movimento.StaminaPercentual01;
+            total01 = movimento.EnergiaPercentual01;
+        }
+        else if (database != null)
+        {
+            atual = database.EnergiaSegmentosAtuais;
+            maximo = database.EnergiaSegmentosMaximos;
+            barra01 = database.ObterPercentualStamina01();
+            total01 = database.EnergiaPercentual01;
+        }
+        else
+        {
+            maximo = Mathf.Max(1, barrasMaximasFallback);
+            atual = maximo;
+            barra01 = 1f;
+            total01 = 1f;
+        }
+
+        maximo = Mathf.Max(1, maximo);
+        atual = Mathf.Clamp(atual, 0, maximo);
+        barra01 = Mathf.Clamp01(barra01);
+        total01 = Mathf.Clamp01(total01);
+        int percentual = Mathf.RoundToInt(total01 * 100f);
+
+        bool changed = force ||
+                       atual != ultimoAtual ||
+                       maximo != ultimoMaximo ||
+                       percentual != ultimoPercentual ||
+                       Mathf.Abs(barra01 - ultimoFill) > 0.002f;
+
+        if (!changed)
             return;
 
         ultimoAtual = atual;
         ultimoMaximo = maximo;
-        ultimoFantasma = fantasma;
-        textoEnergia.text = string.Format(formatoTexto, atual, maximo);
+        ultimoPercentual = percentual;
+        ultimoFill = barra01;
+
+        if (textoEnergia != null)
+        {
+            textoEnergia.text = mostrarPercentualDaBarra
+                ? string.Format(formatoComPercentual, atual, maximo, percentual)
+                : string.Format(formatoTexto, atual, maximo);
+        }
+
+        if (barraEnergia != null)
+        {
+            barraEnergia.type = Image.Type.Filled;
+            barraEnergia.fillMethod = Image.FillMethod.Horizontal;
+            barraEnergia.fillAmount = barra01;
+            barraEnergia.color = ColorFor(total01);
+        }
+
+        if (iconeEnergia != null)
+        {
+            iconeEnergia.color = ColorFor(total01);
+            Sprite sprite = SpriteFor(total01);
+            if (sprite != null && iconeEnergia.sprite != sprite)
+                iconeEnergia.sprite = sprite;
+        }
     }
 
-    private void ResolverReferencias(bool forcar)
+    private void ResolveReferences(bool force)
+    {
+        ResolveUIReferences();
+
+        if (force || movimento == null)
+            movimento = Object.FindAnyObjectByType<CameraRelativeMovement>(FindObjectsInactive.Include);
+
+        if (force || database == null)
+        {
+            database = MiniMarketPlayerDatabase.Instance;
+            if (database == null && Application.isPlaying)
+                database = MiniMarketPlayerDatabase.ObterOuCriar();
+        }
+
+        proximaBusca = Time.unscaledTime + Mathf.Max(0.25f, intervaloBuscaReferencias);
+
+        if (movimento == null && database == null && logarSeNaoEncontrarPlayer)
+            Debug.LogWarning("[EnergyHUD] Movimento e banco do jogador não foram encontrados.", this);
+    }
+
+    private void ResolveUIReferences()
     {
         if (textoEnergia == null)
             textoEnergia = GetComponent<Text>();
 
-        if (!forcar && playerMove != null)
-            return;
+        if (barraEnergia == null)
+        {
+            Image[] images = GetComponentsInChildren<Image>(true);
+            for (int i = 0; i < images.Length; i++)
+            {
+                Image image = images[i];
+                if (image == null || image == iconeEnergia)
+                    continue;
 
-        proximaBusca = Time.unscaledTime + Mathf.Max(0.25f, intervaloBuscaPlayer);
-        playerMove = Object.FindFirstObjectByType<PlayerMove>(FindObjectsInactive.Include);
-
-        if (playerMove == null && logarSeNaoEncontrarPlayer)
-            Debug.LogWarning("[MiniMarketEnergySegmentHUD] PlayerMove nao encontrado para mostrar energia.");
+                string lower = image.name.ToLowerInvariant();
+                if (lower.Contains("barra") || lower.Contains("fill") || lower.Contains("stamina"))
+                {
+                    barraEnergia = image;
+                    break;
+                }
+            }
+        }
     }
 
-    private int CalcularSegmentosAtuais()
+    private void Subscribe()
     {
-        if (playerMove != null)
-            return Mathf.Clamp(playerMove.StaminaSegmentosAtuais, 0, Mathf.Max(1, playerMove.StaminaSegmentosMaximos));
+        if (movimento != null && !inscritoMovimento)
+        {
+            movimento.OnStaminaChanged += HandleStaminaChanged;
+            inscritoMovimento = true;
+        }
 
-        return Mathf.Clamp(barrasMaximasFallback, 0, Mathf.Max(1, barrasMaximasFallback));
+        if (database != null && !inscritoBanco)
+        {
+            database.OnDatabaseChanged += HandleDatabaseChanged;
+            inscritoBanco = true;
+        }
     }
 
-    private int CalcularSegmentosMaximos()
+    private void Unsubscribe()
     {
-        return playerMove != null
-            ? Mathf.Max(1, playerMove.StaminaSegmentosMaximos)
-            : Mathf.Max(1, barrasMaximasFallback);
+        if (movimento != null && inscritoMovimento)
+            movimento.OnStaminaChanged -= HandleStaminaChanged;
+
+        if (database != null && inscritoBanco)
+            database.OnDatabaseChanged -= HandleDatabaseChanged;
+
+        inscritoMovimento = false;
+        inscritoBanco = false;
+    }
+
+    private void HandleStaminaChanged()
+    {
+        Refresh(false);
+    }
+
+    private void HandleDatabaseChanged(MiniMarketPlayerDatabase.MiniMarketPlayerData data)
+    {
+        Refresh(false);
+    }
+
+    private Color ColorFor(float value01)
+    {
+        if (value01 <= limiteBaixo)
+            return corBaixa;
+        if (value01 <= limiteMedio)
+            return corMedia;
+        return corAlta;
+    }
+
+    private Sprite SpriteFor(float value01)
+    {
+        if (value01 <= limiteBaixo)
+            return energiaBaixaSprite;
+        if (value01 <= limiteMedio)
+            return energiaMediaSprite;
+        return energiaAltaSprite;
+    }
+
+    private void InvalidateCache()
+    {
+        ultimoAtual = -1;
+        ultimoMaximo = -1;
+        ultimoPercentual = -1;
+        ultimoFill = -1f;
+    }
+
+    private void OnValidate()
+    {
+        barrasMaximasFallback = Mathf.Max(1, barrasMaximasFallback);
+        limiteBaixo = Mathf.Clamp01(limiteBaixo);
+        limiteMedio = Mathf.Clamp(limiteMedio, limiteBaixo, 1f);
+        intervaloBuscaReferencias = Mathf.Max(0.25f, intervaloBuscaReferencias);
+        intervaloVerificacaoSeguranca = Mathf.Max(0.1f, intervaloVerificacaoSeguranca);
     }
 }
