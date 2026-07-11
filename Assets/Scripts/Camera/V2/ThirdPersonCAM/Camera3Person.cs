@@ -20,6 +20,7 @@ public class Camera3Person : MonoBehaviour
     public bool travarCursorAoAtivar = true;
     public bool aceitarInputMouse = true;
     public bool usarUnscaledTime = false;
+    public bool posicionarImediatamenteAoAtivar = true;
 
     [Header("Input")]
     public string mouseXAxis = "Mouse X";
@@ -117,18 +118,20 @@ public class Camera3Person : MonoBehaviour
     public bool InputMouseAtivo => cameraAtiva && aceitarInputMouse && !CameraV2MenuInputBlocker.MenuAberto;
     public bool ZoomAtivo => InputMouseAtivo && usarZoom && zoomEnquantoSeguraBotao && Input.GetMouseButton(botaoZoomMira);
     public UnityEngine.Camera UnityCamera => camera3Person;
+    private Transform CameraTransform => camera3Person != null ? camera3Person.transform : transform;
 
     private void Reset()
     {
         camera3Person = GetComponent<UnityEngine.Camera>();
-        if (camera3Person == null)
-            camera3Person = UnityEngine.Camera.main;
     }
 
     private void Awake()
     {
         ResolverReferencias();
         InicializarEstado();
+
+        if (cameraAtiva && posicionarImediatamenteAoAtivar)
+            ForcarAtualizacaoImediata();
     }
 
     private void OnEnable()
@@ -136,6 +139,9 @@ public class Camera3Person : MonoBehaviour
         ResolverReferencias();
         InicializarEstado();
         AplicarAtivacaoCamera();
+
+        if (cameraAtiva && posicionarImediatamenteAoAtivar)
+            ForcarAtualizacaoImediata();
     }
 
     private void OnDisable()
@@ -160,16 +166,24 @@ public class Camera3Person : MonoBehaviour
 
     public void SetAtiva(bool ativa)
     {
+        bool estavaAtiva = cameraAtiva;
         cameraAtiva = ativa;
         AplicarAtivacaoCamera();
+
+        if (ativa && (!estavaAtiva || posicionarImediatamenteAoAtivar))
+            ForcarAtualizacaoImediata();
     }
 
     public void DefinirTarget(Transform novoTarget, bool resetarAngulo = false)
     {
         target = novoTarget;
         possuiUltimaTarget = false;
+
         if (resetarAngulo)
             ReinicializarEstado();
+
+        if (cameraAtiva && posicionarImediatamenteAoAtivar)
+            ForcarAtualizacaoImediata();
     }
 
     public void DefinirAngulos(float novoYaw, float novoPitch)
@@ -178,13 +192,59 @@ public class Camera3Person : MonoBehaviour
         pitch = Mathf.Clamp(novoPitch, minPitch, maxPitch);
     }
 
+    /// <summary>
+    /// Posiciona a câmera diretamente no ponto correto antes do primeiro frame visível.
+    /// Corrige o início no chão e não usa suavização nesta chamada.
+    /// </summary>
+    public void ForcarAtualizacaoImediata()
+    {
+        ResolverReferencias();
+        InicializarEstado();
+
+        if (!cameraAtiva || camera3Person == null || target == null)
+            return;
+
+        Vector3 foco = ObterFoco();
+        Quaternion orbit = Quaternion.Euler(pitch, yaw, 0f);
+        float distanciaAlvo = Mathf.Max(0.5f, distancia);
+        float lateralAlvo = offsetLateral;
+
+        Vector3 posicaoIdeal = foco +
+                               orbit * Vector3.back * distanciaAlvo +
+                               orbit * Vector3.right * lateralAlvo +
+                               Vector3.up * alturaExtra;
+
+        Vector3 vetor = posicaoIdeal - foco;
+        float distanciaNormal = vetor.magnitude;
+        if (distanciaNormal <= 0.001f)
+            return;
+
+        Vector3 direcao = vetor / distanciaNormal;
+        float segura = usarColisao
+            ? CalcularDistanciaSegura(foco, direcao, distanciaNormal)
+            : distanciaNormal;
+
+        distanciaDesejadaAtual = distanciaAlvo;
+        distanciaSeguraAtual = segura;
+        distanciaAtual = segura;
+        velocidadePosicao = Vector3.zero;
+
+        Vector3 posicaoFinal = foco + direcao * distanciaAtual;
+        Quaternion rotacaoFinal = preservarRotacaoDaOrbita
+            ? orbit
+            : Quaternion.LookRotation(foco - posicaoFinal, Vector3.up);
+
+        CameraTransform.SetPositionAndRotation(posicaoFinal, rotacaoFinal);
+        camera3Person.fieldOfView = fovNormal;
+
+        ultimaTargetPos = target.position;
+        possuiUltimaTarget = true;
+    }
+
     private void ResolverReferencias()
     {
         if (camera3Person == null)
             camera3Person = GetComponent<UnityEngine.Camera>();
-
-        if (camera3Person == null)
-            camera3Person = UnityEngine.Camera.main;
     }
 
     private void InicializarEstado()
@@ -198,7 +258,7 @@ public class Camera3Person : MonoBehaviour
 
     private void ReinicializarEstado()
     {
-        yaw = Mathf.Abs(yawInicial) > 0.001f ? yawInicial : transform.eulerAngles.y;
+        yaw = Mathf.Abs(yawInicial) > 0.001f ? yawInicial : CameraTransform.eulerAngles.y;
         pitch = Mathf.Clamp(pitchInicial, minPitch, maxPitch);
         distanciaAtual = Mathf.Max(0.5f, distancia);
         distanciaDesejadaAtual = distanciaAtual;
@@ -307,31 +367,31 @@ public class Camera3Person : MonoBehaviour
 
         Vector3 posicaoFinal = foco + direcao * distanciaAtual;
         Quaternion rotacaoFinal = preservarRotacaoDaOrbita ? orbit : Quaternion.LookRotation(foco - posicaoFinal, Vector3.up);
+        Transform camTransform = CameraTransform;
 
-        if (resetarSuavizacaoAoTeleportar && Vector3.Distance(transform.position, posicaoFinal) > distanciaTeleportReset)
+        if (resetarSuavizacaoAoTeleportar && Vector3.Distance(camTransform.position, posicaoFinal) > distanciaTeleportReset)
         {
             velocidadePosicao = Vector3.zero;
-            transform.position = posicaoFinal;
-            transform.rotation = rotacaoFinal;
+            camTransform.SetPositionAndRotation(posicaoFinal, rotacaoFinal);
         }
         else
         {
             if (usarSuavizacao && tempoSuavizacaoPosicao > 0.0001f)
             {
-                Vector3 novaPos = Vector3.SmoothDamp(transform.position, posicaoFinal, ref velocidadePosicao, tempoSuavizacaoPosicao, Mathf.Infinity, dt);
+                Vector3 novaPos = Vector3.SmoothDamp(camTransform.position, posicaoFinal, ref velocidadePosicao, tempoSuavizacaoPosicao, Mathf.Infinity, dt);
                 if (maxDeltaPosicaoPorFrame > 0f)
-                    novaPos = Vector3.MoveTowards(transform.position, novaPos, maxDeltaPosicaoPorFrame);
-                transform.position = novaPos;
+                    novaPos = Vector3.MoveTowards(camTransform.position, novaPos, maxDeltaPosicaoPorFrame);
+                camTransform.position = novaPos;
             }
             else
             {
-                transform.position = posicaoFinal;
+                camTransform.position = posicaoFinal;
                 velocidadePosicao = Vector3.zero;
             }
 
-            transform.rotation = velocidadeRotacao <= 0.0001f
+            camTransform.rotation = velocidadeRotacao <= 0.0001f
                 ? rotacaoFinal
-                : Quaternion.Slerp(transform.rotation, rotacaoFinal, Suavizacao(velocidadeRotacao, dt));
+                : Quaternion.Slerp(camTransform.rotation, rotacaoFinal, Suavizacao(velocidadeRotacao, dt));
         }
 
         AtualizarFov(dt, zoom);
@@ -339,7 +399,7 @@ public class Camera3Person : MonoBehaviour
         if (desenharDebugColisao)
         {
             Debug.DrawLine(foco, posicaoIdeal, Color.red);
-            Debug.DrawLine(foco, transform.position, Color.green);
+            Debug.DrawLine(foco, camTransform.position, Color.green);
         }
     }
 
