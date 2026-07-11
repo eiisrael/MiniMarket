@@ -5,8 +5,8 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Painel F10 completo do MiniMarket.
-/// Exibe camera, FOV, menu, movimento, stamina, persistencia, memoria e frame spikes.
-/// O painel fica totalmente inativo quando fechado.
+/// Exibe câmera, FOV, AudioListeners, movimento, stamina, persistência, luzes e frame spikes.
+/// Quando fechado, não desenha GUI nem realiza buscas contínuas.
 /// </summary>
 [DefaultExecutionOrder(35000)]
 [DisallowMultipleComponent]
@@ -26,6 +26,8 @@ public class CameraV2F10Diagnostics : MonoBehaviour
     public PlayerMove playerMove;
     public MiniMarketPlayerDatabase banco;
     public MiniMarketRuntimePerformanceOptimizer performance;
+    public MiniMarketLightingPerformanceOptimizer lighting;
+    public MiniMarketSegmentedStaminaRuntimeGuard staminaGuard;
 
     [Header("Busca Automatica")]
     public bool procurarAutomaticamente = true;
@@ -33,7 +35,7 @@ public class CameraV2F10Diagnostics : MonoBehaviour
 
     [Header("Visual")]
     public Vector2 posicao = new Vector2(18f, 18f);
-    public Vector2 tamanho = new Vector2(720f, 790f);
+    public Vector2 tamanho = new Vector2(760f, 820f);
     public int tamanhoFonte = 13;
     public bool mostrarAjuda = true;
 
@@ -78,10 +80,20 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         }
 
         instancia = this;
-        DontDestroyOnLoad(gameObject);
+
+        // Evita o warning quando o componente foi colocado no CameraSystemV2 filho.
+        if (transform.parent == null)
+            DontDestroyOnLoad(gameObject);
+
         aberto = iniciarAberto;
         janela = new Rect(posicao.x, posicao.y, tamanho.x, tamanho.y);
         ResolverReferencias(true);
+    }
+
+    private void OnDestroy()
+    {
+        if (instancia == this)
+            instancia = null;
     }
 
     private void Update()
@@ -92,8 +104,14 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         if (Input.GetKeyDown(teclaAbrirFechar))
         {
             aberto = !aberto;
+
             if (aberto)
+            {
                 ResolverReferencias(true);
+
+                if (performance != null)
+                    performance.ResetarMetricas();
+            }
 
             if (logarNoConsoleAoAbrir)
                 Debug.Log("[CameraV2F10Diagnostics] " + (aberto ? "Aberto" : "Fechado"));
@@ -117,7 +135,7 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         PrepararStyles();
         janela.width = tamanho.x;
         janela.height = tamanho.y;
-        janela = GUI.Window(70021, janela, DesenharJanela, "MiniMarket - Diagnostico Completo F10");
+        janela = GUI.Window(70021, janela, DesenharJanela, "MiniMarket - Diagnóstico Completo F10");
     }
 
     private void DesenharJanela(int id)
@@ -127,6 +145,8 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         DesenharStatusGeral();
         Espaco();
         DesenharPerformance();
+        Espaco();
+        DesenharRenderizacao();
         Espaco();
         DesenharMovimentoStamina();
         Espaco();
@@ -143,10 +163,11 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         if (mostrarAjuda)
         {
             Espaco();
-            LinhaTitulo("Leitura rapida");
-            LinhaTexto("Frame ideal em 60 FPS: aproximadamente 16,7 ms. Acima de 33 ms ja existe microtravada perceptivel.", true);
-            LinhaTexto("Spikes aumentando ao consumir/regenerar energia indicam persistencia, UI ou outro trabalho no mesmo frame.", true);
-            LinhaTexto("F10 fecha este painel. Ele nao coleta GUI quando esta fechado.", true);
+            LinhaTitulo("Leitura rápida");
+            LinhaTexto("Em 60 FPS, um frame ideal fica perto de 16,7 ms. Acima de 33 ms existe microtravada perceptível.", true);
+            LinhaTexto("Câmeras ativas e AudioListeners ativos devem mostrar exatamente 1.", true);
+            LinhaTexto("Point/Spot Lights com sombra usam vários mapas; o otimizador limita essas sombras sem apagar as luzes.", true);
+            LinhaTexto("O pior frame é resetado ao abrir o F10 para ignorar carregamento inicial do Editor.", true);
         }
 
         GUILayout.EndScrollView();
@@ -157,14 +178,14 @@ public class CameraV2F10Diagnostics : MonoBehaviour
     {
         LinhaTitulo("Status geral");
         Linha("Cena", SceneManager.GetActiveScene().name, true);
-        Linha("Plataforma", Application.platform.ToString() + (Application.isMobilePlatform ? " / MOBILE" : " / DESKTOP"), true);
-        Linha("Resolucao", Screen.width + "x" + Screen.height + " | Fullscreen=" + Screen.fullScreen, true);
-        Linha("Qualidade", QualitySettings.names.Length > QualitySettings.GetQualityLevel() ? QualitySettings.names[QualitySettings.GetQualityLevel()] : QualitySettings.GetQualityLevel().ToString(), true);
+        Linha("Plataforma", Application.platform + (Application.isMobilePlatform ? " / MOBILE" : " / DESKTOP"), true);
+        Linha("Resolução", Screen.width + "x" + Screen.height + " | Fullscreen=" + Screen.fullScreen, true);
+        Linha("Qualidade", ObterNomeQualidade(), true);
         Linha("Target FPS / VSync", Application.targetFrameRate + " / " + QualitySettings.vSyncCount, true);
         Linha("TimeScale / FixedDelta", Time.timeScale.ToString("0.000") + " / " + Time.fixedDeltaTime.ToString("0.0000"), Time.timeScale > 0f);
         Linha("Menu aberto", CameraV2MenuInputBlocker.MenuAberto.ToString(), !CameraV2MenuInputBlocker.MenuAberto);
-        Linha("Cursor", Cursor.lockState + " | visible=" + Cursor.visible, !CameraV2MenuInputBlocker.MenuAberto ? Cursor.lockState == CursorLockMode.Locked : Cursor.visible);
-        Linha("Camera ativa", ObterCameraAtiva(), controller != null);
+        Linha("Cursor", Cursor.lockState + " | visible=" + Cursor.visible, CameraV2MenuInputBlocker.MenuAberto ? Cursor.visible : Cursor.lockState == CursorLockMode.Locked);
+        Linha("Câmera ativa", ObterCameraAtiva(), controller != null);
         Linha("Controller / Player", Estado(controller) + " / " + Estado(playerMove), controller != null && playerMove != null);
     }
 
@@ -173,25 +194,58 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         LinhaTitulo("Performance / fluidez");
 
         float fpsInstantaneo = 1f / Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
-        Linha("FPS instantaneo", fpsInstantaneo.ToString("0.0"), fpsInstantaneo >= 45f);
+        Linha("FPS instantâneo", fpsInstantaneo.ToString("0.0"), fpsInstantaneo >= 45f);
 
         if (performance != null)
         {
-            Linha("FPS medio", performance.FpsMedio.ToString("0.0"), performance.FpsMedio >= 45f);
-            Linha("Frame atual / medio", performance.UltimoFrameMs.ToString("0.00") + " ms / " + performance.FrameMsMedio.ToString("0.00") + " ms", performance.FrameMsMedio < 25f);
-            Linha("Pior frame", performance.PiorFrameMs.ToString("0.00") + " ms", performance.PiorFrameMs < 50f);
+            Linha("FPS médio", performance.FpsMedio.ToString("0.0"), performance.FpsMedio >= 45f);
+            Linha("Frame atual / médio", performance.UltimoFrameMs.ToString("0.00") + " / " + performance.FrameMsMedio.ToString("0.00") + " ms", performance.FrameMsMedio < 25f);
+            Linha("Pior frame válido", performance.PiorFrameMs.ToString("0.00") + " ms", performance.PiorFrameMs < 50f);
             Linha("Spikes >=33 / >=50 ms", performance.SpikesLeves + " / " + performance.SpikesGraves, performance.SpikesGraves == 0);
+            Linha("Frames ignorados", performance.FramesIgnorados.ToString(), true);
             Linha("Perfil mobile", performance.PerfilMobileAtivo.ToString(), true);
         }
         else
         {
-            Linha("Otimizador runtime", "NAO ENCONTRADO", false);
+            Linha("Otimizador runtime", "NÃO ENCONTRADO", false);
         }
 
         double managedMb = GC.GetTotalMemory(false) / (1024d * 1024d);
-        Linha("Memoria gerenciada", managedMb.ToString("0.0") + " MB", true);
+        Linha("Memória gerenciada", managedMb.ToString("0.0") + " MB", true);
         Linha("RAM sistema", SystemInfo.systemMemorySize + " MB", true);
         Linha("GPU / VRAM", SystemInfo.graphicsDeviceName + " / " + SystemInfo.graphicsMemorySize + " MB", true);
+    }
+
+    private void DesenharRenderizacao()
+    {
+        LinhaTitulo("Câmeras / áudio / luzes");
+
+        if (controller != null)
+        {
+            int camerasAtivas = controller.ContarCamerasAtivasNoMesmoRoot();
+            int listenersAtivos = controller.ContarAudioListenersAtivosNoMesmoRoot();
+
+            Linha("Câmeras ativas na raiz", camerasAtivas.ToString(), camerasAtivas == 1);
+            Linha("AudioListeners ativos", listenersAtivos.ToString(), listenersAtivos == 1);
+            Linha("Câmeras extras desligadas", controller.CamerasExtrasDesativadas.ToString(), true);
+            Linha("Listeners extras desligados", controller.ListenersExtrasDesativados.ToString(), true);
+            Linha("Última câmera extra", string.IsNullOrEmpty(controller.UltimaCameraExtraDesativada) ? "nenhuma" : controller.UltimaCameraExtraDesativada, true);
+        }
+        else
+        {
+            Linha("CameraV2Controller", "NÃO ENCONTRADO", false);
+        }
+
+        if (lighting != null)
+        {
+            Linha("Luzes Point/Spot", lighting.LuzesPontuaisEncontradas.ToString(), true);
+            Linha("Sombras pontuais mantidas", lighting.SombrasPontuaisMantidas.ToString(), true);
+            Linha("Sombras pontuais desligadas", lighting.SombrasPontuaisDesligadas.ToString(), true);
+        }
+        else
+        {
+            Linha("Otimizador de luzes", "NÃO ENCONTRADO", false);
+        }
     }
 
     private void DesenharMovimentoStamina()
@@ -200,33 +254,33 @@ public class CameraV2F10Diagnostics : MonoBehaviour
 
         if (playerMove == null)
         {
-            LinhaTexto("PlayerMove nao encontrado.", false);
+            LinhaTexto("PlayerMove não encontrado.", false);
             return;
         }
 
         CharacterController cc = playerMove.GetComponent<CharacterController>();
         float velocidade = cc != null ? cc.velocity.magnitude : 0f;
+
         Linha("GameObject", playerMove.name, true);
         Linha("Velocidade real", velocidade.ToString("0.000") + " m/s", true);
-        Linha("Camera movimento", playerMove.cameraTransform != null ? playerMove.cameraTransform.name : "null", playerMove.cameraTransform != null);
+        Linha("Câmera movimento", playerMove.cameraTransform != null ? playerMove.cameraTransform.name : "null", playerMove.cameraTransform != null);
         Linha("Andando / Correndo", playerMove.EstaCorrendo ? "CORRENDO" : (velocidade > 0.05f ? "ANDANDO" : "PARADO"), true);
         Linha("Stamina", playerMove.StaminaAtual.ToString("0.00") + " / " + playerMove.StaminaMaxima.ToString("0.00") + " (" + (playerMove.StaminaPercentual01 * 100f).ToString("0.0") + "%)", true);
         Linha("Segmentos", playerMove.StaminaSegmentadaTexto, true);
         Linha("Reserva", playerMove.StaminaRecargaReserva.ToString("0.00"), true);
         Linha("Gastando / Cansado", playerMove.EstaGastandoStamina + " / " + playerMove.EstaCansado, !playerMove.EstaCansado);
 
-        MiniMarketSegmentedStaminaRuntimeGuard guard = Object.FindFirstObjectByType<MiniMarketSegmentedStaminaRuntimeGuard>(FindObjectsInactive.Include);
-        if (guard != null)
-            Linha("Guard fantasma / bloqueio", guard.SegmentoFantasmaAtivo + " / " + guard.BloqueadoAteSoltarShift, true);
+        if (staminaGuard != null)
+            Linha("Guard fantasma / bloqueio", staminaGuard.SegmentoFantasmaAtivo + " / " + staminaGuard.BloqueadoAteSoltarShift, true);
     }
 
     private void DesenharPersistencia()
     {
-        LinhaTitulo("Persistencia / possiveis fontes de hitch");
+        LinhaTitulo("Persistência / possíveis fontes de hitch");
 
         if (performance != null)
         {
-            Linha("Save continuo segmentos", performance.SaveContinuoDeSegmentosDesligado ? "DESLIGADO (otimizado)" : "ATIVO/NAO APLICADO", performance.SaveContinuoDeSegmentosDesligado);
+            Linha("Save contínuo segmentos", performance.SaveContinuoDeSegmentosDesligado ? "DESLIGADO (otimizado)" : "ATIVO/NÃO APLICADO", performance.SaveContinuoDeSegmentosDesligado);
             Linha("PlayerPrefs pendente", performance.PlayerPrefsPendentes.ToString(), true);
             Linha("Flushes PlayerPrefs", performance.FlushesPlayerPrefs.ToString(), true);
         }
@@ -242,10 +296,11 @@ public class CameraV2F10Diagnostics : MonoBehaviour
             Linha("Banco pendente", banco.SalvamentoPendente.ToString(), true);
             Linha("Debounce disco", banco.intervaloSalvamentoDiferido.ToString("0.0") + "s", banco.intervaloSalvamentoDiferido >= 5f);
             Linha("Criptografia", banco.usarCriptografiaLocal.ToString(), true);
+            Linha("Encerrando aplicação", MiniMarketPlayerDatabase.EncerrandoAplicacao.ToString(), !MiniMarketPlayerDatabase.EncerrandoAplicacao);
         }
         else
         {
-            Linha("Banco local", "NAO ENCONTRADO", false);
+            Linha("Banco local", "NÃO ENCONTRADO", false);
         }
     }
 
@@ -255,10 +310,11 @@ public class CameraV2F10Diagnostics : MonoBehaviour
 
         if (thirdPersonCAM == null)
         {
-            LinhaTexto("ThirdPersonCAM nao encontrado.", false);
+            LinhaTexto("ThirdPersonCAM não encontrado.", false);
             return;
         }
 
+        Linha("Camera component", thirdPersonCAM.UnityCamera != null ? thirdPersonCAM.UnityCamera.name : "null", thirdPersonCAM.UnityCamera != null);
         Linha("Ativa / Input", thirdPersonCAM.cameraAtiva + " / " + thirdPersonCAM.InputMouseAtivo, thirdPersonCAM.cameraAtiva ? thirdPersonCAM.InputMouseAtivo : true);
         Linha("Target", thirdPersonCAM.target != null ? thirdPersonCAM.target.name : "null", thirdPersonCAM.target != null);
         Linha("Yaw / Pitch", thirdPersonCAM.YawAtual.ToString("0.00") + " / " + thirdPersonCAM.PitchAtual.ToString("0.00"), true);
@@ -266,7 +322,7 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         Linha("Zoom", thirdPersonCAM.ZoomAtivo.ToString(), true);
         Linha("Dist config / atual", thirdPersonCAM.distancia.ToString("0.00") + " / " + thirdPersonCAM.DistanciaAtual.ToString("0.00"), true);
         Linha("Dist segura", thirdPersonCAM.DistanciaSeguraAtual.ToString("0.00"), true);
-        Linha("Colisao", thirdPersonCAM.ColisaoNoFrame ? "SIM: " + thirdPersonCAM.UltimoColliderColisao : "NAO", !thirdPersonCAM.ColisaoNoFrame);
+        Linha("Colisão", thirdPersonCAM.ColisaoNoFrame ? "SIM: " + thirdPersonCAM.UltimoColliderColisao : "NÃO", !thirdPersonCAM.ColisaoNoFrame);
         Linha("Auto Align", thirdPersonCAM.autoAlinharAtrasDoPersonagem.ToString(), !thirdPersonCAM.autoAlinharAtrasDoPersonagem);
     }
 
@@ -276,10 +332,11 @@ public class CameraV2F10Diagnostics : MonoBehaviour
 
         if (firstPersonCAM == null)
         {
-            LinhaTexto("FirstPersonCAM nao encontrado.", false);
+            LinhaTexto("FirstPersonCAM não encontrado.", false);
             return;
         }
 
+        Linha("Camera component", firstPersonCAM.UnityCamera != null ? firstPersonCAM.UnityCamera.name : "null", firstPersonCAM.UnityCamera != null);
         Linha("Ativa / Input", firstPersonCAM.cameraAtiva + " / " + firstPersonCAM.InputMouseAtivo, firstPersonCAM.cameraAtiva ? firstPersonCAM.InputMouseAtivo : true);
         Linha("Corpo / POV", Nome(firstPersonCAM.corpoPersonagem) + " / " + Nome(firstPersonCAM.pontoPOV), firstPersonCAM.corpoPersonagem != null && firstPersonCAM.pontoPOV != null);
         Linha("Yaw / Pitch", firstPersonCAM.YawAtual.ToString("0.00") + " / " + firstPersonCAM.PitchAtual.ToString("0.00"), true);
@@ -295,35 +352,35 @@ public class CameraV2F10Diagnostics : MonoBehaviour
 
         if (getItem == null)
         {
-            LinhaTexto("GetItemV2 nao encontrado.", false);
+            LinhaTexto("GetItemV2 não encontrado.", false);
             return;
         }
 
         Linha("Enabled", getItem.enabled.ToString(), true);
         Linha("Selecionado", getItem.Selecionado != null ? getItem.Selecionado.name : "null", true);
         Linha("Pegando", getItem.Pegando != null ? getItem.Pegando.name : "null", true);
-        Linha("Distancia / raio", getItem.distanciaSelecao.ToString("0.00") + " / " + getItem.raioSelecao.ToString("0.00"), true);
+        Linha("Distância / raio", getItem.distanciaSelecao.ToString("0.00") + " / " + getItem.raioSelecao.ToString("0.00"), true);
         Linha("Anti parede", getItem.impedirAtravessarParede.ToString(), getItem.impedirAtravessarParede);
     }
 
     private void DesenharAcoes()
     {
-        LinhaTitulo("Acoes de diagnostico");
+        LinhaTitulo("Ações de diagnóstico");
         GUILayout.BeginHorizontal();
 
-        if (GUILayout.Button("Resetar metricas"))
-        {
-            if (performance != null)
-                performance.ResetarMetricas();
-        }
+        if (GUILayout.Button("Resetar métricas") && performance != null)
+            performance.ResetarMetricas();
 
-        if (GUILayout.Button("Salvar stamina agora"))
-        {
-            if (performance != null)
-                performance.SalvarSegmentosAgora(true);
-        }
+        if (GUILayout.Button("Reparar câmeras") && controller != null)
+            controller.RepararAgora();
 
-        if (GUILayout.Button("Atualizar referencias"))
+        if (GUILayout.Button("Revalidar luzes") && lighting != null)
+            lighting.RevalidarAgora();
+
+        if (GUILayout.Button("Salvar stamina") && performance != null)
+            performance.SalvarSegmentosAgora(true);
+
+        if (GUILayout.Button("Atualizar refs"))
             ResolverReferencias(true);
 
         GUILayout.EndHorizontal();
@@ -349,9 +406,16 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         if (forcar || performance == null)
             performance = MiniMarketRuntimePerformanceOptimizer.Instance != null ? MiniMarketRuntimePerformanceOptimizer.Instance : Object.FindFirstObjectByType<MiniMarketRuntimePerformanceOptimizer>(FindObjectsInactive.Include);
 
+        if (forcar || lighting == null)
+            lighting = MiniMarketLightingPerformanceOptimizer.Instance != null ? MiniMarketLightingPerformanceOptimizer.Instance : Object.FindFirstObjectByType<MiniMarketLightingPerformanceOptimizer>(FindObjectsInactive.Include);
+
+        if (forcar || staminaGuard == null)
+            staminaGuard = Object.FindFirstObjectByType<MiniMarketSegmentedStaminaRuntimeGuard>(FindObjectsInactive.Include);
+
         if (forcar || getItem == null)
         {
             getItem = firstPersonCAM != null ? firstPersonCAM.GetComponent<GetItemV2>() : null;
+
             if (getItem == null)
                 getItem = Object.FindFirstObjectByType<GetItemV2>(FindObjectsInactive.Include);
         }
@@ -371,19 +435,30 @@ public class CameraV2F10Diagnostics : MonoBehaviour
         return "Nenhuma";
     }
 
+    private string ObterNomeQualidade()
+    {
+        int indice = QualitySettings.GetQualityLevel();
+        string[] nomes = QualitySettings.names;
+        return nomes != null && indice >= 0 && indice < nomes.Length ? nomes[indice] : indice.ToString();
+    }
+
     private void PrepararStyles()
     {
         if (labelStyle != null)
             return;
 
-        labelStyle = new GUIStyle(GUI.skin.label);
-        labelStyle.fontSize = tamanhoFonte;
+        labelStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = tamanhoFonte,
+            wordWrap = true
+        };
         labelStyle.normal.textColor = Color.white;
-        labelStyle.wordWrap = true;
 
-        titleStyle = new GUIStyle(labelStyle);
-        titleStyle.fontStyle = FontStyle.Bold;
-        titleStyle.fontSize = tamanhoFonte + 2;
+        titleStyle = new GUIStyle(labelStyle)
+        {
+            fontStyle = FontStyle.Bold,
+            fontSize = tamanhoFonte + 2
+        };
         titleStyle.normal.textColor = new Color(1f, 0.85f, 0.25f, 1f);
 
         okStyle = new GUIStyle(labelStyle);
@@ -404,7 +479,7 @@ public class CameraV2F10Diagnostics : MonoBehaviour
     private void Linha(string nome, string valor, bool ok)
     {
         GUILayout.BeginHorizontal();
-        GUILayout.Label(nome + ":", labelStyle, GUILayout.Width(220f));
+        GUILayout.Label(nome + ":", labelStyle, GUILayout.Width(240f));
         GUILayout.Label(valor, ok ? okStyle : warnStyle);
         GUILayout.EndHorizontal();
     }
