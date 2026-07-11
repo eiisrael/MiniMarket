@@ -7,24 +7,19 @@ using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Remove referências serializadas inválidas de objetos de cenas normais para objetos
-/// existentes na cena especial DontDestroyOnLoad.
+/// Remove referências serializadas inválidas de cenas normais para objetos da cena
+/// especial DontDestroyOnLoad.
 ///
-/// Segurança:
-/// - nunca marca/salva cena enquanto o jogo está em Play Mode;
-/// - limpa antes de entrar em Play Mode;
-/// - limpa apenas em memória ao sair do Play Mode, antes do Hierarchy salvar o estado;
-/// - limpa e salva novamente quando o Editor volta ao Edit Mode;
-/// - não executa varreduras concorrentes durante compilação/importação.
+/// Esta versão nunca modifica, marca ou salva cenas durante Play Mode ou durante a
+/// transição para Play Mode. A limpeza acontece somente em Edit Mode.
 /// </summary>
 [InitializeOnLoad]
 public static class CrossSceneReferenceCleaner
 {
-    private const double ScanIntervalSeconds = 3d;
+    private const double ScanIntervalSeconds = 2d;
 
-    private static double nextScanTime;
     private static bool isCleaning;
-    private static bool playTransitionInProgress;
+    private static double nextScanTime;
 
     static CrossSceneReferenceCleaner()
     {
@@ -34,32 +29,33 @@ public static class CrossSceneReferenceCleaner
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
 
-        EditorApplication.delayCall += CleanLoadedScenes;
+        EditorApplication.delayCall += TryCleanWhenSafe;
     }
 
     [MenuItem("Tools/Project Maintenance/Clean Cross-Scene References", priority = 2)]
     public static void CleanLoadedScenes()
     {
-        CleanLoadedScenesInternal(saveSceneChanges: true, allowDuringTransition: false);
+        if (!CanModifyScenes())
+        {
+            Debug.LogWarning(
+                "[CrossSceneReferenceCleaner] Saia do Play Mode e aguarde a compilação antes de limpar referências."
+            );
+            return;
+        }
+
+        CleanLoadedScenesInternal(saveSceneChanges: true);
     }
 
     private static void EditorUpdate()
     {
-        if (isCleaning ||
-            playTransitionInProgress ||
-            EditorApplication.isPlaying ||
-            EditorApplication.isPlayingOrWillChangePlaymode ||
-            EditorApplication.isCompiling ||
-            EditorApplication.isUpdating)
-        {
+        if (!CanModifyScenes() || isCleaning)
             return;
-        }
 
         if (EditorApplication.timeSinceStartup < nextScanTime)
             return;
 
         nextScanTime = EditorApplication.timeSinceStartup + ScanIntervalSeconds;
-        CleanLoadedScenesInternal(saveSceneChanges: true, allowDuringTransition: false);
+        CleanLoadedScenesInternal(saveSceneChanges: true);
     }
 
     private static void OnPlayModeStateChanged(PlayModeStateChange state)
@@ -67,49 +63,43 @@ public static class CrossSceneReferenceCleaner
         switch (state)
         {
             case PlayModeStateChange.ExitingEditMode:
-                playTransitionInProgress = true;
-
-                // Ainda estamos no Edit Mode. Limpa e salva antes do Play começar.
-                CleanLoadedScenesInternal(saveSceneChanges: true, allowDuringTransition: true);
-                break;
-
             case PlayModeStateChange.EnteredPlayMode:
-                playTransitionInProgress = false;
-                break;
-
             case PlayModeStateChange.ExitingPlayMode:
-                playTransitionInProgress = true;
-
-                // Durante o Play, apenas desfaz referências runtime em memória.
-                // Não chama MarkSceneDirty nem SaveScene.
-                CleanLoadedScenesInternal(saveSceneChanges: false, allowDuringTransition: true);
+                // Não tocar em SerializedObject, MarkSceneDirty ou SaveScene durante
+                // qualquer etapa do Play Mode.
                 break;
 
             case PlayModeStateChange.EnteredEditMode:
-                playTransitionInProgress = false;
                 nextScanTime = 0d;
-                EditorApplication.delayCall += CleanLoadedScenes;
+                EditorApplication.delayCall += TryCleanWhenSafe;
                 break;
         }
     }
 
-    private static void CleanLoadedScenesInternal(bool saveSceneChanges, bool allowDuringTransition)
+    private static void TryCleanWhenSafe()
     {
-        if (isCleaning || EditorApplication.isCompiling || EditorApplication.isUpdating)
+        if (!CanModifyScenes() || isCleaning)
             return;
 
-        if (!allowDuringTransition &&
-            (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode))
-        {
-            return;
-        }
+        CleanLoadedScenesInternal(saveSceneChanges: true);
+    }
 
-        // Marcar/salvar cenas em Play Mode gera InvalidOperationException.
-        if (saveSceneChanges && (EditorApplication.isPlaying || Application.isPlaying))
-            saveSceneChanges = false;
+    private static bool CanModifyScenes()
+    {
+        return !EditorApplication.isPlaying &&
+               !EditorApplication.isPlayingOrWillChangePlaymode &&
+               !Application.isPlaying &&
+               !EditorApplication.isCompiling &&
+               !EditorApplication.isUpdating;
+    }
+
+    private static void CleanLoadedScenesInternal(bool saveSceneChanges)
+    {
+        if (!CanModifyScenes() || isCleaning)
+            return;
 
         isCleaning = true;
-        int cleared = 0;
+        int clearedReferences = 0;
         int changedScenes = 0;
 
         try
@@ -117,13 +107,8 @@ public static class CrossSceneReferenceCleaner
             for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; sceneIndex++)
             {
                 Scene scene = SceneManager.GetSceneAt(sceneIndex);
-                if (!scene.IsValid() ||
-                    !scene.isLoaded ||
-                    string.IsNullOrEmpty(scene.path) ||
-                    string.Equals(scene.name, "DontDestroyOnLoad", StringComparison.Ordinal))
-                {
+                if (!IsEditableScene(scene))
                     continue;
-                }
 
                 bool sceneChanged = false;
                 GameObject[] roots = scene.GetRootGameObjects();
@@ -141,7 +126,7 @@ public static class CrossSceneReferenceCleaner
                         if (component == null || component is Transform)
                             continue;
 
-                        cleared += CleanComponent(component, ref sceneChanged);
+                        clearedReferences += CleanComponent(component, ref sceneChanged);
                     }
                 }
 
@@ -150,38 +135,48 @@ public static class CrossSceneReferenceCleaner
 
                 changedScenes++;
 
-                if (saveSceneChanges && !EditorApplication.isPlaying && !Application.isPlaying)
+                if (saveSceneChanges && CanModifyScenes())
                 {
                     EditorSceneManager.MarkSceneDirty(scene);
                     EditorSceneManager.SaveScene(scene);
                 }
             }
 
-            if (cleared > 0)
+            if (clearedReferences > 0)
             {
                 Debug.Log(
-                    "[CrossSceneReferenceCleaner] " + cleared +
+                    "[CrossSceneReferenceCleaner] " + clearedReferences +
                     " referência(s) inválida(s) removida(s) em " + changedScenes +
-                    " cena(s). Salvar cenas=" + saveSceneChanges + "."
+                    " cena(s)."
                 );
             }
         }
         catch (InvalidOperationException exception)
         {
-            // Proteção adicional para mudanças de estado do Editor ocorridas no mesmo frame.
+            // Caso o estado do Editor mude no mesmo frame, a limpeza será tentada
+            // novamente quando o Edit Mode estiver estável.
             Debug.LogWarning(
-                "[CrossSceneReferenceCleaner] Limpeza adiada durante transição do Play Mode: " +
-                exception.Message
+                "[CrossSceneReferenceCleaner] Limpeza adiada: " + exception.Message
             );
         }
         catch (Exception exception)
         {
-            Debug.LogError("[CrossSceneReferenceCleaner] Falha ao limpar referências: " + exception);
+            Debug.LogError(
+                "[CrossSceneReferenceCleaner] Falha ao limpar referências: " + exception
+            );
         }
         finally
         {
             isCleaning = false;
         }
+    }
+
+    private static bool IsEditableScene(Scene scene)
+    {
+        return scene.IsValid() &&
+               scene.isLoaded &&
+               !string.IsNullOrEmpty(scene.path) &&
+               !string.Equals(scene.name, "DontDestroyOnLoad", StringComparison.Ordinal);
     }
 
     private static int CleanComponent(Component owner, ref bool sceneChanged)
@@ -190,11 +185,8 @@ public static class CrossSceneReferenceCleaner
             return 0;
 
         Scene ownerScene = owner.gameObject.scene;
-        if (!ownerScene.IsValid() ||
-            string.Equals(ownerScene.name, "DontDestroyOnLoad", StringComparison.Ordinal))
-        {
+        if (!IsEditableScene(ownerScene))
             return 0;
-        }
 
         SerializedObject serializedObject;
         try
@@ -222,18 +214,17 @@ public static class CrossSceneReferenceCleaner
             }
 
             Object reference = iterator.objectReferenceValue;
-            if (reference == null || !TryGetScene(reference, out Scene referenceScene))
+            if (reference == null)
                 continue;
 
-            bool pointsToRuntimeScene = referenceScene.IsValid() &&
-                                        string.Equals(
-                                            referenceScene.name,
-                                            "DontDestroyOnLoad",
-                                            StringComparison.Ordinal
-                                        );
-
-            if (!pointsToRuntimeScene)
+            if (!TryGetScene(reference, out Scene referenceScene))
                 continue;
+
+            if (!referenceScene.IsValid() ||
+                !string.Equals(referenceScene.name, "DontDestroyOnLoad", StringComparison.Ordinal))
+            {
+                continue;
+            }
 
             iterator.objectReferenceValue = null;
             cleared++;
