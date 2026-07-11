@@ -1,13 +1,15 @@
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Perfil de renderização seguro para Desktop e Mobile.
 ///
-/// Não troca materiais nem pipeline. Ajusta apenas propriedades globais e, quando URP
-/// estiver ativo, usa reflexão para configurar renderScale/MSAA sem criar dependência
-/// rígida de versão do pacote Universal RP.
+/// Não troca materiais nem pipeline. Ajusta propriedades globais e, quando URP está
+/// ativo, tenta configurar renderScale/MSAA sem dependência rígida da versão do pacote.
+/// O perfil é reaplicado no primeiro LateUpdate de cada cena para vencer sistemas
+/// legados que ainda alterem FPS ou VSync durante o carregamento.
 /// </summary>
 [DefaultExecutionOrder(-48000)]
 [DisallowMultipleComponent]
@@ -51,11 +53,16 @@ public sealed class PlatformRenderProfile : MonoBehaviour
     public bool useLowBackgroundLoadingPriority = true;
     public bool enableCollisionCallbackReuse = true;
     public bool neverSleepOnMobile = true;
+    public bool reapplyAfterSceneLoad = true;
     public bool logAppliedProfile;
 
     public ForcedProfile ActiveProfile { get; private set; }
-    public bool IsMobileProfile => ActiveProfile == ForcedProfile.Mobile || ActiveProfile == ForcedProfile.LowEndMobile;
+    public bool IsMobileProfile =>
+        ActiveProfile == ForcedProfile.Mobile ||
+        ActiveProfile == ForcedProfile.LowEndMobile;
     public float ActiveRenderScale { get; private set; } = 1f;
+
+    private bool pendingSceneReapply;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -87,9 +94,35 @@ public sealed class PlatformRenderProfile : MonoBehaviour
             transform.SetParent(null);
 
         DontDestroyOnLoad(gameObject);
+        SceneManager.sceneLoaded += HandleSceneLoaded;
 
         if (applyAutomatically)
             ApplyProfile();
+    }
+
+    private void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+
+        if (Instance == this)
+            Instance = null;
+    }
+
+    private void LateUpdate()
+    {
+        if (!pendingSceneReapply)
+            return;
+
+        pendingSceneReapply = false;
+
+        if (applyAutomatically)
+            ApplyProfile();
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (reapplyAfterSceneLoad)
+            pendingSceneReapply = true;
     }
 
     private void OnApplicationFocus(bool focused)
@@ -187,7 +220,9 @@ public sealed class PlatformRenderProfile : MonoBehaviour
             : AnisotropicFiltering.Enable;
         QualitySettings.lodBias = lowEnd ? 0.65f : 0.85f;
         QualitySettings.maximumLODLevel = lowEnd ? 1 : 0;
-        QualitySettings.skinWeights = lowEnd ? SkinWeights.TwoBones : SkinWeights.FourBones;
+        QualitySettings.skinWeights = lowEnd
+            ? SkinWeights.TwoBones
+            : SkinWeights.FourBones;
 
         if (disableRealtimeReflectionsOnMobile)
             QualitySettings.realtimeReflectionProbes = false;
@@ -258,8 +293,16 @@ public sealed class PlatformRenderProfile : MonoBehaviour
         desktopTargetFps = Mathf.Clamp(desktopTargetFps, 30, 240);
         mobileTargetFps = Mathf.Clamp(mobileTargetFps, 30, 120);
         mobileRenderScale = Mathf.Clamp(mobileRenderScale, 0.5f, 1f);
-        lowEndMobileRenderScale = Mathf.Clamp(lowEndMobileRenderScale, 0.5f, mobileRenderScale);
+        lowEndMobileRenderScale = Mathf.Clamp(
+            lowEndMobileRenderScale,
+            0.5f,
+            mobileRenderScale
+        );
         mobileShadowDistance = Mathf.Max(5f, mobileShadowDistance);
-        lowEndShadowDistance = Mathf.Clamp(lowEndShadowDistance, 5f, mobileShadowDistance);
+        lowEndShadowDistance = Mathf.Clamp(
+            lowEndShadowDistance,
+            5f,
+            mobileShadowDistance
+        );
     }
 }
