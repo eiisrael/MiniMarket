@@ -2,6 +2,30 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-11 — Correção de compilação pós-organização
+
+### Economia
+
+- `PlayerGold` movido definitivamente para `Assets/Scripts/Economy/PlayerGold.cs`;
+- removido o arquivo legado duplicado `Assets/Scripts/Player_Gold.cs`;
+- GUID original do MonoScript preservado para não perder referências de cena e prefab;
+- corrigidos os erros `CS0101` e `CS0111` causados por duas definições da classe `PlayerGold`.
+
+### Editor e referências entre cenas
+
+- `CrossSceneReferenceCleaner` agora executa alterações somente em Edit Mode estável;
+- nenhuma chamada a `SerializedObject`, `MarkSceneDirty` ou `SaveScene` ocorre durante Play Mode ou suas transições;
+- referências runtime do banco continuam não serializadas no menu.
+
+### Migração local necessária
+
+Se a organização antiga já tiver criado uma cópia local não rastreada em `Assets/Scripts/Economy/PlayerGold.cs`, apagar essa cópia e seu `.meta` antes do próximo `git pull`. O Git baixará a versão canônica preservando o GUID correto.
+
+### Validação
+
+- estrutura e dependências revisadas no repositório;
+- compilação final deve ser confirmada no Unity local depois da limpeza da cópia duplicada.
+
 ## 2026-07-11 — Dados, stamina, interações e Mobile/Desktop
 
 ### Banco
