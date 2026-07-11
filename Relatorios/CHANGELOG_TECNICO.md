@@ -2,6 +2,73 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-11 — Recuperação de compra, minimapa, diagnósticos, energia e mira
+
+### Causa raiz
+
+- a organização automática anterior removeu/moveu sistemas ainda usados pela cena;
+- `PlayerCameraController` desligava todas as câmeras auxiliares, inclusive câmeras com `RenderTexture`;
+- o controlador da câmera do jogador disputava o Transform/FOV com o modo de compra;
+- o HUD de energia procurava barras apenas nos filhos do texto, sem alcançar imagens irmãs;
+- a restauração gratuita podia ser sobrescrita por eventos antigos no mesmo frame;
+- não existia uma autoridade única para a visibilidade da mira.
+
+### Compra de terrenos
+
+- criado `PurchaseModeBridge` para entregar temporariamente o controle da câmera ao modo de compra;
+- criado reparo runtime de controladores, painel, triggers, terrenos e linhas visuais;
+- criado reparo seguro de cena em `Tools > Game Systems > Repair Purchase Minimap Diagnostics Energy Reticle`;
+- entrada da calçada continua exigindo `BuySceneEntryTrigger` em um collider válido; nenhum trigger é criado em posição arbitrária.
+
+### Minimapa
+
+- criado `RuntimeMiniMap`, independente do minimapa legado;
+- câmera ortográfica renderiza em `RenderTexture` e é preservada pelo controlador principal;
+- busca `CameraRelativeMovement` como alvo;
+- possui UI circular, ponto central, tecla M, zoom e perfil Desktop/Mobile.
+
+### Diagnósticos
+
+- criado `RuntimeDiagnosticsPanel`, inicializado automaticamente;
+- F10 exibe desempenho, câmeras, AudioListeners, banco, energia, movimento, compra e minimapa;
+- removida dependência dos diagnósticos antigos da Camera V2.
+
+### Stamina e HUD
+
+- HUD detecta barra principal e múltiplas barras segmentadas no container visual;
+- preenchimento visual é animado;
+- progresso da reserva passa a preencher visualmente o próximo segmento;
+- criado `FreeEnergyRestoreService`, que restaura banco, movimento e HUD em sequência autoritativa.
+
+### Mira
+
+- criado `FirstPersonReticleController`;
+- mira é exibida apenas em primeira pessoa;
+- mira fica oculta em terceira pessoa, menus e modo de compra.
+
+### Segurança da organização
+
+- `ScriptProjectOrganizer` tornou-se somente auditoria;
+- nenhuma organização automática move, renomeia, apaga arquivos, cenas ou componentes;
+- Brick Project Studio continua ignorado.
+
+### Impacto Desktop/Mobile
+
+- sistemas runtime são compatíveis com teclado/mouse e inicialização mobile;
+- minimapa usa resolução menor no mobile;
+- nenhum layout touch existente foi removido.
+
+### Testes locais obrigatórios
+
+- compilação sem erros;
+- linha da calçada visível e tecla E abrindo o modo de compra;
+- seleção e painel de confirmação dos terrenos;
+- minimapa visível e tecla M funcional;
+- F10 funcional;
+- energia grátis permanece cheia após alguns segundos;
+- barras do HUD carregam visualmente;
+- mira oculta em terceira pessoa e visível somente em primeira pessoa.
+
 ## 2026-07-11 — Correção de compilação pós-organização
 
 ### Economia
