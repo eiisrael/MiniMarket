@@ -1,33 +1,97 @@
-# Organização de Scripts
+# Organização dos Scripts
 
-A pasta `Assets/Scripts` passa a ser organizada por responsabilidade:
+Os scripts do projeto são separados por responsabilidade:
 
-- `Core`: modelos, contratos e classes-base.
-- `Configuration`: configurações e preferências.
+- `Camera`: câmera do jogador e modos de visão.
+- `Movement`: movimentação e controle do personagem.
+- `Interaction`: seleção, GetItem e objetos manipuláveis.
+- `Core`: estado compartilhado e infraestrutura de gameplay.
 - `Data`: banco local, perfil e persistência.
 - `Economy`: gold, carteira e moedas.
 - `Purchasing`: compra de terrenos, lojas e cenas.
-- `Interaction`: seleção, coleta e interação com objetos.
-- `Physics`: comportamentos físicos que não sejam movimentação do personagem.
-- `Stamina`: energia independente de câmera/movimentação.
+- `Stamina`: energia independente da câmera.
 - `Menus`: controladores de menus.
 - `UI`: HUD, textos, painéis e botões.
 - `World`: cidade, tempo, ciclo solar e cena.
-- `Performance`: otimizações genéricas sem dependência de câmera/movimentação.
-- `Diagnostics`: logs e ferramentas de diagnóstico genéricas.
-- `Gameplay`: comportamentos de gameplay que não se encaixem nas categorias acima.
+- `Performance`: otimizações genéricas.
+- `Diagnostics`: logs e ferramentas de diagnóstico.
 
-## Regras
+## Sistema do jogador
 
-1. Não usar o prefixo `MiniMarket` no nome de novos scripts ou classes.
+A arquitetura atual usa apenas uma câmera real:
+
+```text
+SampleScene
+├── Character 01
+│   ├── CameraTarget
+│   └── FirstPersonEye
+└── PlayerCameraRig
+```
+
+### Character 01
+
+Componentes principais:
+
+- `CharacterController`
+- `CameraRelativeMovement`
+- `Animator`, quando disponível
+
+### PlayerCameraRig
+
+Componentes principais:
+
+- `Camera`
+- `AudioListener`
+- `ThirdPersonCamera`
+- `FirstPersonCamera`
+- `PlayerCameraController`
+- `GetItemController`
+
+`PlayerCameraController` é a única autoridade que altera posição, rotação e FOV da câmera. Os componentes de primeira e terceira pessoa apenas calculam a pose desejada.
+
+## Controles padrão
+
+- `WASD`: movimentação relativa à câmera.
+- `Shift`: correr.
+- `Espaço`: pular.
+- `Mouse`: girar câmera.
+- `V`: alternar primeira/terceira pessoa.
+- Segurar botão direito: primeira pessoa temporária.
+- Botão esquerdo: pegar/soltar objeto selecionado.
+- Rodinha do mouse: ajustar distância do objeto.
+- `F`: arremessar objeto segurado.
+
+## GetItem
+
+Cada produto manipulável deve possuir:
+
+- `Collider`
+- `Rigidbody`
+- `GrabbableItem`
+
+O sistema usa mola e amortecimento físicos, preserva colisões, impede atravessar paredes e restaura o estado original do Rigidbody ao soltar.
+
+## Menu e input
+
+`GameplayInputState` bloqueia câmera, movimentação e GetItem quando:
+
+- o jogo está pausado por `Time.timeScale = 0`;
+- o cursor está visível e destravado;
+- outro sistema aplica um bloqueio manual.
+
+## Setup automático
+
+Depois do `git pull`, o Unity executa uma migração única que remove componentes legados e cria a estrutura nova. Também é possível executar manualmente:
+
+`Tools > Player System > Create or Repair Player System`
+
+Para remover referências inválidas ao `DontDestroyOnLoad`:
+
+`Tools > Project Maintenance > Clean Cross-Scene References`
+
+## Regras de nomenclatura
+
+1. Não usar o prefixo `MiniMarket` em novos scripts.
 2. O nome do arquivo deve ser igual ao nome da classe principal.
-3. Cada script deve ficar na pasta da sua função.
-4. Sistemas de câmera e movimentação do personagem foram removidos e não serão recriados nesta etapa.
-5. Conteúdo dentro de pastas `Brick Project Studio` não deve ser alterado.
-6. MonoBehaviours sem uso em cenas, prefabs ou dependências de código são removidos pela migração.
-
-A migração é executada automaticamente uma única vez depois do `git pull`. Também pode ser executada manualmente em:
-
-`Tools > Project Maintenance > Run Script Cleanup and Organization`
-
-Ao terminar, ela gera `ScriptOrganizationReport.md` nesta pasta.
+3. Cada script deve ficar na pasta de sua função.
+4. Conteúdo em `Brick Project Studio` não deve ser alterado.
