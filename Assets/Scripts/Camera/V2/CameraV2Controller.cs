@@ -2,8 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Controlador central do Camera System V2.
-/// Alterna ThirdPersonCAM/FirstPersonCAM, controla AudioListener e mantém o
-/// PlayerMove apontando para a câmera realmente ativa.
+/// Alterna terceira/primeira pessoa, mantém o PlayerMove sincronizado e garante
+/// que somente a Camera/AudioListener V2 ativos permaneçam ligados.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(19900)]
@@ -25,33 +25,62 @@ public class CameraV2Controller : MonoBehaviour
     [Header("Estado Inicial")]
     public bool iniciarEmTerceiraPessoa = true;
     public bool sincronizarYawAoTrocar = true;
+    public bool posicionarTerceiraPessoaAntesPrimeiroFrame = true;
 
     [Header("Movimento do Player")]
     public bool atualizarCameraTransformDoPlayer = true;
 
-    [Header("Áudio")]
+    [Header("Câmeras e Áudio")]
     public bool controlarAudioListeners = true;
 
+    [Tooltip("Desliga Camera antiga/extras que estejam dentro da mesma raiz do CameraSystemV2.")]
+    public bool desativarCamerasExtrasNoMesmoRoot = true;
+
+    [Tooltip("Desliga AudioListeners extras dentro da mesma raiz. Corrige o aviso de 3 listeners.")]
+    public bool desativarAudioListenersExtrasNoMesmoRoot = true;
+
+    [Tooltip("Mantém a câmera V2 ativa com a tag MainCamera e remove a tag das câmeras inativas/extras.")]
+    public bool gerenciarTagMainCamera = true;
+
+    [Header("Revalidação Inicial")]
+    public bool revalidarNosPrimeirosSegundos = true;
+    [Min(0.5f)] public float duracaoRevalidacaoInicial = 4f;
+    [Min(0.1f)] public float intervaloRevalidacao = 0.5f;
+
     [Header("Segurança")]
-    public bool desativarCameraAntigaSeEncontrar = false;
+    public bool desativarCameraAntigaSeEncontrar = true;
     public bool ignorarInputComMenuAberto = true;
     public bool logarEventos = false;
 
     private bool primeiraPessoaAtiva;
     private bool ultimoBotao;
+    private float tempoInicio;
+    private float proximaRevalidacao;
+    private AudioListener thirdListener;
+    private AudioListener firstListener;
+    private string ultimaCameraExtraDesativada = string.Empty;
+    private int camerasExtrasDesativadas;
+    private int listenersExtrasDesativados;
 
     public bool PrimeiraPessoaAtiva => primeiraPessoaAtiva;
+    public int CamerasExtrasDesativadas => camerasExtrasDesativadas;
+    public int ListenersExtrasDesativados => listenersExtrasDesativados;
+    public string UltimaCameraExtraDesativada => ultimaCameraExtraDesativada;
+
     public Transform CameraAtivaTransform
     {
         get
         {
             if (primeiraPessoaAtiva && firstPersonCAM != null)
-                return firstPersonCAM.transform;
+                return firstPersonCAM.UnityCamera != null ? firstPersonCAM.UnityCamera.transform : firstPersonCAM.transform;
 
             if (thirdPersonCAM != null)
-                return thirdPersonCAM.transform;
+                return thirdPersonCAM.UnityCamera != null ? thirdPersonCAM.UnityCamera.transform : thirdPersonCAM.transform;
 
-            return firstPersonCAM != null ? firstPersonCAM.transform : null;
+            if (firstPersonCAM != null)
+                return firstPersonCAM.UnityCamera != null ? firstPersonCAM.UnityCamera.transform : firstPersonCAM.transform;
+
+            return null;
         }
     }
 
@@ -68,19 +97,34 @@ public class CameraV2Controller : MonoBehaviour
 
     private void Awake()
     {
+        tempoInicio = Time.unscaledTime;
         ResolverReferencias();
         AplicarEstadoInicial();
+        SanearCameraEAudioNoMesmoRoot();
     }
 
     private void Start()
     {
         ResolverReferencias();
         AplicarEstadoInicial();
+
+        if (posicionarTerceiraPessoaAntesPrimeiroFrame && !primeiraPessoaAtiva && thirdPersonCAM != null)
+            thirdPersonCAM.ForcarAtualizacaoImediata();
+
+        SanearCameraEAudioNoMesmoRoot();
     }
 
     private void Update()
     {
         ResolverReferenciasLeve();
+
+        if (revalidarNosPrimeirosSegundos &&
+            Time.unscaledTime - tempoInicio <= duracaoRevalidacaoInicial &&
+            Time.unscaledTime >= proximaRevalidacao)
+        {
+            proximaRevalidacao = Time.unscaledTime + Mathf.Max(0.1f, intervaloRevalidacao);
+            SanearCameraEAudioNoMesmoRoot();
+        }
 
         if (ignorarInputComMenuAberto && CameraV2MenuInputBlocker.MenuAberto)
         {
@@ -127,8 +171,61 @@ public class CameraV2Controller : MonoBehaviour
         primeiraPessoaAtiva = ativa;
         AplicarAtivacao();
 
+        if (!ativa && posicionarTerceiraPessoaAntesPrimeiroFrame && thirdPersonCAM != null)
+            thirdPersonCAM.ForcarAtualizacaoImediata();
+
         if (logarEventos)
-            MiniMarketUpgradeLogger.Log("CameraV2", ativa ? "FirstPersonCAM ON" : "ThirdPersonCAM ON", "Sistema V2 alternou câmera.", "camera-v2-switch", 0.5f);
+        {
+            MiniMarketUpgradeLogger.Log(
+                "CameraV2",
+                ativa ? "FirstPersonCAM ON" : "ThirdPersonCAM ON",
+                "Sistema V2 alternou câmera.",
+                "camera-v2-switch",
+                0.5f
+            );
+        }
+    }
+
+    [ContextMenu("Camera V2/Reparar câmeras e AudioListeners agora")]
+    public void RepararAgora()
+    {
+        ResolverReferencias();
+        AplicarAtivacao();
+
+        if (!primeiraPessoaAtiva && thirdPersonCAM != null)
+            thirdPersonCAM.ForcarAtualizacaoImediata();
+
+        SanearCameraEAudioNoMesmoRoot();
+    }
+
+    public int ContarCamerasAtivasNoMesmoRoot()
+    {
+        Transform raiz = transform.root;
+        UnityEngine.Camera[] cameras = raiz.GetComponentsInChildren<UnityEngine.Camera>(true);
+        int total = 0;
+
+        for (int i = 0; i < cameras.Length; i++)
+        {
+            if (cameras[i] != null && cameras[i].enabled && cameras[i].gameObject.activeInHierarchy)
+                total++;
+        }
+
+        return total;
+    }
+
+    public int ContarAudioListenersAtivosNoMesmoRoot()
+    {
+        Transform raiz = transform.root;
+        AudioListener[] listeners = raiz.GetComponentsInChildren<AudioListener>(true);
+        int total = 0;
+
+        for (int i = 0; i < listeners.Length; i++)
+        {
+            if (listeners[i] != null && listeners[i].enabled && listeners[i].gameObject.activeInHierarchy)
+                total++;
+        }
+
+        return total;
     }
 
     private void ResolverReferencias()
@@ -146,6 +243,8 @@ public class CameraV2Controller : MonoBehaviour
             if (pov != null)
                 firstPersonCAM.pontoPOV = pov;
         }
+
+        AtualizarListenersCache();
     }
 
     private void ResolverReferenciasLeve()
@@ -161,6 +260,29 @@ public class CameraV2Controller : MonoBehaviour
 
         if (playerTarget == null && playerMove != null)
             playerTarget = playerMove.transform;
+
+        if (thirdPersonCAM != null && thirdPersonCAM.target == null && playerTarget != null)
+            thirdPersonCAM.target = playerTarget;
+
+        if (firstPersonCAM != null)
+        {
+            if (firstPersonCAM.corpoPersonagem == null && playerTarget != null)
+                firstPersonCAM.corpoPersonagem = playerTarget;
+
+            if (firstPersonCAM.pontoPOV == null && pov != null)
+                firstPersonCAM.pontoPOV = pov;
+        }
+    }
+
+    private void AtualizarListenersCache()
+    {
+        thirdListener = thirdPersonCAM != null && thirdPersonCAM.UnityCamera != null
+            ? thirdPersonCAM.UnityCamera.GetComponent<AudioListener>()
+            : null;
+
+        firstListener = firstPersonCAM != null && firstPersonCAM.UnityCamera != null
+            ? firstPersonCAM.UnityCamera.GetComponent<AudioListener>()
+            : null;
     }
 
     private void AplicarEstadoInicial()
@@ -178,7 +300,9 @@ public class CameraV2Controller : MonoBehaviour
             firstPersonCAM.SetAtiva(primeiraPessoaAtiva);
 
         AtualizarAudioListeners();
+        AtualizarTagsCamera();
         AtualizarCameraTransformPlayer();
+        SanearCameraEAudioNoMesmoRoot();
     }
 
     private void AtualizarAudioListeners()
@@ -186,14 +310,91 @@ public class CameraV2Controller : MonoBehaviour
         if (!controlarAudioListeners)
             return;
 
-        AudioListener thirdListener = thirdPersonCAM != null ? thirdPersonCAM.GetComponent<AudioListener>() : null;
-        AudioListener firstListener = firstPersonCAM != null ? firstPersonCAM.GetComponent<AudioListener>() : null;
+        if (thirdListener == null || firstListener == null)
+            AtualizarListenersCache();
 
         if (thirdListener != null && thirdListener.enabled != !primeiraPessoaAtiva)
             thirdListener.enabled = !primeiraPessoaAtiva;
 
         if (firstListener != null && firstListener.enabled != primeiraPessoaAtiva)
             firstListener.enabled = primeiraPessoaAtiva;
+    }
+
+    private void AtualizarTagsCamera()
+    {
+        if (!gerenciarTagMainCamera)
+            return;
+
+        UnityEngine.Camera ativa = CameraAtiva;
+        UnityEngine.Camera third = thirdPersonCAM != null ? thirdPersonCAM.UnityCamera : null;
+        UnityEngine.Camera first = firstPersonCAM != null ? firstPersonCAM.UnityCamera : null;
+
+        if (third != null)
+            third.gameObject.tag = third == ativa ? "MainCamera" : "Untagged";
+
+        if (first != null)
+            first.gameObject.tag = first == ativa ? "MainCamera" : "Untagged";
+    }
+
+    private void SanearCameraEAudioNoMesmoRoot()
+    {
+        if (thirdPersonCAM == null && firstPersonCAM == null)
+            return;
+
+        Transform raiz = transform.root;
+        UnityEngine.Camera third = thirdPersonCAM != null ? thirdPersonCAM.UnityCamera : null;
+        UnityEngine.Camera first = firstPersonCAM != null ? firstPersonCAM.UnityCamera : null;
+        UnityEngine.Camera ativa = CameraAtiva;
+
+        if (desativarCamerasExtrasNoMesmoRoot || desativarCameraAntigaSeEncontrar)
+        {
+            UnityEngine.Camera[] cameras = raiz.GetComponentsInChildren<UnityEngine.Camera>(true);
+            for (int i = 0; i < cameras.Length; i++)
+            {
+                UnityEngine.Camera cam = cameras[i];
+                if (cam == null)
+                    continue;
+
+                bool cameraV2 = cam == third || cam == first;
+                bool deveAtivar = cameraV2 && cam == ativa;
+
+                if (cam.enabled != deveAtivar)
+                {
+                    if (!cameraV2 && cam.enabled)
+                    {
+                        camerasExtrasDesativadas++;
+                        ultimaCameraExtraDesativada = cam.name;
+                    }
+
+                    cam.enabled = deveAtivar;
+                }
+
+                if (!cameraV2 && gerenciarTagMainCamera && cam.CompareTag("MainCamera"))
+                    cam.gameObject.tag = "Untagged";
+            }
+        }
+
+        if (desativarAudioListenersExtrasNoMesmoRoot || controlarAudioListeners)
+        {
+            AudioListener[] listeners = raiz.GetComponentsInChildren<AudioListener>(true);
+            for (int i = 0; i < listeners.Length; i++)
+            {
+                AudioListener listener = listeners[i];
+                if (listener == null)
+                    continue;
+
+                bool listenerAtivo = ativa != null && listener.gameObject == ativa.gameObject;
+                if (listener.enabled != listenerAtivo)
+                {
+                    if (!listenerAtivo && listener.enabled)
+                        listenersExtrasDesativados++;
+
+                    listener.enabled = listenerAtivo;
+                }
+            }
+        }
+
+        AtualizarTagsCamera();
     }
 
     private void AtualizarCameraTransformPlayer()
