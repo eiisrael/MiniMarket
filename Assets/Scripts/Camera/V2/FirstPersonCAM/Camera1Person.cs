@@ -4,9 +4,10 @@ using UnityEngine.UI;
 /// <summary>
 /// MiniMarket Camera V2 - primeira pessoa fluida, sem head bob/sway,
 /// com mira, zoom e integração GetItemV2.
-/// Sem alocações por frame e com bloqueio seguro durante o menu.
+/// A Camera usada pelo script é sempre a Camera do mesmo GameObject.
 /// </summary>
 [DisallowMultipleComponent]
+[RequireComponent(typeof(UnityEngine.Camera))]
 [DefaultExecutionOrder(20100)]
 public class Camera1Person : MonoBehaviour
 {
@@ -17,6 +18,9 @@ public class Camera1Person : MonoBehaviour
     public GetItemV2 getItem;
     public Image miraImagem;
     public CanvasGroup miraCanvasGroup;
+
+    [Header("Autoridade da câmera")]
+    public bool forcarCameraNoMesmoGameObject = true;
 
     [Header("Ativação")]
     public bool cameraAtiva;
@@ -74,6 +78,7 @@ public class Camera1Person : MonoBehaviour
     [Header("Debug")]
     public bool logarEventos;
 
+    private UnityEngine.Camera cameraLocal;
     private Vector3 velocidadePosicao;
     private Vector3 ultimaPosicaoEstavel;
     private bool possuiPosicaoEstavel;
@@ -87,22 +92,26 @@ public class Camera1Person : MonoBehaviour
     public bool InputMouseAtivo => cameraAtiva && aceitarInputMouse && !CameraV2MenuInputBlocker.MenuAberto;
     public bool ZoomAtivo => InputMouseAtivo && usarZoom && zoomEnquantoSegura && Input.GetMouseButton(botaoZoom);
     public UnityEngine.Camera UnityCamera => camera1Person;
+    public bool ReferenciaCameraEhLocal => camera1Person != null && camera1Person.gameObject == gameObject;
+
+    private Transform CameraTransform => camera1Person != null ? camera1Person.transform : transform;
 
     private void Reset()
     {
-        camera1Person = GetComponent<UnityEngine.Camera>();
+        cameraLocal = GetComponent<UnityEngine.Camera>();
+        camera1Person = cameraLocal;
         getItem = GetComponent<GetItemV2>();
     }
 
     private void Awake()
     {
-        ResolverReferencias();
+        ResolverReferencias(true);
         InicializarEstado();
     }
 
     private void OnEnable()
     {
-        ResolverReferencias();
+        ResolverReferencias(true);
         InicializarEstado();
         AplicarAtivacaoCamera();
     }
@@ -118,7 +127,7 @@ public class Camera1Person : MonoBehaviour
 
     private void LateUpdate()
     {
-        ResolverReferencias();
+        ResolverReferencias(false);
         AplicarAtivacaoCamera();
 
         float dt = DeltaTimeSeguro();
@@ -142,9 +151,10 @@ public class Camera1Person : MonoBehaviour
 
         if (ativa)
         {
-            ResolverReferencias();
+            ResolverReferencias(true);
             SincronizarYawComCorpoSeNecessario();
             possuiPosicaoEstavel = false;
+            AtualizarTransform(DeltaTimeSeguro());
         }
     }
 
@@ -166,10 +176,15 @@ public class Camera1Person : MonoBehaviour
         pitch = Mathf.Clamp(novoPitch, minPitch, maxPitch);
     }
 
-    private void ResolverReferencias()
+    private void ResolverReferencias(bool forcar)
     {
-        if (camera1Person == null)
-            camera1Person = GetComponent<UnityEngine.Camera>();
+        if (cameraLocal == null || forcar)
+            cameraLocal = GetComponent<UnityEngine.Camera>();
+
+        if (forcarCameraNoMesmoGameObject && cameraLocal != null)
+            camera1Person = cameraLocal;
+        else if (camera1Person == null)
+            camera1Person = cameraLocal;
 
         if (getItem == null)
             getItem = GetComponent<GetItemV2>();
@@ -231,18 +246,19 @@ public class Camera1Person : MonoBehaviour
     private void AtualizarTransform(float dt)
     {
         Vector3 posicaoAlvo = CalcularPosicaoPOV();
+        Transform camTransform = CameraTransform;
 
         if (seguirPOVSemSuavizacao || tempoSuavizacaoPosicao <= 0.0001f)
         {
-            transform.position = posicaoAlvo;
+            camTransform.position = posicaoAlvo;
             velocidadePosicao = Vector3.zero;
         }
         else
         {
-            transform.position = Vector3.SmoothDamp(transform.position, posicaoAlvo, ref velocidadePosicao, tempoSuavizacaoPosicao, Mathf.Infinity, dt);
+            camTransform.position = Vector3.SmoothDamp(camTransform.position, posicaoAlvo, ref velocidadePosicao, tempoSuavizacaoPosicao, Mathf.Infinity, dt);
         }
 
-        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+        camTransform.rotation = Quaternion.Euler(pitch, yaw, 0f);
 
         if (rotacionarCorpoComCamera && corpoPersonagem != null)
         {
@@ -262,7 +278,7 @@ public class Camera1Person : MonoBehaviour
         else if (corpoPersonagem != null)
             basePos = corpoPersonagem.TransformPoint(offsetLocalSemPOV);
         else
-            basePos = transform.position;
+            basePos = CameraTransform.position;
 
         if (!estabilizarContraAnimacao)
             return basePos;
@@ -289,8 +305,7 @@ public class Camera1Person : MonoBehaviour
         float alvo = ZoomAtivo ? fovZoom : fovNormal;
         if (Mathf.Abs(camera1Person.fieldOfView - alvo) <= 0.01f)
         {
-            if (camera1Person.fieldOfView != alvo)
-                camera1Person.fieldOfView = alvo;
+            camera1Person.fieldOfView = alvo;
             return;
         }
 
@@ -313,6 +328,7 @@ public class Camera1Person : MonoBehaviour
 
             if (miraCanvasGroup.blocksRaycasts)
                 miraCanvasGroup.blocksRaycasts = false;
+
             if (miraCanvasGroup.interactable)
                 miraCanvasGroup.interactable = false;
         }
@@ -338,6 +354,11 @@ public class Camera1Person : MonoBehaviour
 
     private void OnValidate()
     {
+        cameraLocal = GetComponent<UnityEngine.Camera>();
+
+        if (forcarCameraNoMesmoGameObject && cameraLocal != null)
+            camera1Person = cameraLocal;
+
         if (maxPitch < minPitch)
             maxPitch = minPitch;
 
