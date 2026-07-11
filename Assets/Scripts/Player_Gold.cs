@@ -1,41 +1,36 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// Fachada de gold do jogador. O valor persistente pertence ao banco de dados.
+/// Mantém a API antiga para os sistemas de compra e HUD.
+/// </summary>
+[DisallowMultipleComponent]
 public class PlayerGold : MonoBehaviour
 {
     public static PlayerGold Instance { get; private set; }
 
     [Header("Gold Global")]
-    [Tooltip("Gold inicial do personagem quando nao existe banco de dados salvo ainda.")]
-    [Min(0)]
-    public int goldInicial = 20000;
-
-    [SerializeField]
-    [Min(0)]
-    private int goldAtual;
+    [Min(0)] public int goldInicial = 20000;
+    [SerializeField, Min(0)] private int goldAtual;
 
     [Header("Banco de Dados")]
-    [Tooltip("Se ligado, le e escreve o gold pelo MiniMarketPlayerDatabase.")]
     public bool usarBancoDeDados = true;
-
-    [Tooltip("Se ativado, mantem o objeto entre cenas enquanto o jogo estiver aberto.")]
     public bool manterGoldEntreCenas = true;
 
     [Header("Inspector em Tempo Real")]
-    [Tooltip("Permite alterar Gold Atual no Inspector durante o Play Mode e salvar no banco em tempo real.")]
     public bool permitirEditarGoldAtualNoInspector = true;
-
-    [Tooltip("Fora do Play Mode, mantem Gold Atual igual ao Gold Inicial para facilitar configuracao.")]
     public bool sincronizarGoldAtualComInicialNoEditor = true;
 
     [Header("Debug")]
-    public bool logarAlteracoes = false;
+    public bool logarAlteracoes;
 
     private static bool goldGlobalInicializado;
     private static int goldGlobal;
 
     private int ultimoGoldSincronizado;
     private MiniMarketPlayerDatabase banco;
+    private bool subscribed;
 
     public static int GoldGlobal => goldGlobal;
     public int GoldAtual => goldGlobal;
@@ -54,17 +49,18 @@ public class PlayerGold : MonoBehaviour
     {
         if (Instance != null && Instance != this)
         {
-            if (manterGoldEntreCenas)
-            {
-                Destroy(gameObject);
-                return;
-            }
+            Destroy(gameObject);
+            return;
         }
 
         Instance = this;
 
         if (manterGoldEntreCenas)
+        {
+            if (transform.parent != null)
+                transform.SetParent(null);
             DontDestroyOnLoad(gameObject);
+        }
 
         InicializarGold();
         SincronizarInspectorComGoldGlobal();
@@ -75,45 +71,46 @@ public class PlayerGold : MonoBehaviour
         NotificarGoldAlterado(false);
     }
 
-    private void Update()
-    {
-        if (!Application.isPlaying)
-            return;
-
-        if (!permitirEditarGoldAtualNoInspector)
-            return;
-
-        goldAtual = Mathf.Max(0, goldAtual);
-
-        if (goldAtual != ultimoGoldSincronizado)
-            DefinirGold(goldAtual);
-    }
-
     private void OnEnable()
     {
-        if (usarBancoDeDados)
-        {
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
-            if (banco != null)
-                banco.OnDatabaseChanged += AoBancoAlterado;
-        }
+        ResolverBanco();
+        Subscribe();
     }
 
     private void OnDisable()
     {
-        if (banco != null)
-            banco.OnDatabaseChanged -= AoBancoAlterado;
+        Unsubscribe();
+    }
+
+    private void OnDestroy()
+    {
+        Unsubscribe();
+        if (Instance == this)
+            Instance = null;
+    }
+
+    private void Update()
+    {
+        if (!Application.isPlaying || !permitirEditarGoldAtualNoInspector)
+            return;
+
+        goldAtual = Mathf.Max(0, goldAtual);
+        if (goldAtual != ultimoGoldSincronizado)
+            DefinirGold(goldAtual);
     }
 
     private void InicializarGold()
     {
         if (usarBancoDeDados)
         {
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
-            banco.GarantirGoldInicial(goldInicial);
-            goldGlobal = banco.GoldAtual;
-            goldGlobalInicializado = true;
-            return;
+            ResolverBanco();
+            if (banco != null)
+            {
+                banco.GarantirGoldInicial(goldInicial);
+                goldGlobal = banco.GoldAtual;
+                goldGlobalInicializado = true;
+                return;
+            }
         }
 
         if (!goldGlobalInicializado)
@@ -123,15 +120,42 @@ public class PlayerGold : MonoBehaviour
         }
     }
 
+    private void ResolverBanco()
+    {
+        if (!usarBancoDeDados || banco != null || !Application.isPlaying)
+            return;
+
+        banco = MiniMarketPlayerDatabase.ObterOuCriar();
+    }
+
+    private void Subscribe()
+    {
+        if (subscribed || banco == null)
+            return;
+
+        banco.OnDatabaseChanged += AoBancoAlterado;
+        subscribed = true;
+    }
+
+    private void Unsubscribe()
+    {
+        if (!subscribed || banco == null)
+            return;
+
+        banco.OnDatabaseChanged -= AoBancoAlterado;
+        subscribed = false;
+    }
+
     private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
     {
         if (dados == null)
             return;
 
-        if (goldGlobal == dados.gold && goldAtual == dados.gold)
+        int novoValor = Mathf.Max(0, dados.gold);
+        if (goldGlobal == novoValor && goldAtual == novoValor)
             return;
 
-        goldGlobal = Mathf.Max(0, dados.gold);
+        goldGlobal = novoValor;
         SincronizarInspectorComGoldGlobal();
         OnGoldAlterado?.Invoke(goldGlobal);
     }
@@ -141,17 +165,12 @@ public class PlayerGold : MonoBehaviour
         if (quantidade <= 0)
             return;
 
-        if (usarBancoDeDados)
-        {
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
-            goldGlobal = banco.AdicionarGold(quantidade);
-        }
-        else
-        {
-            goldGlobal += quantidade;
-        }
+        ResolverBanco();
+        goldGlobal = usarBancoDeDados && banco != null
+            ? banco.AdicionarGold(quantidade)
+            : goldGlobal + quantidade;
 
-        NotificarGoldAlterado(!usarBancoDeDados);
+        NotificarGoldAlterado(false);
     }
 
     public bool RemoverGold(int quantidade)
@@ -159,11 +178,11 @@ public class PlayerGold : MonoBehaviour
         if (quantidade <= 0)
             return true;
 
+        ResolverBanco();
         bool sucesso;
 
-        if (usarBancoDeDados)
+        if (usarBancoDeDados && banco != null)
         {
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
             sucesso = banco.RemoverGold(quantidade);
             goldGlobal = banco.GoldAtual;
         }
@@ -177,33 +196,28 @@ public class PlayerGold : MonoBehaviour
         }
 
         if (sucesso)
-            NotificarGoldAlterado(!usarBancoDeDados);
+            NotificarGoldAlterado(false);
 
         return sucesso;
     }
 
     public bool TemGoldSuficiente(int quantidade)
     {
-        if (usarBancoDeDados)
-        {
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
-            return banco.TemGoldSuficiente(quantidade);
-        }
-
-        return goldGlobal >= quantidade;
+        ResolverBanco();
+        return usarBancoDeDados && banco != null
+            ? banco.TemGoldSuficiente(quantidade)
+            : goldGlobal >= Mathf.Max(0, quantidade);
     }
 
     public void DefinirGold(int novoValor)
     {
         goldGlobal = Mathf.Max(0, novoValor);
+        ResolverBanco();
 
-        if (usarBancoDeDados)
-        {
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
+        if (usarBancoDeDados && banco != null)
             goldGlobal = banco.DefinirGold(goldGlobal);
-        }
 
-        NotificarGoldAlterado(!usarBancoDeDados);
+        NotificarGoldAlterado(false);
     }
 
     public void DefinirGoldInicial(int novoValor)
@@ -211,34 +225,24 @@ public class PlayerGold : MonoBehaviour
         goldInicial = Mathf.Max(0, novoValor);
     }
 
-    public void ZerarGold()
-    {
-        DefinirGold(0);
-    }
+    public void ZerarGold() => DefinirGold(0);
+    public void ResetarParaGoldInicial() => DefinirGold(goldInicial);
+    public string GoldFormatado() => goldGlobal.ToString("N0");
 
-    public void ResetarParaGoldInicial()
-    {
-        DefinirGold(goldInicial);
-    }
-
-    public string GoldFormatado()
-    {
-        return goldGlobal.ToString("N0");
-    }
-
-    private void NotificarGoldAlterado(bool salvarNoBanco)
+    private void NotificarGoldAlterado(bool escreverBanco)
     {
         goldGlobal = Mathf.Max(0, goldGlobal);
         SincronizarInspectorComGoldGlobal();
 
-        if (usarBancoDeDados && salvarNoBanco)
+        if (escreverBanco && usarBancoDeDados)
         {
-            banco = MiniMarketPlayerDatabase.ObterOuCriar();
-            banco.DefinirGold(goldGlobal);
+            ResolverBanco();
+            if (banco != null)
+                goldGlobal = banco.DefinirGold(goldGlobal);
         }
 
         if (logarAlteracoes)
-            Debug.Log("[PlayerGold] Gold atualizado: " + goldGlobal);
+            Debug.Log("[PlayerGold] Gold atualizado: " + goldGlobal, this);
 
         OnGoldAlterado?.Invoke(goldGlobal);
     }
@@ -250,28 +254,16 @@ public class PlayerGold : MonoBehaviour
     }
 
     [ContextMenu("Gold/Resetar para Gold Inicial")]
-    private void ContextResetarParaGoldInicial()
-    {
-        ResetarParaGoldInicial();
-    }
+    private void ContextResetarParaGoldInicial() => ResetarParaGoldInicial();
 
     [ContextMenu("Gold/Zerar Gold")]
-    private void ContextZerarGold()
-    {
-        ZerarGold();
-    }
+    private void ContextZerarGold() => ZerarGold();
 
     [ContextMenu("Gold/Adicionar 1000")]
-    private void ContextAdicionar1000()
-    {
-        AdicionarGold(1000);
-    }
+    private void ContextAdicionar1000() => AdicionarGold(1000);
 
     [ContextMenu("Gold/Adicionar 20000")]
-    private void ContextAdicionar20000()
-    {
-        AdicionarGold(20000);
-    }
+    private void ContextAdicionar20000() => AdicionarGold(20000);
 
     private void OnValidate()
     {
