@@ -2,16 +2,9 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// MiniMarket Camera V2 - First Person CAM.
-///
-/// Use no GameObject: FirstPersonCAM.
-/// Objetivo: câmera em primeira pessoa fluida, sem efeitos de movimentação/bob,
-/// com mira, zoom e integração opcional com GetItemV2.
-///
-/// Regras do V2:
-/// - Este script é a autoridade da primeira pessoa.
-/// - Sem head bob, sem balanço, sem empurrões visuais.
-/// - Todos os campos do Inspector podem ser editados em runtime.
+/// MiniMarket Camera V2 - primeira pessoa fluida, sem head bob/sway,
+/// com mira, zoom e integração GetItemV2.
+/// Sem alocações por frame e com bloqueio seguro durante o menu.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(20100)]
@@ -90,7 +83,9 @@ public class Camera1Person : MonoBehaviour
 
     public float YawAtual => yaw;
     public float PitchAtual => pitch;
-    public bool ZoomAtivo => cameraAtiva && usarZoom && zoomEnquantoSegura && Input.GetMouseButton(botaoZoom);
+    public float FovAtual => camera1Person != null ? camera1Person.fieldOfView : 0f;
+    public bool InputMouseAtivo => cameraAtiva && aceitarInputMouse && !CameraV2MenuInputBlocker.MenuAberto;
+    public bool ZoomAtivo => InputMouseAtivo && usarZoom && zoomEnquantoSegura && Input.GetMouseButton(botaoZoom);
     public UnityEngine.Camera UnityCamera => camera1Person;
 
     private void Reset()
@@ -114,30 +109,30 @@ public class Camera1Person : MonoBehaviour
 
     private void OnDisable()
     {
-        if (controlarCameraComponent && camera1Person != null)
+        if (controlarCameraComponent && camera1Person != null && camera1Person.enabled)
             camera1Person.enabled = false;
 
-        if (ativarGetItemJunto && getItem != null)
+        if (ativarGetItemJunto && getItem != null && getItem.enabled)
             getItem.enabled = false;
     }
 
     private void LateUpdate()
     {
-        if (!cameraAtiva)
-        {
-            AplicarAtivacaoCamera();
-            AtualizarMira(false, DeltaTimeSeguro());
-            return;
-        }
-
         ResolverReferencias();
         AplicarAtivacaoCamera();
 
         float dt = DeltaTimeSeguro();
+
+        if (!cameraAtiva)
+        {
+            AtualizarMira(false, dt);
+            return;
+        }
+
         LerMouse(dt);
         AtualizarTransform(dt);
         AtualizarFov(dt);
-        AtualizarMira(true, dt);
+        AtualizarMira(!CameraV2MenuInputBlocker.MenuAberto, dt);
     }
 
     public void SetAtiva(bool ativa)
@@ -198,33 +193,37 @@ public class Camera1Person : MonoBehaviour
 
     private void AplicarAtivacaoCamera()
     {
-        if (controlarCameraComponent && camera1Person != null)
+        if (controlarCameraComponent && camera1Person != null && camera1Person.enabled != cameraAtiva)
             camera1Person.enabled = cameraAtiva;
 
-        if (ativarGetItemJunto && getItem != null)
-            getItem.enabled = cameraAtiva;
+        bool getItemDeveEstarAtivo = cameraAtiva && ativarGetItemJunto && !CameraV2MenuInputBlocker.MenuAberto;
+        if (getItem != null && getItem.enabled != getItemDeveEstarAtivo)
+            getItem.enabled = getItemDeveEstarAtivo;
 
-        if (cameraAtiva && travarCursorAoAtivar)
-        {
+        if (!cameraAtiva || !travarCursorAoAtivar || CameraV2MenuInputBlocker.MenuAberto)
+            return;
+
+        if (Cursor.lockState != CursorLockMode.Locked)
             Cursor.lockState = CursorLockMode.Locked;
+
+        if (Cursor.visible)
             Cursor.visible = false;
-        }
     }
 
     private void LerMouse(float dt)
     {
-        if (!aceitarInputMouse || Cursor.lockState != CursorLockMode.Locked)
+        if (!InputMouseAtivo || Cursor.lockState != CursorLockMode.Locked)
             return;
 
         float mouseX = Input.GetAxisRaw(mouseXAxis);
         float mouseY = Input.GetAxisRaw(mouseYAxis);
-        Vector2 input = new Vector2(mouseX, mouseY);
+        float magnitudeQuadrada = mouseX * mouseX + mouseY * mouseY;
 
-        if (input.sqrMagnitude <= deadZoneMouse * deadZoneMouse)
+        if (magnitudeQuadrada <= deadZoneMouse * deadZoneMouse)
             return;
 
         float mult = ZoomAtivo ? multiplicadorSensibilidadeZoom : 1f;
-        yaw += input.x * sensibilidadeX * mult * dt;
+        yaw += mouseX * sensibilidadeX * mult * dt;
         pitch += (inverterY ? mouseY : -mouseY) * sensibilidadeY * mult * dt;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
     }
@@ -259,17 +258,11 @@ public class Camera1Person : MonoBehaviour
         Vector3 basePos;
 
         if (pontoPOV != null)
-        {
             basePos = pontoPOV.TransformPoint(ajusteLocalPOV);
-        }
         else if (corpoPersonagem != null)
-        {
             basePos = corpoPersonagem.TransformPoint(offsetLocalSemPOV);
-        }
         else
-        {
             basePos = transform.position;
-        }
 
         if (!estabilizarContraAnimacao)
             return basePos;
@@ -294,23 +287,42 @@ public class Camera1Person : MonoBehaviour
             return;
 
         float alvo = ZoomAtivo ? fovZoom : fovNormal;
+        if (Mathf.Abs(camera1Person.fieldOfView - alvo) <= 0.01f)
+        {
+            if (camera1Person.fieldOfView != alvo)
+                camera1Person.fieldOfView = alvo;
+            return;
+        }
+
         camera1Person.fieldOfView = Mathf.Lerp(camera1Person.fieldOfView, alvo, Suavizacao(velocidadeFov, dt));
     }
 
     private void AtualizarMira(bool ativa, float dt)
     {
-        bool mostrar = ativa && exibirMira;
+        bool mostrar = ativa && cameraAtiva && exibirMira;
 
         if (miraCanvasGroup != null)
         {
             float alvo = mostrar ? 1f : 0f;
-            miraCanvasGroup.alpha = Mathf.Lerp(miraCanvasGroup.alpha, alvo, Suavizacao(velocidadeFadeMira, dt));
-            miraCanvasGroup.blocksRaycasts = false;
-            miraCanvasGroup.interactable = false;
+            float novaAlpha = Mathf.Lerp(miraCanvasGroup.alpha, alvo, Suavizacao(velocidadeFadeMira, dt));
+            if (Mathf.Abs(novaAlpha - alvo) <= 0.01f)
+                novaAlpha = alvo;
+
+            if (Mathf.Abs(miraCanvasGroup.alpha - novaAlpha) > 0.001f)
+                miraCanvasGroup.alpha = novaAlpha;
+
+            if (miraCanvasGroup.blocksRaycasts)
+                miraCanvasGroup.blocksRaycasts = false;
+            if (miraCanvasGroup.interactable)
+                miraCanvasGroup.interactable = false;
         }
 
         if (miraImagem != null)
-            miraImagem.enabled = mostrar || miraCanvasGroup != null;
+        {
+            bool deveHabilitarImagem = mostrar || miraCanvasGroup != null;
+            if (miraImagem.enabled != deveHabilitarImagem)
+                miraImagem.enabled = deveHabilitarImagem;
+        }
     }
 
     private float DeltaTimeSeguro()
@@ -321,9 +333,7 @@ public class Camera1Person : MonoBehaviour
 
     private float Suavizacao(float velocidade, float dt)
     {
-        if (velocidade <= 0.0001f)
-            return 1f;
-        return 1f - Mathf.Exp(-velocidade * dt);
+        return velocidade <= 0.0001f ? 1f : 1f - Mathf.Exp(-velocidade * dt);
     }
 
     private void OnValidate()
