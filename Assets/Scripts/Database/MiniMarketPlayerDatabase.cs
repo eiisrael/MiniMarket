@@ -8,26 +8,15 @@ using UnityEngine;
 /// <summary>
 /// Banco local seguro/tamper-resistant do MiniMarket.
 ///
-/// Mantem uma unica fonte de verdade para dados do personagem:
-/// - Nome
-/// - Gold
-/// - Stamina/Energia
-/// - Empresas compradas
-/// - Propriedades/areas compradas/indisponiveis
-///
-/// Hoje ele grava localmente em Application.persistentDataPath com AES + HMAC.
-/// No futuro multiplayer, os scripts do jogo continuam usando esta mesma API
-/// e esta classe pode ser trocada por chamadas a um servidor/API.
-///
-/// Performance:
-/// - Gold, compra e status de propriedades salvam imediatamente.
-/// - Stamina fica em memoria em tempo real, mas o disco salva com debounce para evitar travadas.
+/// Mantém uma única fonte de verdade para nome, gold, stamina, empresas e propriedades.
+/// Impede que MiniMarket_PlayerDatabase seja recriado durante o encerramento do Play Mode.
 /// </summary>
 [DefaultExecutionOrder(-10000)]
 [DisallowMultipleComponent]
 public class MiniMarketPlayerDatabase : MonoBehaviour
 {
     public static MiniMarketPlayerDatabase Instance { get; private set; }
+    public static bool EncerrandoAplicacao => encerrandoAplicacao;
 
     private const int VersaoSchemaAtual = 1;
     private const string NomeArquivoBanco = "player_database.mmdb";
@@ -43,29 +32,21 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     [Min(1f)] public float staminaMaximaPadrao = 100f;
 
     [Header("Banco local")]
-    [Tooltip("Se ligado, salva automaticamente alteracoes importantes.")]
     public bool salvarAutomaticamente = true;
-
-    [Tooltip("Se ligado, usa AES + HMAC. Se houver erro de criptografia, o banco recria de forma segura.")]
     public bool usarCriptografiaLocal = true;
-
-    [Tooltip("Evita gravar no disco varias vezes por segundo. Recomendado ligado para nao causar lag.")]
     public bool usarSalvamentoDiferido = true;
-
-    [Tooltip("Tempo minimo para gravar dados leves, como stamina, no disco.")]
     [Min(0.25f)] public float intervaloSalvamentoDiferido = 5f;
-
-    [Tooltip("Forca salvar tudo ao sair do Play, perder foco ou fechar o jogo.")]
     public bool salvarAoSairOuPerderFoco = true;
-
-    [Tooltip("Loga carregamentos/salvamentos e alteracoes importantes.")]
     public bool logarEventos = false;
+
+    private static bool encerrandoAplicacao;
 
     private MiniMarketPlayerData dados;
     private string caminhoBanco;
     private bool carregado;
     private bool salvamentoPendente;
     private float proximoSalvamentoPermitido;
+    private bool destruindo;
 
     public event Action<MiniMarketPlayerData> OnDatabaseChanged;
 
@@ -102,7 +83,6 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
         public List<string> empresasCompradas = new List<string>();
         public List<MiniMarketPropertyState> propriedades = new List<MiniMarketPropertyState>();
-
         public long lastUpdatedUnix;
     }
 
@@ -121,6 +101,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     private static void ResetarStaticsAoEntrarNoPlay()
     {
         Instance = null;
+        encerrandoAplicacao = false;
     }
 
     private void Awake()
@@ -132,13 +113,18 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+        encerrandoAplicacao = false;
+
+        if (transform.parent == null)
+            DontDestroyOnLoad(gameObject);
+
         GarantirCarregado();
     }
 
     private void Update()
     {
-        ProcessarSalvamentoDiferido();
+        if (!encerrandoAplicacao)
+            ProcessarSalvamentoDiferido();
     }
 
     private void OnApplicationPause(bool pause)
@@ -149,26 +135,52 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
     private void OnApplicationFocus(bool focus)
     {
-        if (!focus && salvarAoSairOuPerderFoco)
+        if (!focus && salvarAoSairOuPerderFoco && !encerrandoAplicacao)
             SalvarSePendenteOuForcar();
     }
 
     private void OnApplicationQuit()
     {
+        encerrandoAplicacao = true;
+
         if (salvarAoSairOuPerderFoco)
             SalvarSePendenteOuForcar();
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
-        if (Instance == this && salvarAoSairOuPerderFoco)
-            SalvarSePendenteOuForcar();
+        // No Editor, Application.isPlaying fica falso durante o fechamento do Play Mode.
+        if (!Application.isPlaying)
+            encerrandoAplicacao = true;
     }
 
+    private void OnDestroy()
+    {
+        if (destruindo)
+            return;
+
+        destruindo = true;
+
+        if (Instance == this)
+        {
+            if (salvarAoSairOuPerderFoco && carregado && dados != null)
+                SalvarSePendenteOuForcar();
+
+            Instance = null;
+        }
+    }
+
+    /// <summary>
+    /// Retorna/cria o banco somente durante gameplay válido.
+    /// Durante Stop/Quit retorna null em vez de gerar um GameObject órfão.
+    /// </summary>
     public static MiniMarketPlayerDatabase ObterOuCriar()
     {
         if (Instance != null)
             return Instance;
+
+        if (encerrandoAplicacao || !Application.isPlaying)
+            return null;
 
         MiniMarketPlayerDatabase encontrado = FindObjectOfType<MiniMarketPlayerDatabase>(true);
         if (encontrado != null)
@@ -272,17 +284,23 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
     public void Salvar()
     {
+        if (destruindo && dados == null)
+            return;
+
         GarantirCarregado();
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(caminhoBanco));
+            string diretorio = Path.GetDirectoryName(caminhoBanco);
+            if (!string.IsNullOrEmpty(diretorio))
+                Directory.CreateDirectory(diretorio);
+
             dados.lastUpdatedUnix = ObterUnixAgora();
 
             string json = JsonUtility.ToJson(dados, true);
             string conteudo = usarCriptografiaLocal ? CriptografarConteudo(json) : json;
-
             string temp = caminhoBanco + ".tmp";
+
             File.WriteAllText(temp, conteudo, Encoding.UTF8);
 
             if (File.Exists(caminhoBanco))
@@ -329,6 +347,9 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
     private void NotificarAlteracao(bool salvarAgora)
     {
+        if (dados == null)
+            return;
+
         dados.lastUpdatedUnix = ObterUnixAgora();
 
         if (salvarAutomaticamente)
@@ -345,7 +366,6 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     public void GarantirGoldInicial(int goldInicial)
     {
         GarantirCarregado();
-
         if (dados.goldInicializado)
             return;
 
@@ -399,7 +419,6 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     public void GarantirStaminaInicial(float staminaAtualInicial, float staminaMaximaInicial)
     {
         GarantirCarregado();
-
         if (dados.staminaInicializada)
             return;
 
@@ -502,8 +521,8 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     public MiniMarketPropertyState RegistrarPropriedadeComprada(string areaId, string nome)
     {
         GarantirCarregado();
-
         areaId = NormalizarId(areaId);
+
         if (string.IsNullOrEmpty(areaId))
             return null;
 
@@ -521,15 +540,17 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
     public MiniMarketPropertyState DefinirStatusPropriedade(string areaId, string nome, bool comprada, bool disponivel, string status)
     {
         GarantirCarregado();
-
         areaId = NormalizarId(areaId);
+
         if (string.IsNullOrEmpty(areaId))
             return null;
 
         MiniMarketPropertyState propriedade = ObterOuCriarPropriedade(areaId, nome);
         propriedade.comprada = comprada;
         propriedade.disponivel = disponivel;
-        propriedade.status = string.IsNullOrWhiteSpace(status) ? (disponivel ? "Disponivel" : "Indisponivel") : status.Trim();
+        propriedade.status = string.IsNullOrWhiteSpace(status)
+            ? (disponivel ? "Disponivel" : "Indisponivel")
+            : status.Trim();
         propriedade.lastUpdatedUnix = ObterUnixAgora();
 
         if (comprada)
@@ -564,16 +585,20 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         {
             if (!string.IsNullOrWhiteSpace(nome))
                 propriedade.nome = nome.Trim();
+
             return propriedade;
         }
 
-        propriedade = new MiniMarketPropertyState();
-        propriedade.areaId = areaId;
-        propriedade.nome = string.IsNullOrWhiteSpace(nome) ? areaId : nome.Trim();
-        propriedade.comprada = false;
-        propriedade.disponivel = true;
-        propriedade.status = "Disponivel";
-        propriedade.lastUpdatedUnix = ObterUnixAgora();
+        propriedade = new MiniMarketPropertyState
+        {
+            areaId = areaId,
+            nome = string.IsNullOrWhiteSpace(nome) ? areaId : nome.Trim(),
+            comprada = false,
+            disponivel = true,
+            status = "Disponivel",
+            lastUpdatedUnix = ObterUnixAgora()
+        };
+
         dados.propriedades.Add(propriedade);
         return propriedade;
     }
@@ -649,7 +674,7 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         }
         catch
         {
-            // Nao impede o jogo de continuar.
+            // Não impede o jogo de continuar.
         }
     }
 
@@ -684,7 +709,10 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
         using (HMACSHA256 hmac = new HMACSHA256(chaveHmac))
             assinatura = hmac.ComputeHash(pacoteParaAssinar);
 
-        return PrefixoArquivo + ":" + Convert.ToBase64String(iv) + ":" + Convert.ToBase64String(cifra) + ":" + Convert.ToBase64String(assinatura);
+        return PrefixoArquivo + ":" +
+               Convert.ToBase64String(iv) + ":" +
+               Convert.ToBase64String(cifra) + ":" +
+               Convert.ToBase64String(assinatura);
     }
 
     private string DescriptografarConteudo(string conteudo)
@@ -731,13 +759,16 @@ public class MiniMarketPlayerDatabase : MonoBehaviour
 
     private byte[] DerivarChave(string proposito, int bytes)
     {
-        string baseSegredo = Application.companyName + "|" + Application.productName + "|" + SystemInfo.deviceUniqueIdentifier + "|" + SaltTexto + "|" + proposito;
+        string baseSegredo = Application.companyName + "|" +
+                             Application.productName + "|" +
+                             SystemInfo.deviceUniqueIdentifier + "|" +
+                             SaltTexto + "|" +
+                             proposito;
+
         byte[] salt = Encoding.UTF8.GetBytes(SaltTexto + "|" + proposito);
 
         using (Rfc2898DeriveBytes kdf = new Rfc2898DeriveBytes(baseSegredo, salt, 12000))
-        {
             return kdf.GetBytes(bytes);
-        }
     }
 
     private byte[] Concatenar(byte[] a, byte[] b)
