@@ -2,10 +2,11 @@ using UnityEngine;
 
 /// <summary>
 /// MiniMarket Camera V2 - terceira pessoa estilo GTA.
-/// Sem alocacoes por frame, colisao NonAlloc, cursor/menu seguro e FOV atualizado apenas quando necessario.
-/// Todos os campos continuam editaveis em runtime pelo Inspector.
+/// A Camera usada por este script deve estar no mesmo GameObject do Camera3Person.
+/// O script se auto-corrige para impedir que a referência aponte para a Main Camera antiga.
 /// </summary>
 [DisallowMultipleComponent]
+[RequireComponent(typeof(UnityEngine.Camera))]
 [DefaultExecutionOrder(20000)]
 public class Camera3Person : MonoBehaviour
 {
@@ -13,6 +14,17 @@ public class Camera3Person : MonoBehaviour
     public UnityEngine.Camera camera3Person;
     public Transform target;
     public Transform lookAtOverride;
+
+    [Header("Autoridade da câmera")]
+    [Tooltip("Mantém camera3Person apontando para a Camera deste mesmo GameObject.")]
+    public bool forcarCameraNoMesmoGameObject = true;
+
+    [Tooltip("Corrige posição, referência e câmera ativa durante os primeiros segundos do Play.")]
+    public bool autorrepararInicio = true;
+
+    [Min(0.5f)] public float duracaoAutorreparoInicial = 4f;
+    [Min(0.05f)] public float intervaloAutorreparoInicial = 0.15f;
+    [Min(0.1f)] public float toleranciaPosicaoInvalida = 1.25f;
 
     [Header("Ativação")]
     public bool cameraAtiva = true;
@@ -56,8 +68,8 @@ public class Camera3Person : MonoBehaviour
 
     [Header("Auto Alinhar estilo GTA")]
     public bool autoAlinharAtrasDoPersonagem = false;
-    [Min(0f)] public float delayAutoAlinhar = 2.0f;
-    [Min(0f)] public float velocidadeAutoAlinhar = 4.0f;
+    [Min(0f)] public float delayAutoAlinhar = 2f;
+    [Min(0f)] public float velocidadeAutoAlinhar = 4f;
     [Min(0f)] public float velocidadeMinimaParaAutoAlinhar = 0.08f;
     public bool bloquearAutoAlinharComMouse = true;
     public bool bloquearAutoAlinharNoZoom = true;
@@ -95,6 +107,7 @@ public class Camera3Person : MonoBehaviour
     public bool logarEventos = false;
 
     private readonly RaycastHit[] hits = new RaycastHit[32];
+    private UnityEngine.Camera cameraLocal;
     private Vector3 velocidadePosicao;
     private Vector3 ultimaTargetPos;
     private bool possuiUltimaTarget;
@@ -104,8 +117,11 @@ public class Camera3Person : MonoBehaviour
     private float distanciaDesejadaAtual;
     private float distanciaSeguraAtual;
     private float tempoSemMouse;
+    private float tempoAtivacao;
+    private float proximoAutorreparo;
     private bool inicializado;
     private bool colisaoNoFrame;
+    private int reparosIniciais;
     private string ultimoColliderColisao = string.Empty;
 
     public float YawAtual => yaw;
@@ -118,17 +134,30 @@ public class Camera3Person : MonoBehaviour
     public bool InputMouseAtivo => cameraAtiva && aceitarInputMouse && !CameraV2MenuInputBlocker.MenuAberto;
     public bool ZoomAtivo => InputMouseAtivo && usarZoom && zoomEnquantoSeguraBotao && Input.GetMouseButton(botaoZoomMira);
     public UnityEngine.Camera UnityCamera => camera3Person;
+    public bool ReferenciaCameraEhLocal => camera3Person != null && camera3Person.gameObject == gameObject;
+    public int ReparosIniciais => reparosIniciais;
+
     private Transform CameraTransform => camera3Person != null ? camera3Person.transform : transform;
 
     private void Reset()
     {
-        camera3Person = GetComponent<UnityEngine.Camera>();
+        cameraLocal = GetComponent<UnityEngine.Camera>();
+        camera3Person = cameraLocal;
     }
 
     private void Awake()
     {
-        ResolverReferencias();
+        tempoAtivacao = Time.unscaledTime;
+        ResolverReferencias(true);
         InicializarEstado();
+
+        if (cameraAtiva && posicionarImediatamenteAoAtivar)
+            ForcarAtualizacaoImediata();
+    }
+
+    private void Start()
+    {
+        ResolverReferencias(true);
 
         if (cameraAtiva && posicionarImediatamenteAoAtivar)
             ForcarAtualizacaoImediata();
@@ -136,7 +165,9 @@ public class Camera3Person : MonoBehaviour
 
     private void OnEnable()
     {
-        ResolverReferencias();
+        tempoAtivacao = Time.unscaledTime;
+        proximoAutorreparo = 0f;
+        ResolverReferencias(true);
         InicializarEstado();
         AplicarAtivacaoCamera();
 
@@ -152,7 +183,7 @@ public class Camera3Person : MonoBehaviour
 
     private void LateUpdate()
     {
-        ResolverReferencias();
+        ResolverReferencias(false);
         AplicarAtivacaoCamera();
 
         if (!cameraAtiva || target == null || camera3Person == null)
@@ -162,6 +193,7 @@ public class Camera3Person : MonoBehaviour
         LerMouse(dt);
         AtualizarAutoAlinhar(dt);
         AtualizarCamera(dt);
+        ExecutarAutorreparoInicial();
     }
 
     public void SetAtiva(bool ativa)
@@ -171,7 +203,11 @@ public class Camera3Person : MonoBehaviour
         AplicarAtivacaoCamera();
 
         if (ativa && (!estavaAtiva || posicionarImediatamenteAoAtivar))
+        {
+            tempoAtivacao = Time.unscaledTime;
+            proximoAutorreparo = 0f;
             ForcarAtualizacaoImediata();
+        }
     }
 
     public void DefinirTarget(Transform novoTarget, bool resetarAngulo = false)
@@ -192,47 +228,20 @@ public class Camera3Person : MonoBehaviour
         pitch = Mathf.Clamp(novoPitch, minPitch, maxPitch);
     }
 
-    /// <summary>
-    /// Posiciona a câmera diretamente no ponto correto antes do primeiro frame visível.
-    /// Corrige o início no chão e não usa suavização nesta chamada.
-    /// </summary>
     public void ForcarAtualizacaoImediata()
     {
-        ResolverReferencias();
+        ResolverReferencias(true);
         InicializarEstado();
 
         if (!cameraAtiva || camera3Person == null || target == null)
             return;
 
-        Vector3 foco = ObterFoco();
-        Quaternion orbit = Quaternion.Euler(pitch, yaw, 0f);
-        float distanciaAlvo = Mathf.Max(0.5f, distancia);
-        float lateralAlvo = offsetLateral;
+        CalcularPoseDesejada(false, out Vector3 posicaoFinal, out Quaternion rotacaoFinal, out float distanciaCalculada);
 
-        Vector3 posicaoIdeal = foco +
-                               orbit * Vector3.back * distanciaAlvo +
-                               orbit * Vector3.right * lateralAlvo +
-                               Vector3.up * alturaExtra;
-
-        Vector3 vetor = posicaoIdeal - foco;
-        float distanciaNormal = vetor.magnitude;
-        if (distanciaNormal <= 0.001f)
-            return;
-
-        Vector3 direcao = vetor / distanciaNormal;
-        float segura = usarColisao
-            ? CalcularDistanciaSegura(foco, direcao, distanciaNormal)
-            : distanciaNormal;
-
-        distanciaDesejadaAtual = distanciaAlvo;
-        distanciaSeguraAtual = segura;
-        distanciaAtual = segura;
+        distanciaDesejadaAtual = Mathf.Max(0.5f, distancia);
+        distanciaSeguraAtual = distanciaCalculada;
+        distanciaAtual = distanciaCalculada;
         velocidadePosicao = Vector3.zero;
-
-        Vector3 posicaoFinal = foco + direcao * distanciaAtual;
-        Quaternion rotacaoFinal = preservarRotacaoDaOrbita
-            ? orbit
-            : Quaternion.LookRotation(foco - posicaoFinal, Vector3.up);
 
         CameraTransform.SetPositionAndRotation(posicaoFinal, rotacaoFinal);
         camera3Person.fieldOfView = fovNormal;
@@ -241,10 +250,23 @@ public class Camera3Person : MonoBehaviour
         possuiUltimaTarget = true;
     }
 
-    private void ResolverReferencias()
+    private void ResolverReferencias(bool forcar)
     {
-        if (camera3Person == null)
-            camera3Person = GetComponent<UnityEngine.Camera>();
+        if (cameraLocal == null || forcar)
+            cameraLocal = GetComponent<UnityEngine.Camera>();
+
+        if (forcarCameraNoMesmoGameObject && cameraLocal != null)
+        {
+            if (camera3Person != cameraLocal)
+            {
+                camera3Person = cameraLocal;
+                reparosIniciais++;
+            }
+        }
+        else if (camera3Person == null)
+        {
+            camera3Person = cameraLocal;
+        }
     }
 
     private void InicializarEstado()
@@ -258,7 +280,7 @@ public class Camera3Person : MonoBehaviour
 
     private void ReinicializarEstado()
     {
-        yaw = Mathf.Abs(yawInicial) > 0.001f ? yawInicial : CameraTransform.eulerAngles.y;
+        yaw = Mathf.Abs(yawInicial) > 0.001f ? yawInicial : transform.eulerAngles.y;
         pitch = Mathf.Clamp(pitchInicial, minPitch, maxPitch);
         distanciaAtual = Mathf.Max(0.5f, distancia);
         distanciaDesejadaAtual = distanciaAtual;
@@ -285,6 +307,39 @@ public class Camera3Person : MonoBehaviour
 
         if (Cursor.visible)
             Cursor.visible = false;
+    }
+
+    private void ExecutarAutorreparoInicial()
+    {
+        if (!autorrepararInicio || Time.unscaledTime - tempoAtivacao > duracaoAutorreparoInicial)
+            return;
+
+        if (Time.unscaledTime < proximoAutorreparo)
+            return;
+
+        proximoAutorreparo = Time.unscaledTime + Mathf.Max(0.05f, intervaloAutorreparoInicial);
+        ResolverReferencias(true);
+
+        if (camera3Person == null || target == null)
+            return;
+
+        CalcularPoseDesejada(ZoomAtivo, out Vector3 posicaoEsperada, out _, out _);
+        float erro = Vector3.Distance(CameraTransform.position, posicaoEsperada);
+
+        bool referenciaErrada = !ReferenciaCameraEhLocal;
+        bool cameraDesligada = !camera3Person.enabled;
+        bool transformInvalido = float.IsNaN(CameraTransform.position.x) || float.IsInfinity(CameraTransform.position.x);
+        bool muitoFora = erro > Mathf.Max(0.1f, toleranciaPosicaoInvalida);
+
+        if (!referenciaErrada && !cameraDesligada && !transformInvalido && !muitoFora)
+            return;
+
+        reparosIniciais++;
+        camera3Person.enabled = true;
+        ForcarAtualizacaoImediata();
+
+        if (logarEventos)
+            Debug.Log("[Camera3Person] Autorreparo inicial aplicado. Erro de posição: " + erro.ToString("0.00") + "m");
     }
 
     private void LerMouse(float dt)
@@ -343,30 +398,20 @@ public class Camera3Person : MonoBehaviour
 
     private void AtualizarCamera(float dt)
     {
-        Vector3 foco = ObterFoco();
-        Quaternion orbit = Quaternion.Euler(pitch, yaw, 0f);
         bool zoom = ZoomAtivo;
+        CalcularPoseDesejada(zoom, out Vector3 posicaoFinal, out Quaternion rotacaoFinal, out float distanciaCalculada);
 
-        float distanciaAlvo = zoom ? distanciaZoom : distancia;
-        float lateralAlvo = zoom ? offsetLateralMira : offsetLateral;
-        distanciaDesejadaAtual = Mathf.Lerp(distanciaDesejadaAtual, distanciaAlvo, Suavizacao(velocidadeDistanciaZoom, dt));
-
-        Vector3 posicaoIdeal = foco + orbit * Vector3.back * distanciaDesejadaAtual + orbit * Vector3.right * lateralAlvo + Vector3.up * alturaExtra;
-        Vector3 vetor = posicaoIdeal - foco;
-        float distanciaNormal = vetor.magnitude;
-        if (distanciaNormal <= 0.001f)
-            return;
-
-        Vector3 direcao = vetor / distanciaNormal;
-        distanciaSeguraAtual = usarColisao ? CalcularDistanciaSegura(foco, direcao, distanciaNormal) : distanciaNormal;
+        distanciaSeguraAtual = distanciaCalculada;
 
         if (limitarMudancaDistanciaPorFrame)
             distanciaAtual = Mathf.MoveTowards(distanciaAtual, distanciaSeguraAtual, maxDeltaDistanciaPorFrame);
         else
             distanciaAtual = distanciaSeguraAtual;
 
-        Vector3 posicaoFinal = foco + direcao * distanciaAtual;
-        Quaternion rotacaoFinal = preservarRotacaoDaOrbita ? orbit : Quaternion.LookRotation(foco - posicaoFinal, Vector3.up);
+        Vector3 foco = ObterFoco();
+        Vector3 direcao = (posicaoFinal - foco).normalized;
+        posicaoFinal = foco + direcao * distanciaAtual;
+
         Transform camTransform = CameraTransform;
 
         if (resetarSuavizacaoAoTeleportar && Vector3.Distance(camTransform.position, posicaoFinal) > distanciaTeleportReset)
@@ -398,9 +443,48 @@ public class Camera3Person : MonoBehaviour
 
         if (desenharDebugColisao)
         {
-            Debug.DrawLine(foco, posicaoIdeal, Color.red);
-            Debug.DrawLine(foco, camTransform.position, Color.green);
+            Debug.DrawLine(foco, posicaoFinal, Color.green);
         }
+    }
+
+    private void CalcularPoseDesejada(bool zoom, out Vector3 posicaoFinal, out Quaternion rotacaoFinal, out float distanciaCalculada)
+    {
+        Vector3 foco = ObterFoco();
+        Quaternion orbit = Quaternion.Euler(pitch, yaw, 0f);
+        float distanciaAlvo = zoom ? distanciaZoom : distancia;
+        float lateralAlvo = zoom ? offsetLateralMira : offsetLateral;
+
+        distanciaDesejadaAtual = Mathf.Lerp(
+            distanciaDesejadaAtual,
+            distanciaAlvo,
+            Suavizacao(velocidadeDistanciaZoom, DeltaTimeSeguro())
+        );
+
+        Vector3 posicaoIdeal = foco +
+                               orbit * Vector3.back * distanciaDesejadaAtual +
+                               orbit * Vector3.right * lateralAlvo +
+                               Vector3.up * alturaExtra;
+
+        Vector3 vetor = posicaoIdeal - foco;
+        float distanciaNormal = vetor.magnitude;
+
+        if (distanciaNormal <= 0.001f)
+        {
+            distanciaCalculada = Mathf.Max(0.5f, distanciaAlvo);
+            posicaoFinal = foco + Vector3.back * distanciaCalculada;
+            rotacaoFinal = orbit;
+            return;
+        }
+
+        Vector3 direcao = vetor / distanciaNormal;
+        distanciaCalculada = usarColisao
+            ? CalcularDistanciaSegura(foco, direcao, distanciaNormal)
+            : distanciaNormal;
+
+        posicaoFinal = foco + direcao * distanciaCalculada;
+        rotacaoFinal = preservarRotacaoDaOrbita
+            ? orbit
+            : Quaternion.LookRotation(foco - posicaoFinal, Vector3.up);
     }
 
     private Vector3 ObterFoco()
@@ -469,8 +553,7 @@ public class Camera3Person : MonoBehaviour
         float alvo = zoom ? fovZoom : fovNormal;
         if (Mathf.Abs(camera3Person.fieldOfView - alvo) <= 0.01f)
         {
-            if (camera3Person.fieldOfView != alvo)
-                camera3Person.fieldOfView = alvo;
+            camera3Person.fieldOfView = alvo;
             return;
         }
 
@@ -490,6 +573,11 @@ public class Camera3Person : MonoBehaviour
 
     private void OnValidate()
     {
+        cameraLocal = GetComponent<UnityEngine.Camera>();
+
+        if (forcarCameraNoMesmoGameObject && cameraLocal != null)
+            camera3Person = cameraLocal;
+
         if (maxPitch < minPitch)
             maxPitch = minPitch;
 
