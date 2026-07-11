@@ -13,7 +13,8 @@ Este arquivo registra mudanças que alteram arquitetura, persistência, contrato
 - recuperação por backup;
 - migração do formato MMDB1 e das chaves PlayerPrefs antigas;
 - singleton criado antes da cena e sem referências serializadas cross-scene;
-- chave V2 não depende do identificador do aparelho.
+- chave V2 não depende do identificador do aparelho;
+- inicialização das variáveis de migração corrigida em todos os caminhos de execução.
 
 ### Stamina e HUD
 
@@ -44,12 +45,15 @@ Este arquivo registra mudanças que alteram arquitetura, persistência, contrato
 - criado `PlatformRenderProfile`;
 - perfis Desktop, Mobile e Low-End Mobile;
 - render scale, FPS, sombras, luzes, MSAA, LOD e custo de efeitos ajustados por plataforma;
+- perfil reaplicado após o carregamento da cena para impedir sobrescrita por sistemas legados;
 - APIs públicas para joystick e botões mobile documentadas.
 
 ### Editor e cena
 
 - criado reparo automático `GameplaySystemsSetup`;
-- liga banco, stamina, HUD, interação e perfil mobile;
+- criado `GameplaySystemsAutoRepair` para reaplicar a ligação após recriação do PlayerCameraRig;
+- criado `GameplayArchitectureValidator` sem efeitos colaterais;
+- liga banco, stamina, HUD e interação;
 - adiciona realce a itens móveis;
 - identifica portas/caixas por nome ou componente;
 - remove guard obsoleto da cena;
@@ -59,7 +63,14 @@ Este arquivo registra mudanças que alteram arquitetura, persistência, contrato
 
 - criada pasta `Relatorios`;
 - criada regra obrigatória de leitura antes de futuras alterações;
+- criado `AGENTS.md` na raiz;
 - adicionados relatórios de dados, stamina, interação, plataformas e testes pós-pull.
+
+### Validação
+
+- revisão estática de referências públicas e caminhos de inicialização concluída;
+- compilação e execução final dependem do Unity local do projeto;
+- checklist manual registrado em `TESTES_POS_GIT_PULL.md`.
 
 ## 2026-07-11 — Jogador e Animator
 
