@@ -1,10 +1,14 @@
+using System;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// Marca qualquer objeto como interativo.
-/// Serve para portas, caixas, balcões, interruptores e outros objetos acionados pelo mouse.
-/// A ação concreta permanece configurável por UnityEvent, sem acoplar este script à porta.
+/// Marca portas, caixas, interruptores e outros objetos como interativos.
+///
+/// A ação pode ser ligada pelo UnityEvent. Para objetos antigos, o componente também
+/// consegue chamar uma única função pública comum (Interact, Toggle, Open, Abrir etc.)
+/// somente no clique, sem reflexão no Update.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class InteractiveObject : MonoBehaviour
@@ -17,16 +21,40 @@ public sealed class InteractiveObject : MonoBehaviour
     public InteractionHighlight highlight;
     public bool createHighlightWhenMissing = true;
 
+    [Header("Compatibilidade com scripts existentes")]
+    public bool autoInvokeCommonMethod = true;
+    public string[] commonMethodNames =
+    {
+        "Interact",
+        "Interagir",
+        "Toggle",
+        "Alternar",
+        "Open",
+        "Abrir",
+        "Use",
+        "Usar",
+        "Activate",
+        "Ativar"
+    };
+
     [Header("Eventos")]
     public UnityEvent onFocused;
     public UnityEvent onUnfocused;
     public UnityEvent onInteract;
+
+    [Header("Debug")]
+    public bool logInvokedMethod;
+
+    private MonoBehaviour cachedMethodTarget;
+    private MethodInfo cachedMethod;
+    private bool methodResolved;
 
     public bool IsFocused { get; private set; }
 
     private void Awake()
     {
         ResolveHighlight();
+        ResolveCommonMethod();
     }
 
     private void OnEnable()
@@ -62,6 +90,10 @@ public sealed class InteractiveObject : MonoBehaviour
             return false;
 
         onInteract?.Invoke();
+
+        if (autoInvokeCommonMethod)
+            InvokeCommonMethod();
+
         return true;
     }
 
@@ -76,8 +108,92 @@ public sealed class InteractiveObject : MonoBehaviour
             highlight = gameObject.AddComponent<InteractionHighlight>();
     }
 
+    private void ResolveCommonMethod()
+    {
+        if (methodResolved)
+            return;
+
+        methodResolved = true;
+        cachedMethodTarget = null;
+        cachedMethod = null;
+
+        if (!autoInvokeCommonMethod || commonMethodNames == null)
+            return;
+
+        MonoBehaviour[] behaviours = GetComponents<MonoBehaviour>();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+
+        for (int i = 0; i < commonMethodNames.Length; i++)
+        {
+            string methodName = commonMethodNames[i];
+            if (string.IsNullOrWhiteSpace(methodName))
+                continue;
+
+            for (int b = 0; b < behaviours.Length; b++)
+            {
+                MonoBehaviour behaviour = behaviours[b];
+                if (behaviour == null || behaviour == this || behaviour is InteractionHighlight)
+                    continue;
+
+                MethodInfo method = behaviour.GetType().GetMethod(
+                    methodName,
+                    flags,
+                    null,
+                    Type.EmptyTypes,
+                    null
+                );
+
+                if (method == null || method.ReturnType != typeof(void))
+                    continue;
+
+                cachedMethodTarget = behaviour;
+                cachedMethod = method;
+                return;
+            }
+        }
+    }
+
+    private void InvokeCommonMethod()
+    {
+        ResolveCommonMethod();
+
+        if (cachedMethodTarget == null || cachedMethod == null)
+            return;
+
+        try
+        {
+            cachedMethod.Invoke(cachedMethodTarget, null);
+
+            if (logInvokedMethod)
+            {
+                Debug.Log(
+                    "[InteractiveObject] Chamou " + cachedMethodTarget.GetType().Name +
+                    "." + cachedMethod.Name + " em " + name + ".",
+                    this
+                );
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                "[InteractiveObject] Falha ao executar " + cachedMethod.Name +
+                " em " + name + ": " + exception.GetBaseException().Message,
+                this
+            );
+        }
+    }
+
+    [ContextMenu("Interação/Rebuscar método compatível")]
+    public void RefreshCommonMethod()
+    {
+        methodResolved = false;
+        ResolveCommonMethod();
+    }
+
     private void OnValidate()
     {
+        methodResolved = false;
+
         if (highlight == null)
             highlight = GetComponent<InteractionHighlight>();
     }
