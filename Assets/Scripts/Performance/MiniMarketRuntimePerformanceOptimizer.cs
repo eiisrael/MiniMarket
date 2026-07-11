@@ -1,19 +1,11 @@
-using System;
 using Object = UnityEngine.Object;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Otimizador global e leve do MiniMarket.
-///
-/// Principais objetivos:
-/// - impedir PlayerPrefs.Save em loop durante consumo/regeneracao de stamina;
-/// - aumentar o debounce do banco local e do UpgradeLog;
-/// - manter PlayerMove usando a camera V2 ativa;
-/// - aplicar um perfil seguro de 60 FPS no mobile;
-/// - coletar metricas leves para o painel F10.
-///
-/// O script se cria automaticamente. Nao precisa adicionar manualmente.
+/// Otimizador global do MiniMarket.
+/// Reduz salvamentos de stamina, ajusta banco/log, sincroniza movimento com a câmera V2
+/// e fornece métricas de frame válidas para o painel F10.
 /// </summary>
 [DefaultExecutionOrder(-45000)]
 [DisallowMultipleComponent]
@@ -36,18 +28,13 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
     public bool reduzirPrioridadeCarregamentoBackground = true;
 
     [Header("Stamina / Persistencia")]
-    [Tooltip("Desliga o PlayerPrefs.Save interno do PlayerMove durante o gameplay e salva somente em pausa/saida.")]
     public bool impedirSaveDeSegmentosDuranteGameplay = true;
-
     [Min(0.25f)] public float intervaloAtualizarValoresPlayerPrefs = 1f;
     public bool permitirFlushPeriodicoOpcional = false;
     [Min(10f)] public float intervaloFlushPeriodico = 30f;
 
-    [Tooltip("Piso de diferenca para enviar stamina ao banco, reduzindo eventos e serializacao.")]
     [Min(0.1f)] public float diferencaMinimaBancoDesktop = 0.75f;
     [Min(0.1f)] public float diferencaMinimaBancoMobile = 1.25f;
-
-    [Tooltip("Piso do intervalo de envio da stamina para o banco.")]
     [Min(0.25f)] public float intervaloBancoDesktop = 0.8f;
     [Min(0.25f)] public float intervaloBancoMobile = 1.25f;
 
@@ -66,6 +53,14 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
     [Min(20f)] public float limiteSpikeGraveMs = 50f;
     [Range(0.01f, 1f)] public float suavizacaoMetricas = 0.08f;
 
+    [Tooltip("Ignora carregamento/compilação inicial para não registrar um pior frame absurdo.")]
+    [Min(0f)] public float ignorarPrimeirosSegundosMetricas = 2f;
+
+    [Tooltip("Frames maiores que este valor são pausas do Editor/perda de foco, não gameplay.")]
+    [Min(50f)] public float maxFrameValidoMs = 500f;
+
+    public bool ignorarMetricasSemFoco = true;
+
     [Header("Busca")]
     [Min(0.25f)] public float intervaloBuscaReferencias = 1f;
 
@@ -78,8 +73,6 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
     private CameraV2Controller cameraController;
 
     private bool playerConfigurado;
-    private bool bancoConfigurado;
-    private bool loggerConfigurado;
     private bool salvarSegmentosOriginal;
     private bool capturouSalvarSegmentosOriginal;
 
@@ -94,7 +87,9 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
     private float piorFrameMs;
     private int spikesLeves;
     private int spikesGraves;
+    private int framesIgnorados;
     private float ultimoFrameMs;
+    private float liberarMetricasEm;
 
     public PlayerMove Player => playerMove;
     public MiniMarketPlayerDatabase Banco => banco;
@@ -105,6 +100,7 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
     public float PiorFrameMs => piorFrameMs;
     public int SpikesLeves => spikesLeves;
     public int SpikesGraves => spikesGraves;
+    public int FramesIgnorados => framesIgnorados;
     public int FlushesPlayerPrefs => flushesPlayerPrefs;
     public bool PlayerPrefsPendentes => prefsPendentes;
     public bool SaveContinuoDeSegmentosDesligado => playerMove != null && impedirSaveDeSegmentosDuranteGameplay && !playerMove.salvarSegmentosLocalmente;
@@ -136,8 +132,12 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+
+        if (transform.parent == null)
+            DontDestroyOnLoad(gameObject);
+
         SceneManager.sceneLoaded += AoCarregarCena;
+        liberarMetricasEm = Time.unscaledTime + Mathf.Max(0f, ignorarPrimeirosSegundosMetricas);
 
         AplicarPerfilGlobal();
         ResolverReferencias(true);
@@ -157,7 +157,7 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
 
     private void OnDisable()
     {
-        if (Instance == this)
+        if (Instance == this && Application.isPlaying)
             SalvarSegmentosAgora(true);
     }
 
@@ -218,6 +218,7 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
         cameraController = null;
         playerConfigurado = false;
         proximaBusca = 0f;
+        liberarMetricasEm = Time.unscaledTime + Mathf.Max(0f, ignorarPrimeirosSegundosMetricas);
     }
 
     private void AplicarPerfilGlobal()
@@ -244,9 +245,11 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
             playerMove = Object.FindFirstObjectByType<PlayerMove>(FindObjectsInactive.Include);
 
         if (forcar || banco == null)
+        {
             banco = MiniMarketPlayerDatabase.Instance != null
                 ? MiniMarketPlayerDatabase.Instance
                 : Object.FindFirstObjectByType<MiniMarketPlayerDatabase>(FindObjectsInactive.Include);
+        }
 
         if (forcar || logger == null)
             logger = Object.FindFirstObjectByType<MiniMarketUpgradeLogger>(FindObjectsInactive.Include);
@@ -293,8 +296,6 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
                 banco.intervaloSalvamentoDiferido,
                 mobile ? debounceDiscoMobile : debounceDiscoDesktop
             );
-
-            bancoConfigurado = true;
         }
 
         if (logger != null && otimizarUpgradeLog)
@@ -315,8 +316,6 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
                 logger.escreverTambemNoPersistentDataPath = true;
 #endif
             }
-
-            loggerConfigurado = true;
         }
     }
 
@@ -361,10 +360,21 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
 
     private void AtualizarMetricasFrame()
     {
-        float dt = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
+        float dt = Time.unscaledDeltaTime;
         float ms = dt * 1000f;
-        float fps = 1f / dt;
 
+        bool invalido = dt <= 0f ||
+                        Time.unscaledTime < liberarMetricasEm ||
+                        ms > Mathf.Max(50f, maxFrameValidoMs) ||
+                        (ignorarMetricasSemFoco && !Application.isFocused);
+
+        if (invalido)
+        {
+            framesIgnorados++;
+            return;
+        }
+
+        float fps = 1f / Mathf.Max(dt, 0.0001f);
         ultimoFrameMs = ms;
 
         if (fpsMedio <= 0f)
@@ -397,5 +407,7 @@ public class MiniMarketRuntimePerformanceOptimizer : MonoBehaviour
         piorFrameMs = 0f;
         spikesLeves = 0;
         spikesGraves = 0;
+        framesIgnorados = 0;
+        liberarMetricasEm = Time.unscaledTime + 0.25f;
     }
 }
