@@ -13,6 +13,10 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     [Header("Referências")]
     public Transform cameraTransform;
     public PlayerCameraController playerCamera;
+
+    [HideInInspector]
+    public CameraModeController cameraMode;
+
     public Animator animator;
 
     [Header("Velocidade")]
