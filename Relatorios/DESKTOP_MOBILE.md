@@ -17,6 +17,8 @@ O componente é criado automaticamente antes da cena e escolhe um perfil:
 - `LowEndMobile`
 - perfil forçado para testes
 
+O perfil é reaplicado no primeiro `LateUpdate` após cada carregamento de cena. Isso impede que sistemas legados executados durante o bootstrap sobrescrevam o target de FPS, VSync ou render scale escolhidos para o aparelho.
+
 ## Desktop
 
 Configuração padrão:
@@ -118,9 +120,10 @@ O código oferece entrada externa, mas a cena precisa dos controles visuais:
 1. Testar no Editor com perfil Desktop.
 2. Forçar perfil Mobile no Inspector.
 3. Forçar perfil LowEndMobile.
-4. Verificar uma câmera e um AudioListener.
-5. Testar orientação e resolução alvo.
-6. Fazer build Android real; o Game View não substitui teste no aparelho.
-7. Verificar temperatura, memória e FPS por pelo menos dez minutos.
-8. Testar pause/resume e retorno do aplicativo.
-9. Confirmar save após o aplicativo ir para segundo plano.
+4. Trocar/recarregar a cena e confirmar que o perfil permanece aplicado.
+5. Verificar uma câmera e um AudioListener.
+6. Testar orientação e resolução alvo.
+7. Fazer build Android real; o Game View não substitui teste no aparelho.
+8. Verificar temperatura, memória e FPS por pelo menos dez minutos.
+9. Testar pause/resume e retorno do aplicativo.
+10. Confirmar save após o aplicativo ir para segundo plano.
