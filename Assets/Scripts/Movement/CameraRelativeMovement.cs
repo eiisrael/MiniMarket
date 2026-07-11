@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Movimentação profissional baseada na direção horizontal da câmera.
+/// Movimentação baseada na direção horizontal da câmera.
 /// Usa CharacterController, aceleração suave, corrida, pulo, gravidade e rotação estável.
-/// Não altera a câmera e não executa input enquanto um menu está ativo.
+/// Não processa input enquanto menu/pausa bloqueiam o gameplay.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CharacterController))]
@@ -12,6 +12,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
 {
     [Header("Referências")]
     public Transform cameraTransform;
+    public PlayerCameraController playerCamera;
     public Animator animator;
 
     [Header("Velocidade")]
@@ -19,13 +20,12 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     [Min(0f)] public float runSpeed = 6.2f;
     [Min(0f)] public float acceleration = 18f;
     [Min(0f)] public float deceleration = 24f;
-    [Min(0f)] public float airControl = 0.45f;
+    [Range(0f, 1f)] public float airControl = 0.45f;
 
     [Header("Rotação")]
     [Min(0f)] public float rotationSpeed = 14f;
     public bool faceMovementDirection = true;
     public bool faceCameraForwardInFirstPerson = true;
-    public CameraModeController cameraMode;
 
     [Header("Pulo e gravidade")]
     [Min(0f)] public float jumpHeight = 1.15f;
@@ -51,7 +51,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     public string speedParameter = "Speed";
     public string groundedParameter = "Grounded";
     public string verticalSpeedParameter = "VerticalSpeed";
-    public float animatorDampTime = 0.08f;
+    [Min(0f)] public float animatorDampTime = 0.08f;
 
     [Header("Input externo / Mobile")]
     public bool useLegacyInput = true;
@@ -66,6 +66,13 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private float lastRunTime = -100f;
     private bool running;
 
+    private int speedHash;
+    private int groundedHash;
+    private int verticalSpeedHash;
+    private bool hasSpeedParameter;
+    private bool hasGroundedParameter;
+    private bool hasVerticalSpeedParameter;
+
     public Vector3 Velocity => horizontalVelocity + Vector3.up * verticalVelocity;
     public float CurrentSpeed => horizontalVelocity.magnitude;
     public bool IsRunning => running;
@@ -74,7 +81,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     public float MaxStamina => maxStamina;
     public float Stamina01 => maxStamina > 0.001f ? Mathf.Clamp01(currentStamina / maxStamina) : 0f;
 
-    // Nomes de compatibilidade para HUD/Menu por reflexão.
+    // Compatibilidade para HUD/Menu que leem nomes antigos por reflexão.
     public float StaminaAtual => CurrentStamina;
     public float StaminaMaxima => MaxStamina;
     public float StaminaPercentual01 => Stamina01;
@@ -92,7 +99,9 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         currentStamina = Mathf.Max(1f, maxStamina);
 
         if (animator == null)
-            animator = GetComponentInChildren<Animator>();
+            animator = GetComponentInChildren<Animator>(true);
+
+        CacheAnimatorParameters();
     }
 
     private void Start()
@@ -108,19 +117,20 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         if (deltaTime <= 0f)
             return;
 
-        Vector2 input = ReadMoveInput();
         bool inputBlocked = GameplayInputState.IsBlocked;
+        Vector2 input = inputBlocked ? Vector2.zero : ReadMoveInput();
+
         if (inputBlocked)
         {
-            input = Vector2.zero;
             externalJump = false;
             externalRun = false;
         }
 
         Vector3 desiredDirection = CalculateCameraRelativeDirection(input);
         float inputMagnitude = Mathf.Clamp01(input.magnitude);
+        bool wasRunning = running;
         bool wantsRun = allowRun && inputMagnitude >= minimumInputToRun && ReadRunInput();
-        running = wantsRun && CanRun();
+        running = wantsRun && CanRun(wasRunning);
 
         UpdateStamina(deltaTime);
 
@@ -138,8 +148,9 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         UpdateVerticalVelocity(deltaTime, inputBlocked);
         UpdateRotation(desiredDirection, inputMagnitude, deltaTime);
 
-        Vector3 motion = horizontalVelocity + Vector3.up * verticalVelocity;
-        CollisionFlags flags = controller.Move(motion * deltaTime);
+        CollisionFlags flags = controller.Move(
+            (horizontalVelocity + Vector3.up * verticalVelocity) * deltaTime
+        );
 
         if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f)
             verticalVelocity = 0f;
@@ -168,15 +179,8 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         currentStamina = Mathf.Max(1f, maxStamina);
     }
 
-    public void RestaurarStaminaCompleta()
-    {
-        RestoreStaminaFull();
-    }
-
-    public void RecarregarStaminaCompleta()
-    {
-        RestoreStaminaFull();
-    }
+    public void RestaurarStaminaCompleta() => RestoreStaminaFull();
+    public void RecarregarStaminaCompleta() => RestoreStaminaFull();
 
     private Vector2 ReadMoveInput()
     {
@@ -219,6 +223,7 @@ public sealed class CameraRelativeMovement : MonoBehaviour
 
         forward.Normalize();
         right.Normalize();
+
         Vector3 direction = forward * input.y + right * input.x;
         return direction.sqrMagnitude > 1f ? direction.normalized : direction;
     }
@@ -245,8 +250,8 @@ public sealed class CameraRelativeMovement : MonoBehaviour
     private void UpdateRotation(Vector3 desiredDirection, float inputMagnitude, float deltaTime)
     {
         Vector3 facingDirection = desiredDirection;
+        bool firstPerson = playerCamera != null && playerCamera.IsFirstPerson;
 
-        bool firstPerson = cameraMode != null && cameraMode.IsFirstPerson;
         if (firstPerson && faceCameraForwardInFirstPerson && cameraTransform != null)
         {
             facingDirection = cameraTransform.forward;
@@ -270,9 +275,12 @@ public sealed class CameraRelativeMovement : MonoBehaviour
             );
     }
 
-    private bool CanRun()
+    private bool CanRun(bool wasRunning)
     {
-        return !useStamina || currentStamina >= minimumStaminaToStartRunning || running;
+        if (!useStamina)
+            return true;
+
+        return wasRunning ? currentStamina > 0.01f : currentStamina >= minimumStaminaToStartRunning;
     }
 
     private void UpdateStamina(float deltaTime)
@@ -299,28 +307,55 @@ public sealed class CameraRelativeMovement : MonoBehaviour
         }
     }
 
+    private void CacheAnimatorParameters()
+    {
+        hasSpeedParameter = false;
+        hasGroundedParameter = false;
+        hasVerticalSpeedParameter = false;
+
+        if (animator == null)
+            return;
+
+        speedHash = Animator.StringToHash(speedParameter ?? string.Empty);
+        groundedHash = Animator.StringToHash(groundedParameter ?? string.Empty);
+        verticalSpeedHash = Animator.StringToHash(verticalSpeedParameter ?? string.Empty);
+
+        AnimatorControllerParameter[] parameters = animator.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            AnimatorControllerParameter parameter = parameters[i];
+
+            if (parameter.nameHash == speedHash && parameter.type == AnimatorControllerParameterType.Float)
+                hasSpeedParameter = true;
+            else if (parameter.nameHash == groundedHash && parameter.type == AnimatorControllerParameterType.Bool)
+                hasGroundedParameter = true;
+            else if (parameter.nameHash == verticalSpeedHash && parameter.type == AnimatorControllerParameterType.Float)
+                hasVerticalSpeedParameter = true;
+        }
+    }
+
     private void UpdateAnimator(float deltaTime)
     {
         if (animator == null)
             return;
 
-        if (!string.IsNullOrEmpty(speedParameter))
-            animator.SetFloat(speedParameter, CurrentSpeed, animatorDampTime, deltaTime);
+        if (hasSpeedParameter)
+            animator.SetFloat(speedHash, CurrentSpeed, animatorDampTime, deltaTime);
 
-        if (!string.IsNullOrEmpty(groundedParameter))
-            animator.SetBool(groundedParameter, controller.isGrounded);
+        if (hasGroundedParameter)
+            animator.SetBool(groundedHash, controller.isGrounded);
 
-        if (!string.IsNullOrEmpty(verticalSpeedParameter))
-            animator.SetFloat(verticalSpeedParameter, verticalVelocity);
+        if (hasVerticalSpeedParameter)
+            animator.SetFloat(verticalSpeedHash, verticalVelocity);
     }
 
     private void ResolveCamera()
     {
-        if (cameraMode == null)
-            cameraMode = Object.FindAnyObjectByType<CameraModeController>(FindObjectsInactive.Include);
+        if (playerCamera == null)
+            playerCamera = Object.FindAnyObjectByType<PlayerCameraController>(FindObjectsInactive.Include);
 
-        if (cameraTransform == null && cameraMode != null)
-            cameraTransform = cameraMode.ActiveCameraTransform;
+        if (cameraTransform == null && playerCamera != null)
+            cameraTransform = playerCamera.ActiveCameraTransform;
 
         if (cameraTransform == null && Camera.main != null)
             cameraTransform = Camera.main.transform;
