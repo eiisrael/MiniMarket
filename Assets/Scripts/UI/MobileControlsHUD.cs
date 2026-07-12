@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -7,15 +8,9 @@ using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// HUD de controles touch para Android/iOS.
-///
-/// É criado automaticamente apenas em plataforma mobile. Em Desktop permanece oculto,
-/// salvo quando "Forçar visível para testes" estiver ligado no Inspector.
-///
-/// Controles:
-/// - joystick esquerdo: movimento;
-/// - área direita: rotação da câmera;
-/// - correr, pular, interagir, pegar/soltar, arremessar e mirar/primeira pessoa.
+/// HUD touch oficial do MiniMarket.
+/// Aparece automaticamente em Android/iOS e permanece oculto no Desktop,
+/// salvo quando o modo de teste forçado estiver habilitado no Inspector.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(23000)]
@@ -95,7 +90,9 @@ public sealed class MobileControlsHUD : MonoBehaviour
     private int lastScreenHeight;
     private bool built;
 
-    public bool IsVisibleForCurrentPlatform => Application.isMobilePlatform || forcarVisivelParaTestes;
+    public bool IsVisibleForCurrentPlatform =>
+        Application.isMobilePlatform || forcarVisivelParaTestes || !ocultarNoDesktop;
+
     public Vector2 CurrentMoveInput => joystickValue;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -133,7 +130,6 @@ public sealed class MobileControlsHUD : MonoBehaviour
         }
 
         Instance = this;
-
         if (transform.parent == null)
             DontDestroyOnLoad(gameObject);
 
@@ -146,7 +142,6 @@ public sealed class MobileControlsHUD : MonoBehaviour
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
         ResetAllInputs();
-
         if (Instance == this)
             Instance = null;
     }
@@ -164,11 +159,11 @@ public sealed class MobileControlsHUD : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        nextReferenceSearch = 0f;
         movimento = null;
         cameraController = null;
         interactionController = null;
         getItemController = null;
+        nextReferenceSearch = 0f;
         ResolveReferences(true);
         RefreshPlatformVisibility();
     }
@@ -296,9 +291,7 @@ public sealed class MobileControlsHUD : MonoBehaviour
 
         Transform existing = transform.Find(RuntimeRootName);
         if (existing != null)
-        {
             Destroy(existing.gameObject);
-        }
 
         GameObject canvasObject = new GameObject(RuntimeRootName, typeof(RectTransform));
         canvasObject.transform.SetParent(transform, false);
@@ -312,9 +305,9 @@ public sealed class MobileControlsHUD : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         canvasObject.AddComponent<GraphicRaycaster>();
 
-        GameObject safeAreaObject = new GameObject("SafeArea", typeof(RectTransform));
-        safeAreaObject.transform.SetParent(canvasObject.transform, false);
-        safeAreaRect = safeAreaObject.GetComponent<RectTransform>();
+        GameObject safeObject = new GameObject("SafeArea", typeof(RectTransform));
+        safeObject.transform.SetParent(canvasObject.transform, false);
+        safeAreaRect = safeObject.GetComponent<RectTransform>();
         safeAreaRect.anchorMin = Vector2.zero;
         safeAreaRect.anchorMax = Vector2.one;
         safeAreaRect.offsetMin = Vector2.zero;
@@ -370,30 +363,33 @@ public sealed class MobileControlsHUD : MonoBehaviour
 
     private void BuildActionButtons()
     {
-        RectTransform rightRoot = CreateActionRoot();
+        RectTransform actionRoot = CreateActionRoot();
         float step = tamanhoBotao + espacamentoBotoes;
 
-        Image interact = CreateActionButton("Interact", textoInteragir, rightRoot, new Vector2(-step, step));
-        AddEvent(interact.gameObject, EventTriggerType.PointerDown, data => RequestInteract());
+        Image aim = CreateActionButton("Aim", textoMirar, actionRoot, Vector2.zero);
+        aimButtonImage = aim;
+        AddHoldEvents(aim, SetAimHeld);
 
-        Image jump = CreateActionButton("Jump", textoPular, rightRoot, new Vector2(-step, 0f));
+        Image jump = CreateActionButton("Jump", textoPular, actionRoot, new Vector2(-step, 0f));
         AddEvent(jump.gameObject, EventTriggerType.PointerDown, data => RequestJump());
 
-        runButtonImage = CreateActionButton("Run", textoCorrer, rightRoot, new Vector2(-step * 2f, 0f));
-        AddHoldEvents(runButtonImage, held =>
+        Image run = CreateActionButton("Run", textoCorrer, actionRoot, new Vector2(-step * 2f, 0f));
+        runButtonImage = run;
+        AddHoldEvents(run, held =>
         {
             runHeld = held;
             SetButtonPressed(runButtonImage, held);
         });
 
-        grabButtonImage = CreateActionButton("Grab", textoPegar, rightRoot, new Vector2(0f, step));
-        AddHoldEvents(grabButtonImage, SetGrabHeld);
+        Image grab = CreateActionButton("Grab", textoPegar, actionRoot, new Vector2(0f, step));
+        grabButtonImage = grab;
+        AddHoldEvents(grab, SetGrabHeld);
 
-        Image throwButton = CreateActionButton("Throw", textoArremessar, rightRoot, new Vector2(0f, step * 2f));
+        Image interact = CreateActionButton("Interact", textoInteragir, actionRoot, new Vector2(-step, step));
+        AddEvent(interact.gameObject, EventTriggerType.PointerDown, data => RequestInteract());
+
+        Image throwButton = CreateActionButton("Throw", textoArremessar, actionRoot, new Vector2(0f, step * 2f));
         AddEvent(throwButton.gameObject, EventTriggerType.PointerDown, data => RequestThrow());
-
-        aimButtonImage = CreateActionButton("Aim", textoMirar, rightRoot, Vector2.zero);
-        AddHoldEvents(aimButtonImage, SetAimHeld);
     }
 
     private RectTransform CreateActionRoot()
@@ -401,23 +397,25 @@ public sealed class MobileControlsHUD : MonoBehaviour
         GameObject root = new GameObject("Actions", typeof(RectTransform));
         root.transform.SetParent(safeAreaRect, false);
         RectTransform rect = root.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.one;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = Vector2.one;
-        rect.anchoredPosition = new Vector2(-margemBotoes.x, -margemBotoes.y);
-        rect.sizeDelta = new Vector2(tamanhoBotao * 3f + espacamentoBotoes * 2f,
-                                     tamanhoBotao * 3f + espacamentoBotoes * 2f);
+        rect.anchorMin = new Vector2(1f, 0f);
+        rect.anchorMax = new Vector2(1f, 0f);
+        rect.pivot = new Vector2(1f, 0f);
+        rect.anchoredPosition = new Vector2(-margemBotoes.x, margemBotoes.y);
+        rect.sizeDelta = new Vector2(
+            tamanhoBotao * 3f + espacamentoBotoes * 2f,
+            tamanhoBotao * 3f + espacamentoBotoes * 2f
+        );
         return rect;
     }
 
-    private Image CreateActionButton(string objectName, string label, Transform parent, Vector2 offset)
+    private Image CreateActionButton(string objectName, string label, Transform parent, Vector2 position)
     {
         GameObject buttonObject = CreatePanel(objectName, parent, corBotao);
         RectTransform rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.one;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = Vector2.one;
-        rect.anchoredPosition = -offset;
+        rect.anchorMin = new Vector2(1f, 0f);
+        rect.anchorMax = new Vector2(1f, 0f);
+        rect.pivot = new Vector2(1f, 0f);
+        rect.anchoredPosition = position;
         rect.sizeDelta = Vector2.one * tamanhoBotao;
 
         GameObject textObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
@@ -462,7 +460,7 @@ public sealed class MobileControlsHUD : MonoBehaviour
         if (trigger == null)
             trigger = target.AddComponent<EventTrigger>();
         if (trigger.triggers == null)
-            trigger.triggers = new System.Collections.Generic.List<EventTrigger.Entry>();
+            trigger.triggers = new List<EventTrigger.Entry>();
 
         EventTrigger.Entry entry = new EventTrigger.Entry { eventID = type };
         entry.callback.AddListener(callback);
@@ -502,7 +500,6 @@ public sealed class MobileControlsHUD : MonoBehaviour
         joystickValue = normalized;
         if (joystickThumb != null)
             joystickThumb.anchoredPosition = normalized * radius;
-
         if (movimento != null)
             movimento.SetMoveInput(joystickValue);
     }
@@ -663,6 +660,8 @@ public sealed class MobileControlsHUD : MonoBehaviour
         {
             safeAreaRect.anchorMin = Vector2.zero;
             safeAreaRect.anchorMax = Vector2.one;
+            safeAreaRect.offsetMin = Vector2.zero;
+            safeAreaRect.offsetMax = Vector2.zero;
             return;
         }
 
