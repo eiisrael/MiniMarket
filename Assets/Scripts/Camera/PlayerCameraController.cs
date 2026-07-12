@@ -8,7 +8,8 @@ using UnityEngine;
 /// - ThirdPersonCamera e FirstPersonCamera apenas calculam poses;
 /// - câmeras auxiliares que renderizam para RenderTexture, como minimapa, são preservadas;
 /// - sistemas temporários, como a compra de terrenos, podem assumir a câmera com
-///   SetExternalPoseControl sem disputar posição/rotação com este controlador.
+///   SetExternalPoseControl sem disputar posição/rotação com este controlador;
+/// - entrada externa mobile é acumulada e aplicada uma vez por frame.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Camera))]
@@ -43,6 +44,12 @@ public sealed class PlayerCameraController : MonoBehaviour
     public bool instantOnStart = true;
     public bool instantOnModeChange = true;
 
+    [Header("Entrada Mobile")]
+    [Tooltip("Graus aplicados por pixel arrastado na área de olhar mobile.")]
+    [Min(0.001f)] public float mobileLookSensitivityX = 0.12f;
+    [Min(0.001f)] public float mobileLookSensitivityY = 0.10f;
+    public bool mobileAimAlsoUsesFirstPerson = true;
+
     [Header("Primeira pessoa")]
     public Renderer[] renderersHiddenInFirstPerson;
 
@@ -70,6 +77,8 @@ public sealed class PlayerCameraController : MonoBehaviour
     private bool cursorInitialized;
     private bool initialized;
     private bool externalPoseControl;
+    private bool mobileFirstPersonHeld;
+    private Vector2 pendingMobileLookDelta;
     private bool loggedMissingThirdPerson;
     private bool loggedMissingFirstPerson;
     private bool loggedMissingPlayer;
@@ -77,6 +86,7 @@ public sealed class PlayerCameraController : MonoBehaviour
     public ViewMode CurrentMode => currentMode;
     public bool IsFirstPerson => currentMode == ViewMode.FirstPerson;
     public bool ExternalPoseControl => externalPoseControl;
+    public bool MobileFirstPersonHeld => mobileFirstPersonHeld;
     public Transform ActiveCameraTransform => gameCamera != null ? gameCamera.transform : transform;
 
     private void Reset()
@@ -124,6 +134,15 @@ public sealed class PlayerCameraController : MonoBehaviour
             ForceImmediatePose();
     }
 
+    private void OnDisable()
+    {
+        mobileFirstPersonHeld = false;
+        pendingMobileLookDelta = Vector2.zero;
+
+        if (firstPerson != null)
+            firstPerson.SetExternalAimHeld(false);
+    }
+
     private void Update()
     {
         ResolveReferences();
@@ -137,25 +156,37 @@ public sealed class PlayerCameraController : MonoBehaviour
         }
 
         if (externalPoseControl)
+        {
+            pendingMobileLookDelta = Vector2.zero;
             return;
+        }
 
         HandleModeInput();
         ApplyCursorState();
 
         if (GameplayInputState.IsBlocked)
+        {
+            pendingMobileLookDelta = Vector2.zero;
             return;
+        }
 
         float deltaTime = SafeDeltaTime();
 
         if (IsFirstPerson)
         {
             if (firstPerson != null)
+            {
                 firstPerson.ReadInput(deltaTime);
+                ApplyPendingMobileLook(firstPerson, null);
+            }
         }
         else
         {
             if (thirdPerson != null)
+            {
                 thirdPerson.ReadInput(deltaTime);
+                ApplyPendingMobileLook(null, thirdPerson);
+            }
         }
     }
 
@@ -194,6 +225,39 @@ public sealed class PlayerCameraController : MonoBehaviour
         SetMode(IsFirstPerson ? ViewMode.ThirdPerson : ViewMode.FirstPerson);
     }
 
+    public void AddMobileLookDelta(Vector2 screenPixelDelta)
+    {
+        if (externalPoseControl || GameplayInputState.IsBlocked)
+            return;
+
+        pendingMobileLookDelta += screenPixelDelta;
+        pendingMobileLookDelta = Vector2.ClampMagnitude(pendingMobileLookDelta, 300f);
+    }
+
+    public void SetMobileFirstPersonHeld(bool held)
+    {
+        mobileFirstPersonHeld = held;
+
+        if (firstPerson != null)
+            firstPerson.SetExternalAimHeld(held);
+
+        if (!mobileAimAlsoUsesFirstPerson || externalPoseControl)
+            return;
+
+        SetMode(held ? ViewMode.FirstPerson : ViewMode.ThirdPerson);
+        previousMouseState = held;
+    }
+
+    public void SetMobileFirstPerson(bool active)
+    {
+        mobileFirstPersonHeld = false;
+
+        if (firstPerson != null)
+            firstPerson.SetExternalAimHeld(active);
+
+        SetMode(active ? ViewMode.FirstPerson : ViewMode.ThirdPerson);
+    }
+
     /// <summary>
     /// Entrega temporariamente a autoridade do Transform/FOV da câmera para outro sistema.
     /// Usado pela câmera de compra. A própria Camera permanece habilitada.
@@ -206,6 +270,10 @@ public sealed class PlayerCameraController : MonoBehaviour
         externalPoseControl = active;
         positionVelocity = Vector3.zero;
         previousMouseState = false;
+        pendingMobileLookDelta = Vector2.zero;
+
+        if (active && firstPerson != null)
+            firstPerson.SetExternalAimHeld(false);
 
         if (!active)
         {
@@ -235,7 +303,7 @@ public sealed class PlayerCameraController : MonoBehaviour
 
         if (holdRightMouseForFirstPerson)
         {
-            bool pressed = Input.GetMouseButton(firstPersonMouseButton);
+            bool pressed = Input.GetMouseButton(firstPersonMouseButton) || mobileFirstPersonHeld;
             if (pressed != previousMouseState)
             {
                 previousMouseState = pressed;
@@ -245,6 +313,25 @@ public sealed class PlayerCameraController : MonoBehaviour
 
         if (toggleKey != KeyCode.None && Input.GetKeyDown(toggleKey))
             ToggleMode();
+    }
+
+    private void ApplyPendingMobileLook(FirstPersonCamera first, ThirdPersonCamera third)
+    {
+        Vector2 pending = pendingMobileLookDelta;
+        pendingMobileLookDelta = Vector2.zero;
+
+        if (pending.sqrMagnitude <= 0.000001f)
+            return;
+
+        Vector2 degrees = new Vector2(
+            pending.x * mobileLookSensitivityX,
+            pending.y * mobileLookSensitivityY
+        );
+
+        if (first != null)
+            first.AddLookDelta(degrees);
+        else if (third != null)
+            third.AddLookDelta(degrees);
     }
 
     private void UpdatePose(bool immediate)
@@ -524,6 +611,8 @@ public sealed class PlayerCameraController : MonoBehaviour
         fieldOfViewSpeed = Mathf.Max(0f, fieldOfViewSpeed);
         initialValidationDuration = Mathf.Max(0.1f, initialValidationDuration);
         initialValidationInterval = Mathf.Max(0.05f, initialValidationInterval);
+        mobileLookSensitivityX = Mathf.Max(0.001f, mobileLookSensitivityX);
+        mobileLookSensitivityY = Mathf.Max(0.001f, mobileLookSensitivityY);
     }
 
     private void OnValidate()
