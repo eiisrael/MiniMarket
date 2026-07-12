@@ -6,23 +6,39 @@ using Object = UnityEngine.Object;
 
 /// <summary>
 /// Minimapa autônomo para Desktop e Mobile.
-/// Cria câmera ortográfica com RenderTexture, UI circular, ponto do jogador e zoom.
-/// Não depende dos scripts antigos removidos durante a organização do projeto.
+/// Pode existir como componente salvo na cena para edição completa pelo Inspector.
+/// Se não existir, uma instância runtime é criada automaticamente.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(24000)]
 public sealed class RuntimeMiniMap : MonoBehaviour
 {
+    public enum MiniMapAnchor
+    {
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight
+    }
+
     public static RuntimeMiniMap Instance { get; private set; }
 
     [Header("Alvo")]
     public Transform target;
     [Min(0.25f)] public float targetSearchInterval = 1f;
 
-    [Header("Visual")]
+    [Header("Layout editável")]
+    public MiniMapAnchor anchor = MiniMapAnchor.TopLeft;
     [Min(96f)] public float desktopSize = 220f;
     [Min(96f)] public float mobileSize = 170f;
     public Vector2 margin = new Vector2(22f, 22f);
+    [Min(24f)] public float zoomButtonSize = 38f;
+    [Min(0f)] public float zoomButtonGap = 8f;
+    public bool showZoomButtons = true;
+    public bool showPlayerDot = true;
+    public int canvasSortingOrder = 80;
+
+    [Header("Cores")]
     public Color borderColor = new Color(0f, 0f, 0f, 0.72f);
     public Color playerColor = new Color(1f, 0.16f, 0.08f, 1f);
     public Color buttonColor = new Color(0.05f, 0.07f, 0.09f, 0.9f);
@@ -36,19 +52,25 @@ public sealed class RuntimeMiniMap : MonoBehaviour
     [Min(0.5f)] public float zoomStep = 4f;
     public bool rotateWithPlayer;
     public LayerMask visibleLayers = ~0;
+    [Range(128, 1024)] public int desktopTextureResolution = 512;
+    [Range(128, 512)] public int mobileTextureResolution = 256;
 
     [Header("Input")]
     public KeyCode toggleKey = KeyCode.M;
     public bool startOpen = true;
 
-    private Camera mapCamera;
+    [Header("Referências runtime (somente leitura prática)")]
+    [SerializeField] private Camera mapCamera;
+    [SerializeField] private Canvas canvas;
+    [SerializeField] private RectTransform rootRect;
+    [SerializeField] private RawImage mapImage;
+    [SerializeField] private Image playerDot;
+    [SerializeField] private Button zoomInButton;
+    [SerializeField] private Button zoomOutButton;
+
     private RenderTexture renderTexture;
-    private Canvas canvas;
-    private RectTransform rootRect;
-    private RawImage mapImage;
-    private Image playerDot;
-    private Button zoomInButton;
-    private Button zoomOutButton;
+    private Image borderImage;
+    private RectTransform borderRect;
     private Texture2D circleTexture;
     private Sprite circleSprite;
     private float nextTargetSearch;
@@ -56,6 +78,7 @@ public sealed class RuntimeMiniMap : MonoBehaviour
 
     public bool IsOpen => isOpen;
     public Camera MapCamera => mapCamera;
+    public RenderTexture MapTexture => renderTexture;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -71,6 +94,7 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         {
             Instance = existing;
             existing.ResolveTarget(true);
+            existing.EnsureBuilt();
             existing.SetOpen(existing.isOpen);
             return;
         }
@@ -89,13 +113,15 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+
+        if (transform.parent == null)
+            DontDestroyOnLoad(gameObject);
+
         SceneManager.sceneLoaded += HandleSceneLoaded;
 
         isOpen = startOpen;
         DisableLegacyMiniMaps();
-        BuildCamera();
-        BuildUI();
+        EnsureBuilt();
         ResolveTarget(true);
         SetOpen(isOpen);
     }
@@ -103,17 +129,7 @@ public sealed class RuntimeMiniMap : MonoBehaviour
     private void OnDestroy()
     {
         SceneManager.sceneLoaded -= HandleSceneLoaded;
-
-        if (renderTexture != null)
-        {
-            renderTexture.Release();
-            Destroy(renderTexture);
-        }
-
-        if (circleSprite != null)
-            Destroy(circleSprite);
-        if (circleTexture != null)
-            Destroy(circleTexture);
+        ReleaseGeneratedResources();
 
         if (Instance == this)
             Instance = null;
@@ -124,12 +140,14 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         nextTargetSearch = 0f;
         ResolveTarget(true);
         DisableLegacyMiniMaps();
+        EnsureBuilt();
+        ApplyInspectorSettings();
         SetOpen(isOpen);
     }
 
     private void Update()
     {
-        if (Input.GetKeyDown(toggleKey))
+        if (toggleKey != KeyCode.None && Input.GetKeyDown(toggleKey))
             Toggle();
 
         if (target == null && Time.unscaledTime >= nextTargetSearch)
@@ -138,17 +156,12 @@ public sealed class RuntimeMiniMap : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (mapCamera == null)
-            BuildCamera();
-        if (rootRect == null)
-            BuildUI();
+        EnsureBuilt();
 
-        if (target == null)
+        if (target == null || mapCamera == null)
             return;
 
-        Vector3 position = target.position + Vector3.up * cameraHeight;
-        mapCamera.transform.position = position;
-
+        mapCamera.transform.position = target.position + Vector3.up * cameraHeight;
         float yaw = rotateWithPlayer ? target.eulerAngles.y : 0f;
         mapCamera.transform.rotation = Quaternion.Euler(90f, yaw, 0f);
         mapCamera.orthographicSize = Mathf.Clamp(zoom, minimumZoom, maximumZoom);
@@ -184,6 +197,59 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         zoom = Mathf.Clamp(zoom + zoomStep, minimumZoom, maximumZoom);
     }
 
+    [ContextMenu("MiniMap/Aplicar configurações do Inspector")]
+    public void ApplyInspectorSettings()
+    {
+        ValidateSettings();
+
+        if (mapCamera != null)
+        {
+            mapCamera.backgroundColor = cameraBackground;
+            mapCamera.cullingMask = visibleLayers;
+            mapCamera.orthographicSize = zoom;
+        }
+
+        if (canvas != null)
+            canvas.sortingOrder = canvasSortingOrder;
+
+        ApplyLayout();
+
+        if (borderImage != null)
+            borderImage.color = borderColor;
+        if (playerDot != null)
+        {
+            playerDot.color = playerColor;
+            playerDot.gameObject.SetActive(showPlayerDot);
+        }
+        if (zoomInButton != null)
+        {
+            zoomInButton.gameObject.SetActive(showZoomButtons);
+            Image image = zoomInButton.targetGraphic as Image;
+            if (image != null) image.color = buttonColor;
+        }
+        if (zoomOutButton != null)
+        {
+            zoomOutButton.gameObject.SetActive(showZoomButtons);
+            Image image = zoomOutButton.targetGraphic as Image;
+            if (image != null) image.color = buttonColor;
+        }
+    }
+
+    [ContextMenu("MiniMap/Recriar câmera e visual runtime")]
+    public void RebuildRuntimeVisuals()
+    {
+        if (!Application.isPlaying)
+        {
+            Debug.Log("[RuntimeMiniMap] As configurações estão salvas. A recriação visual acontece ao entrar no Play Mode.", this);
+            return;
+        }
+
+        DestroyRuntimeChildren();
+        ReleaseGeneratedResources();
+        EnsureBuilt();
+        SetOpen(isOpen);
+    }
+
     private void ResolveTarget(bool force)
     {
         if (!force && target != null)
@@ -210,12 +276,26 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         }
     }
 
+    private void EnsureBuilt()
+    {
+        if (mapCamera == null)
+            BuildCamera();
+        if (rootRect == null)
+            BuildUI();
+
+        ApplyInspectorSettings();
+    }
+
     private void BuildCamera()
     {
         if (mapCamera != null)
             return;
 
-        int resolution = Application.isMobilePlatform ? 256 : 512;
+        int configuredResolution = Application.isMobilePlatform
+            ? mobileTextureResolution
+            : desktopTextureResolution;
+        int resolution = Mathf.Clamp(configuredResolution, 128, 1024);
+
         renderTexture = new RenderTexture(resolution, resolution, 16, RenderTextureFormat.ARGB32)
         {
             name = "RuntimeMiniMapTexture",
@@ -254,7 +334,7 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         canvasObject.transform.SetParent(transform, false);
         canvas = canvasObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 80;
+        canvas.sortingOrder = canvasSortingOrder;
 
         CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -262,25 +342,14 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         canvasObject.AddComponent<GraphicRaycaster>();
 
-        float size = Application.isMobilePlatform ? mobileSize : desktopSize;
-
         GameObject root = new GameObject("MiniMap", typeof(RectTransform));
         root.transform.SetParent(canvasObject.transform, false);
         rootRect = root.GetComponent<RectTransform>();
-        rootRect.anchorMin = new Vector2(0f, 1f);
-        rootRect.anchorMax = new Vector2(0f, 1f);
-        rootRect.pivot = new Vector2(0f, 1f);
-        rootRect.anchoredPosition = new Vector2(margin.x, -margin.y);
-        rootRect.sizeDelta = new Vector2(size + 46f, size);
 
         GameObject borderObject = CreateImage("Border", rootRect, circleSprite, borderColor);
-        RectTransform borderRect = borderObject.GetComponent<RectTransform>();
-        borderRect.anchorMin = new Vector2(0f, 0f);
-        borderRect.anchorMax = new Vector2(0f, 1f);
-        borderRect.pivot = new Vector2(0f, 0.5f);
-        borderRect.sizeDelta = new Vector2(size, 0f);
-        borderRect.anchoredPosition = Vector2.zero;
-        borderObject.GetComponent<Image>().raycastTarget = false;
+        borderRect = borderObject.GetComponent<RectTransform>();
+        borderImage = borderObject.GetComponent<Image>();
+        borderImage.raycastTarget = false;
 
         GameObject maskObject = CreateImage("CircularMask", borderRect, circleSprite, Color.white);
         RectTransform maskRect = maskObject.GetComponent<RectTransform>();
@@ -312,12 +381,82 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         playerDot = dotObject.GetComponent<Image>();
         playerDot.raycastTarget = false;
 
-        zoomInButton = CreateButton("ZoomIn", rootRect, "+", new Vector2(size + 8f, -size * 0.3f));
-        zoomOutButton = CreateButton("ZoomOut", rootRect, "−", new Vector2(size + 8f, -size * 0.62f));
+        zoomInButton = CreateButton("ZoomIn", rootRect, "+");
+        zoomOutButton = CreateButton("ZoomOut", rootRect, "−");
         zoomInButton.onClick.AddListener(ZoomIn);
         zoomOutButton.onClick.AddListener(ZoomOut);
 
+        ApplyInspectorSettings();
         SetOpen(isOpen);
+    }
+
+    private void ApplyLayout()
+    {
+        if (rootRect == null)
+            return;
+
+        float size = Application.isMobilePlatform ? mobileSize : desktopSize;
+        Vector2 anchorValue;
+        Vector2 pivotValue;
+        Vector2 anchoredPosition;
+
+        switch (anchor)
+        {
+            case MiniMapAnchor.TopRight:
+                anchorValue = pivotValue = new Vector2(1f, 1f);
+                anchoredPosition = new Vector2(-margin.x, -margin.y);
+                break;
+            case MiniMapAnchor.BottomLeft:
+                anchorValue = pivotValue = new Vector2(0f, 0f);
+                anchoredPosition = new Vector2(margin.x, margin.y);
+                break;
+            case MiniMapAnchor.BottomRight:
+                anchorValue = pivotValue = new Vector2(1f, 0f);
+                anchoredPosition = new Vector2(-margin.x, margin.y);
+                break;
+            default:
+                anchorValue = pivotValue = new Vector2(0f, 1f);
+                anchoredPosition = new Vector2(margin.x, -margin.y);
+                break;
+        }
+
+        rootRect.anchorMin = anchorValue;
+        rootRect.anchorMax = anchorValue;
+        rootRect.pivot = pivotValue;
+        rootRect.anchoredPosition = anchoredPosition;
+        rootRect.sizeDelta = new Vector2(size + zoomButtonSize + zoomButtonGap, size);
+
+        if (borderRect != null)
+        {
+            bool rightAnchored = anchor == MiniMapAnchor.TopRight || anchor == MiniMapAnchor.BottomRight;
+            borderRect.anchorMin = rightAnchored ? new Vector2(1f, 0f) : new Vector2(0f, 0f);
+            borderRect.anchorMax = rightAnchored ? new Vector2(1f, 1f) : new Vector2(0f, 1f);
+            borderRect.pivot = rightAnchored ? new Vector2(1f, 0.5f) : new Vector2(0f, 0.5f);
+            borderRect.sizeDelta = new Vector2(size, 0f);
+            borderRect.anchoredPosition = Vector2.zero;
+        }
+
+        PositionZoomButton(zoomInButton, size, 0.30f);
+        PositionZoomButton(zoomOutButton, size, 0.62f);
+    }
+
+    private void PositionZoomButton(Button button, float size, float verticalRatio)
+    {
+        if (button == null)
+            return;
+
+        RectTransform rect = button.transform as RectTransform;
+        bool rightAnchored = anchor == MiniMapAnchor.TopLeft || anchor == MiniMapAnchor.BottomLeft;
+        bool topAnchored = anchor == MiniMapAnchor.TopLeft || anchor == MiniMapAnchor.TopRight;
+
+        rect.anchorMin = new Vector2(rightAnchored ? 0f : 1f, topAnchored ? 1f : 0f);
+        rect.anchorMax = rect.anchorMin;
+        rect.pivot = new Vector2(rightAnchored ? 0f : 1f, topAnchored ? 1f : 0f);
+
+        float x = rightAnchored ? size + zoomButtonGap : -(size + zoomButtonGap);
+        float y = topAnchored ? -(size * verticalRatio) : size * verticalRatio;
+        rect.anchoredPosition = new Vector2(x, y);
+        rect.sizeDelta = new Vector2(zoomButtonSize, zoomButtonSize);
     }
 
     private GameObject CreateImage(string name, Transform parent, Sprite sprite, Color color)
@@ -330,15 +469,11 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         return targetObject;
     }
 
-    private Button CreateButton(string name, Transform parent, string label, Vector2 position)
+    private Button CreateButton(string name, Transform parent, string label)
     {
         GameObject buttonObject = CreateImage(name, parent, circleSprite, buttonColor);
         RectTransform rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = position;
-        rect.sizeDelta = new Vector2(38f, 38f);
+        rect.sizeDelta = new Vector2(zoomButtonSize, zoomButtonSize);
 
         Button button = buttonObject.AddComponent<Button>();
         button.targetGraphic = buttonObject.GetComponent<Image>();
@@ -426,14 +561,66 @@ public sealed class RuntimeMiniMap : MonoBehaviour
         }
     }
 
-    private void OnValidate()
+    private void DestroyRuntimeChildren()
+    {
+        if (mapCamera != null)
+            Destroy(mapCamera.gameObject);
+        if (canvas != null)
+            Destroy(canvas.gameObject);
+
+        mapCamera = null;
+        canvas = null;
+        rootRect = null;
+        mapImage = null;
+        playerDot = null;
+        zoomInButton = null;
+        zoomOutButton = null;
+        borderImage = null;
+        borderRect = null;
+    }
+
+    private void ReleaseGeneratedResources()
+    {
+        if (renderTexture != null)
+        {
+            renderTexture.Release();
+            Destroy(renderTexture);
+            renderTexture = null;
+        }
+
+        if (circleSprite != null)
+        {
+            Destroy(circleSprite);
+            circleSprite = null;
+        }
+
+        if (circleTexture != null)
+        {
+            Destroy(circleTexture);
+            circleTexture = null;
+        }
+    }
+
+    private void ValidateSettings()
     {
         desktopSize = Mathf.Max(96f, desktopSize);
         mobileSize = Mathf.Max(96f, mobileSize);
+        zoomButtonSize = Mathf.Max(24f, zoomButtonSize);
+        zoomButtonGap = Mathf.Max(0f, zoomButtonGap);
         cameraHeight = Mathf.Max(10f, cameraHeight);
         minimumZoom = Mathf.Max(2f, minimumZoom);
         maximumZoom = Mathf.Max(minimumZoom + 1f, maximumZoom);
         zoom = Mathf.Clamp(zoom, minimumZoom, maximumZoom);
         zoomStep = Mathf.Max(0.5f, zoomStep);
+        desktopTextureResolution = Mathf.Clamp(desktopTextureResolution, 128, 1024);
+        mobileTextureResolution = Mathf.Clamp(mobileTextureResolution, 128, 512);
+    }
+
+    private void OnValidate()
+    {
+        ValidateSettings();
+
+        if (Application.isPlaying)
+            ApplyInspectorSettings();
     }
 }
