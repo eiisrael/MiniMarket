@@ -12,6 +12,18 @@ Este relatório registra a recuperação dos sistemas que deixaram de funcionar 
 
 O sistema de compra antigo continuava usando `BuySceneCameraModeController`, mas o novo `PlayerCameraController` também aplicava posição, rotação e FOV em `LateUpdate`. Os dois sistemas disputavam a mesma câmera. Além disso, componentes antigos da BuyScene foram removidos ou ficaram sem referências durante a organização local.
 
+### Falha de compilação CS0246
+
+A organização local apagou `BuySceneCameraModeController.cs` e `BuySceneEntryTrigger.cs` da pasta antiga, enquanto os novos arquivos `PurchaseModeBridge`, `PurchaseSystemBootstrapHost` e `FirstPersonReticleController` continuavam dependendo desses tipos. Isso bloqueava todo o Play Mode.
+
+Correção aplicada:
+
+- `BuySceneCameraModeController.cs` foi restaurado em `Assets/Scripts/Purchasing`;
+- `BuySceneEntryTrigger.cs` foi restaurado em `Assets/Scripts/Purchasing`;
+- os GUIDs originais foram preservados para manter referências de cenas e prefabs;
+- os arquivos antigos em `Assets/Scripts/BuyScene` foram removidos para impedir classes duplicadas;
+- o controlador restaurado usa `CameraRelativeMovement` e `PlayerCameraController` como referências oficiais.
+
 ### Minimapa
 
 A câmera principal desativava todas as outras câmeras da cena. Isso incluía a câmera do minimapa, mesmo ela renderizando para uma `RenderTexture`. O minimapa antigo também procurava `PlayerMove`, que não é mais o movimento oficial.
@@ -36,6 +48,23 @@ Não existia um controlador de visibilidade ligado ao modo atual da câmera.
 - expõe `SetExternalPoseControl(bool)`;
 - suspende atualização de pose e cursor quando outro sistema assume a câmera;
 - retoma imediatamente a pose normal ao liberar o controle externo.
+
+### `BuySceneCameraModeController`
+
+- usa a câmera oficial do `PlayerCameraController`;
+- mantém os campos públicos antigos para preservar a serialização da cena;
+- controla visão aérea, modo ortográfico, cursor e restauração da pose;
+- não recria sistemas antigos de câmera;
+- mantém compatibilidade com os marcadores de terreno existentes.
+
+### `BuySceneEntryTrigger`
+
+- funciona no collider real da calçada;
+- detecta `CameraRelativeMovement` e `CharacterController`;
+- abre e fecha com E;
+- recria borda e X visual por `LineRenderer` em runtime;
+- procura terrenos próximos quando a lista serializada estiver vazia;
+- não cria objetos durante `OnValidate`.
 
 ### `PurchaseModeBridge`
 
@@ -81,6 +110,12 @@ Não existia um controlador de visibilidade ligado ao modo atual da câmera.
 - detecta elementos de mira pelo nome;
 - mostra somente em primeira pessoa;
 - oculta em terceira pessoa, menu e compra.
+
+## Avisos do Input Manager e Burst
+
+O aviso de depreciação do Input Manager não bloqueia compilação. O projeto mantém entrada legada por compatibilidade enquanto o suporte mobile externo é conectado.
+
+As mensagens `not a known Burst entry point` vêm dos pacotes de renderização/Burst, não dos scripts de gameplay. O projeto está em Unity `6000.7.0a1` e o lock de pacotes resolve Burst builtin 2.0.0, enquanto dependências de Collections e Render Pipeline declaram versões 1.8.x. Após corrigir todos os erros C#, deve-se fechar o Unity e limpar primeiro os caches gerados de Burst/Temp. Não alterar versões de pacotes antes de confirmar se as mensagens permanecem após a recompilação limpa.
 
 ## Ferramenta de reparo da cena
 
