@@ -8,7 +8,8 @@ using Object = UnityEngine.Object;
 /// <summary>
 /// Controla automaticamente imagens de mira/crosshair da UI.
 /// A mira aparece apenas em primeira pessoa e fica oculta em terceira pessoa,
-/// menus e modo de compra.
+/// menus e modo de compra. O sprite muda para click_on enquanto um objeto está
+/// selecionado ou sendo segurado.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(26000)]
@@ -16,13 +17,27 @@ public sealed class FirstPersonReticleController : MonoBehaviour
 {
     public static FirstPersonReticleController Instance { get; private set; }
 
+    [Header("Atualização")]
     [Min(0.25f)] public float scanInterval = 1f;
     public bool hideWhenGameplayInputBlocked = true;
 
+    [Header("Sprites da mão/mira")]
+    public Sprite idleSprite;
+    public Sprite selectedSprite;
+    public Sprite holdingSprite;
+    public bool autoDetectSpritesByName = true;
+    public string idleSpriteName = "click_off";
+    public string activeSpriteName = "click_on";
+    public bool useActiveSpriteWhenSelected = true;
+    public bool useActiveSpriteWhenHolding = true;
+
     private readonly List<Graphic> reticles = new List<Graphic>(8);
+    private readonly List<Image> reticleImages = new List<Image>(8);
     private PlayerCameraController cameraController;
     private BuySceneCameraModeController purchaseController;
+    private GetItemController getItemController;
     private float nextScan;
+    private bool spriteSearchDone;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -55,7 +70,10 @@ public sealed class FirstPersonReticleController : MonoBehaviour
         }
 
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+
+        if (transform.parent == null)
+            DontDestroyOnLoad(gameObject);
+
         SceneManager.sceneLoaded += HandleSceneLoaded;
         Rescan();
     }
@@ -70,6 +88,7 @@ public sealed class FirstPersonReticleController : MonoBehaviour
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         nextScan = 0f;
+        spriteSearchDone = false;
         Rescan();
     }
 
@@ -101,25 +120,118 @@ public sealed class FirstPersonReticleController : MonoBehaviour
             if (graphic.enabled != show)
                 graphic.enabled = show;
         }
+
+        if (show)
+            ApplyReticleSprite();
     }
 
-    [ContextMenu("Mira/Rebuscar elementos")]
+    [ContextMenu("Mira/Rebuscar elementos e sprites")]
     public void Rescan()
     {
         cameraController = Object.FindAnyObjectByType<PlayerCameraController>(FindObjectsInactive.Include);
         purchaseController = Object.FindAnyObjectByType<BuySceneCameraModeController>(FindObjectsInactive.Include);
 
-        reticles.Clear();
-        Graphic[] graphics = Object.FindObjectsByType<Graphic>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        if (cameraController != null)
+            getItemController = cameraController.GetComponent<GetItemController>();
+        if (getItemController == null)
+            getItemController = Object.FindAnyObjectByType<GetItemController>(FindObjectsInactive.Include);
 
+        reticles.Clear();
+        reticleImages.Clear();
+
+        Graphic[] graphics = Object.FindObjectsByType<Graphic>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < graphics.Length; i++)
         {
             Graphic graphic = graphics[i];
             if (graphic == null || graphic.GetComponentInParent<Canvas>() == null)
                 continue;
 
-            if (IsReticleName(graphic.name))
-                reticles.Add(graphic);
+            if (!IsReticleName(graphic.name))
+                continue;
+
+            reticles.Add(graphic);
+            if (graphic is Image image)
+                reticleImages.Add(image);
+        }
+
+        ResolveSpriteReferences(graphics);
+    }
+
+    private void ApplyReticleSprite()
+    {
+        bool holding = getItemController != null && getItemController.IsHolding;
+        bool selected = getItemController != null && getItemController.SelectedItem != null;
+
+        Sprite desired = idleSprite;
+        if (holding && useActiveSpriteWhenHolding)
+            desired = holdingSprite != null ? holdingSprite : selectedSprite;
+        else if (selected && useActiveSpriteWhenSelected)
+            desired = selectedSprite;
+
+        if (desired == null)
+            return;
+
+        for (int i = reticleImages.Count - 1; i >= 0; i--)
+        {
+            Image image = reticleImages[i];
+            if (image == null)
+            {
+                reticleImages.RemoveAt(i);
+                continue;
+            }
+
+            if (image.sprite != desired)
+                image.sprite = desired;
+        }
+    }
+
+    private void ResolveSpriteReferences(Graphic[] graphics)
+    {
+        if (reticleImages.Count > 0 && idleSprite == null)
+            idleSprite = reticleImages[0].sprite;
+
+        if (!autoDetectSpritesByName || spriteSearchDone)
+            return;
+
+        spriteSearchDone = true;
+
+        for (int i = 0; i < graphics.Length; i++)
+        {
+            if (!(graphics[i] is Image image) || image.sprite == null)
+                continue;
+
+            TryAssignNamedSprite(image.sprite);
+        }
+
+        if (selectedSprite == null || holdingSprite == null || idleSprite == null)
+        {
+            Sprite[] loadedSprites = Resources.FindObjectsOfTypeAll<Sprite>();
+            for (int i = 0; i < loadedSprites.Length; i++)
+                TryAssignNamedSprite(loadedSprites[i]);
+        }
+
+        if (holdingSprite == null)
+            holdingSprite = selectedSprite;
+    }
+
+    private void TryAssignNamedSprite(Sprite sprite)
+    {
+        if (sprite == null || string.IsNullOrWhiteSpace(sprite.name))
+            return;
+
+        string lower = sprite.name.ToLowerInvariant();
+        string idle = string.IsNullOrWhiteSpace(idleSpriteName) ? "click_off" : idleSpriteName.ToLowerInvariant();
+        string active = string.IsNullOrWhiteSpace(activeSpriteName) ? "click_on" : activeSpriteName.ToLowerInvariant();
+
+        if (idleSprite == null && lower.Contains(idle))
+            idleSprite = sprite;
+
+        if (lower.Contains(active))
+        {
+            if (selectedSprite == null)
+                selectedSprite = sprite;
+            if (holdingSprite == null)
+                holdingSprite = sprite;
         }
     }
 
@@ -133,7 +245,7 @@ public sealed class FirstPersonReticleController : MonoBehaviour
         if (ContainsAny(lower, "button", "botao", "botão", "slider", "texto", "text", "label", "config"))
             return false;
 
-        return ContainsAny(lower, "mira", "crosshair", "reticle", "aimpoint", "aim_point", "ponto_mira");
+        return ContainsAny(lower, "mira", "crosshair", "reticle", "aimpoint", "aim_point", "ponto_mira", "click_cursor");
     }
 
     private bool ContainsAny(string value, params string[] terms)
@@ -145,5 +257,10 @@ public sealed class FirstPersonReticleController : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void OnValidate()
+    {
+        scanInterval = Mathf.Max(0.25f, scanInterval);
     }
 }
