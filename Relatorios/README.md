@@ -13,6 +13,10 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 5. Atualizar `CHANGELOG_TECNICO.md` e o relatório da área no mesmo conjunto de alterações.
 6. Executar `TESTES_POS_GIT_PULL.md` antes de considerar a atualização concluída.
 
+## Relatório mais recente
+
+- `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: stamina visual, soltura segura, `Buy_Area`, minimapa editável, controles touch e sprite `click_on`.
+
 ## Relatórios disponíveis
 
 - `ESTADO_ATUAL.md`: arquitetura válida, sistemas ativos, sistemas obsoletos e riscos conhecidos.
@@ -20,6 +24,8 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `STAMINA_HUD.md`: energia segmentada, HUD, persistência e contratos públicos.
 - `INTERACOES.md`: seleção, realce, portas, caixas, objetos móveis e entrada mobile.
 - `DESKTOP_MOBILE.md`: perfil de renderização e entrada para as duas plataformas.
+- `RECUPERACAO_COMPRA_MINIMAPA_ENERGIA.md`: recuperação dos sistemas removidos pela organização antiga.
+- `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: melhorias de 2026-07-12.
 - `TESTES_POS_GIT_PULL.md`: checklist de compilação e validação manual.
 - `CHANGELOG_TECNICO.md`: histórico das mudanças que afetam arquitetura ou comportamento.
 
@@ -31,12 +37,21 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - Objetos interativos: `InteractionFocusController.cs`, `InteractiveObject.cs` e `InteractionHighlight.cs`.
 - Banco: `Assets/Scripts/Database/MiniMarketPlayerDatabase.cs`.
 - HUD de energia: `Assets/Scripts/UI/MiniMarketEnergySegmentHUD.cs`.
+- Minimapa: `Assets/Scripts/UI/RuntimeMiniMap.cs`.
+- Controles mobile: `Assets/Scripts/UI/MobileControlsHUD.cs`.
+- Mira: `Assets/Scripts/UI/FirstPersonReticleController.cs`.
 - Perfil de renderização: `Assets/Scripts/Performance/PlatformRenderProfile.cs`.
 
-## Regra de nomenclatura
+## Regras permanentes
 
-O projeto ainda contém classes antigas com prefixo `MiniMarket` por compatibilidade de cena e serialização. Novos sistemas devem usar nomes de função claros. Um nome antigo não significa que aquela classe seja a arquitetura ativa.
+- Não alterar conteúdo de `Assets/Brick Project Studio`.
+- Não mover ou apagar scripts automaticamente.
+- Preservar GUIDs e referências de cena.
+- Evitar referências serializadas entre a cena normal e `DontDestroyOnLoad`.
+- Não gravar banco, PlayerPrefs ou arquivos a cada frame.
+- Desktop e Mobile devem compartilhar a mesma lógica de gameplay.
+- Não afirmar que o Unity compilou ou executou sem validação no Editor local.
 
 ## Quando houver divergência
 
-Se o relatório contradizer o código, o código real deve ser inspecionado e o relatório corrigido imediatamente. Nunca inventar a intenção de um campo, componente ou objeto de cena.
+Se o relatório contradisser o código, o código real deve ser inspecionado e o relatório corrigido imediatamente. Nunca inventar a intenção de um campo, componente ou objeto de cena.
