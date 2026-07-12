@@ -5,6 +5,9 @@ using UnityEngine;
 /// Manipulação física de objetos em primeira ou terceira pessoa.
 /// Seleciona pelo centro da câmera, destaca o alvo, segura com mola/amortecimento,
 /// respeita paredes e oferece entrada externa para botões mobile.
+///
+/// Soltar e arremessar são ações distintas: perder a mira, trocar de visão ou liberar
+/// o botão de pegar sempre faz uma queda segura, sem herdar o salto de velocidade da câmera.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(1200)]
@@ -16,8 +19,8 @@ public sealed class GetItemController : MonoBehaviour
     public PlayerCameraController cameraController;
 
     [Header("Uso")]
-    public bool onlyInFirstPerson = false;
-    [Range(0, 2)] public int grabMouseButton = 0;
+    public bool onlyInFirstPerson;
+    [Range(0, 2)] public int grabMouseButton;
     public KeyCode throwKey = KeyCode.F;
 
     [Header("Seleção")]
@@ -52,14 +55,25 @@ public sealed class GetItemController : MonoBehaviour
     [Min(0.5f)] public float releaseErrorDistance = 3f;
     public bool ignorePlayerCollisionsWhileHeld = true;
 
-    [Header("Soltar / Arremessar")]
+    [Header("Soltar com segurança")]
+    [Tooltip("Se o objeto foi pego em primeira pessoa, sair da mira faz o objeto cair.")]
+    public bool dropWhenLeavingFirstPerson = true;
+
+    [Tooltip("Uma soltura normal não herda a velocidade causada pela transição da câmera.")]
+    public bool inheritCameraVelocityOnNormalRelease;
+
+    [Range(0f, 1f)] public float safeDropVelocityMultiplier = 0.12f;
+    [Range(0f, 1f)] public float safeDropAngularVelocityMultiplier = 0.2f;
+    [Min(0f)] public float maximumSafeDropSpeed = 1.25f;
+
+    [Header("Arremessar explicitamente")]
     [Min(0f)] public float throwForce = 8f;
     [Range(0f, 1f)] public float inheritCameraVelocity = 0.25f;
     [Range(0f, 1f)] public float releaseVelocityMultiplier = 0.65f;
 
     [Header("Preparação automática")]
     public bool addRigidbodyWhenMissing = true;
-    public bool addColliderWhenMissing = false;
+    public bool addColliderWhenMissing;
     [Min(0.01f)] public float defaultMass = 1f;
 
     [Header("Debug")]
@@ -81,6 +95,7 @@ public sealed class GetItemController : MonoBehaviour
     private Quaternion heldRotation;
     private Vector3 previousCameraPosition;
     private Vector3 cameraVelocity;
+    private bool heldStartedInFirstPerson;
 
     private bool originalUseGravity;
     private bool originalIsKinematic;
@@ -131,8 +146,15 @@ public sealed class GetItemController : MonoBehaviour
 
         bool grabDown = Input.GetMouseButtonDown(grabMouseButton) || externalGrabDown;
         bool grabUp = Input.GetMouseButtonUp(grabMouseButton) || externalGrabUp;
-        bool throwRequested = Input.GetKeyDown(throwKey) || externalThrow;
+        bool throwRequested = (throwKey != KeyCode.None && Input.GetKeyDown(throwKey)) || externalThrow;
         ResetExternalInput();
+
+        if (IsHolding && ShouldDropBecauseAimWasLost())
+        {
+            Release(false);
+            ClearSelection();
+            return;
+        }
 
         if (GameplayInputState.IsBlocked || !CanUseInCurrentView())
         {
@@ -166,7 +188,7 @@ public sealed class GetItemController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (IsHolding && !GameplayInputState.IsBlocked)
+        if (IsHolding && !GameplayInputState.IsBlocked && !ShouldDropBecauseAimWasLost())
             MoveHeldObject();
     }
 
@@ -231,6 +253,14 @@ public sealed class GetItemController : MonoBehaviour
         return !onlyInFirstPerson || cameraController == null || cameraController.IsFirstPerson;
     }
 
+    private bool ShouldDropBecauseAimWasLost()
+    {
+        if (!IsHolding || !dropWhenLeavingFirstPerson || !heldStartedInFirstPerson)
+            return false;
+
+        return cameraController != null && !cameraController.IsFirstPerson;
+    }
+
     private void UpdateCameraVelocity()
     {
         if (cameraSource == null)
@@ -240,6 +270,9 @@ public sealed class GetItemController : MonoBehaviour
         Vector3 position = cameraSource.transform.position;
         cameraVelocity = (position - previousCameraPosition) / deltaTime;
         previousCameraPosition = position;
+
+        if (cameraVelocity.sqrMagnitude > 2500f)
+            cameraVelocity = Vector3.zero;
     }
 
     private void UpdateSelection()
@@ -351,6 +384,7 @@ public sealed class GetItemController : MonoBehaviour
         lastSelectedItem = null;
         item.SetSelected(false);
         item.SetHeld(true);
+        heldStartedInFirstPerson = cameraController != null && cameraController.IsFirstPerson;
 
         heldRotation = heldBody.rotation;
         currentHoldDistance = Mathf.Clamp(
@@ -506,14 +540,36 @@ public sealed class GetItemController : MonoBehaviour
 
         if (heldBody != null)
         {
-            Vector3 releaseVelocity = heldBody.linearVelocity * releaseVelocityMultiplier +
-                                      cameraVelocity * inheritCameraVelocity;
+            Vector3 finalVelocity;
+            Vector3 finalAngularVelocity;
+
+            if (throwItem)
+            {
+                finalVelocity = heldBody.linearVelocity * releaseVelocityMultiplier +
+                                cameraVelocity * inheritCameraVelocity;
+                finalAngularVelocity = heldBody.angularVelocity;
+            }
+            else
+            {
+                Vector3 inherited = inheritCameraVelocityOnNormalRelease
+                    ? cameraVelocity * inheritCameraVelocity
+                    : Vector3.zero;
+
+                finalVelocity = heldBody.linearVelocity * safeDropVelocityMultiplier + inherited;
+                finalVelocity = Vector3.ClampMagnitude(finalVelocity, maximumSafeDropSpeed);
+                finalAngularVelocity = heldBody.angularVelocity * safeDropAngularVelocityMultiplier;
+            }
 
             RestoreOriginalBodyState();
-            heldBody.linearVelocity = releaseVelocity;
 
-            if (throwItem && cameraSource != null)
-                heldBody.AddForce(cameraSource.transform.forward * throwForce, ForceMode.VelocityChange);
+            if (!originalIsKinematic)
+            {
+                heldBody.linearVelocity = finalVelocity;
+                heldBody.angularVelocity = finalAngularVelocity;
+
+                if (throwItem && cameraSource != null)
+                    heldBody.AddForce(cameraSource.transform.forward * throwForce, ForceMode.VelocityChange);
+            }
 
             heldBody.WakeUp();
         }
@@ -522,10 +578,11 @@ public sealed class GetItemController : MonoBehaviour
         heldItem.SetHeld(false);
         heldItem = null;
         heldBody = null;
+        heldStartedInFirstPerson = false;
         heldColliders.Clear();
 
         if (logEvents)
-            Debug.Log("[GetItem] Soltou: " + releasedItem.name + (throwItem ? " (arremesso)" : string.Empty));
+            Debug.Log("[GetItem] Soltou: " + releasedItem.name + (throwItem ? " (arremesso)" : " (queda segura)"));
     }
 
     private void CacheOriginalBodyState()
@@ -709,5 +766,6 @@ public sealed class GetItemController : MonoBehaviour
         selectionRadius = Mathf.Max(0.01f, selectionRadius);
         selectionDistance = Mathf.Max(0.1f, selectionDistance);
         releaseErrorDistance = Mathf.Max(0.5f, releaseErrorDistance);
+        maximumSafeDropSpeed = Mathf.Max(0f, maximumSafeDropSpeed);
     }
 }
