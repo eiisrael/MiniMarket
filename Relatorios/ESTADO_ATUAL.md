@@ -1,101 +1,111 @@
 # Estado atual do MiniMarket
 
-Atualizado em: 2026-07-11
+Atualizado em: 2026-07-12
 
 ## Objetivo atual
 
-O projeto possui uma única arquitetura de jogador para Desktop e Mobile. Dados persistentes, stamina, HUD, interações, compra de terrenos, minimapa, diagnósticos e renderização devem funcionar sem depender de referências entre a cena normal e objetos `DontDestroyOnLoad`.
+O projeto possui uma única arquitetura de jogador para Desktop e Mobile. Dados, stamina, HUD, interação, compra, minimapa, diagnósticos e renderização devem compartilhar lógica e evitar referências serializadas inválidas entre a cena e `DontDestroyOnLoad`.
 
 ## Sistemas ativos
 
 ### Jogador
 
-- `CameraRelativeMovement`: movimento, corrida, pulo, gravidade, rotação, stamina segmentada, Animator e input mobile externo.
-- `PlayerCameraController`: autoridade da câmera real do jogador.
-- `ThirdPersonCamera` e `FirstPersonCamera`: calculam poses para a câmera central.
-- `PlayerCameraController.SetExternalPoseControl`: entrega temporariamente a câmera a sistemas como compra de terrenos.
+- `CameraRelativeMovement`: movimento, corrida, pulo, gravidade, rotação, stamina segmentada, Animator e input externo.
+- `PlayerCameraController`: autoridade da câmera do jogador.
+- `ThirdPersonCamera` e `FirstPersonCamera`: calculam poses e aceitam deltas externos touch.
+- `SetExternalPoseControl`: entrega temporariamente a câmera à compra.
+- `AddMobileLookDelta` e `SetMobileFirstPersonHeld`: entrada oficial de câmera mobile.
 
 ### Dados
 
-- `MiniMarketPlayerDatabase`: fonte única de verdade local.
-- `PlayerGold`: fachada compatível para sistemas antigos de gold.
-- `MiniMarketPlayerProfile`: fachada compatível para nome e empresas.
+- `MiniMarketPlayerDatabase`: fonte local de verdade.
+- `PlayerGold`: fachada compatível de gold.
+- `MiniMarketPlayerProfile`: fachada compatível de nome e empresas.
 
 ### Energia
 
-- A energia segmentada pertence a `CameraRelativeMovement`.
-- A persistência pertence ao banco.
-- O HUD oficial é `MiniMarketEnergySegmentHUD`.
-- `FreeEnergyRestoreService` torna a restauração gratuita autoritativa e atualiza banco, runtime e HUD.
-- O HUD suporta barra principal e múltiplas barras segmentadas com preenchimento animado.
+- lógica segmentada em `CameraRelativeMovement`;
+- persistência no banco;
+- HUD oficial `MiniMarketEnergySegmentHUD`;
+- `FreeEnergyRestoreService` para restauração autoritativa;
+- barra principal mostra a carga ativa;
+- barras menores mostram os segmentos totais;
+- barras ausentes podem ser criadas automaticamente em runtime;
+- preenchimento de carga e descarga é animado.
 
 ### Interação
 
-- `GetItemController`: selecionar, pegar, mover, soltar e arremessar objetos físicos.
+- `GetItemController`: selecionar, pegar, mover, soltar com segurança e arremessar explicitamente.
 - `GrabbableItem`: regras do objeto móvel.
-- `InteractionFocusController`: detectar objetos interativos pela câmera.
-- `InteractiveObject`: ação genérica para portas, caixas e mecanismos.
-- `InteractionHighlight`: troca de cor sem instanciar materiais.
+- `InteractionFocusController`: foco pela câmera em primeira ou terceira pessoa.
+- `InteractiveObject`: ação genérica.
+- `InteractionHighlight`: cor por `MaterialPropertyBlock`.
+- sair da primeira pessoa enquanto segura um item pego nessa visão causa queda segura, não arremesso.
 
 ### Compra de terrenos
 
-- `BuySceneEntryTrigger`: detecta o personagem na área da calçada e processa a tecla E.
-- `BuySceneCameraModeController`: calcula/aplica a vista de compra.
-- `PurchaseModeBridge`: impede disputa entre a câmera do jogador e a câmera de compra.
-- `BuySceneLandPurchaseController`: seleção, painel, débito de gold e confirmação.
-- `BuyableLandAreaMarker`: linhas, destaque e estado persistido do terreno.
-- `PurchaseSystemBootstrapHost`: reparo runtime de referências e visuais removidos pela organização antiga.
+- `BuySceneEntryTrigger`: detecção e tecla E.
+- `BuySceneCameraModeController`: vista de compra.
+- `PurchaseModeBridge`: autoridade temporária da câmera.
+- `BuySceneLandPurchaseController`: seleção, painel, gold e confirmação.
+- `BuyableLandAreaMarker`: destaque e persistência.
+- `PurchaseSystemBootstrapHost`: reparo runtime.
+- objetos `Buy_Area` são reconhecidos explicitamente.
+- o collider sólido da calçada é preservado; o trigger fica em um filho `BuySceneEntryTrigger_Runtime`.
 
 ### Minimapa
 
-- `RuntimeMiniMap`: minimapa autônomo para Desktop/Mobile.
-- Usa câmera ortográfica com `RenderTexture`, UI circular, ponto do jogador, tecla M e botões de zoom.
-- A câmera do minimapa é preservada pelo `PlayerCameraController` por renderizar para `RenderTexture`.
+- `RuntimeMiniMap`: minimapa oficial Desktop/Mobile.
+- câmera ortográfica e `RenderTexture`.
+- posição, tamanho, margens, cores, zoom, camadas, resolução e botões editáveis pelo Inspector.
+- resolução independente para Desktop e Mobile.
+- câmera preservada pelo controlador principal por possuir `targetTexture`.
 
 ### Diagnósticos
 
-- `RuntimeDiagnosticsPanel`: painel F10 autônomo.
-- Exibe FPS, memória, câmeras, AudioListeners, banco, energia, movimento, compra e minimapa.
+- `RuntimeDiagnosticsPanel`: painel F10.
+- exibe FPS, memória, câmeras, AudioListeners, banco, energia, movimento, compra e minimapa.
 
 ### Mira
 
-- `FirstPersonReticleController`: mostra elementos de mira apenas em primeira pessoa.
-- Oculta a mira em terceira pessoa, menu/input bloqueado e modo de compra.
+- `FirstPersonReticleController`: mira somente em primeira pessoa.
+- oculta em terceira pessoa, menu e compra.
+- `click_off` no estado normal.
+- `click_on` em objeto selecionado ou segurado.
 
 ### Plataforma
 
-- `PlatformRenderProfile`: escolhe Desktop, Mobile ou Low-End Mobile e aplica limites de renderização.
-- Entrada mobile é feita por métodos públicos nos sistemas de movimento e interação. A UI touch pode chamar esses métodos por `Button`, `EventTrigger` ou outro controlador de joystick.
-- O minimapa usa RenderTexture de menor resolução no mobile.
+- `PlatformRenderProfile`: Desktop, Mobile e Low-End Mobile.
+- `MobileControlsHUD`: joystick, olhar, corrida, pulo, interação, pegar/soltar, arremessar e AIM.
+- HUD touch visível apenas em mobile, salvo teste forçado.
+- layout respeita `Screen.safeArea`.
 
 ## Sistemas obsoletos
 
-Os itens abaixo podem existir apenas por compatibilidade e não devem receber novas funcionalidades:
+Não adicionar novas funcionalidades a:
 
-- `PlayerMove` antigo.
-- `CameraV2Controller`, `Camera3Person`, `Camera1Person` e auxiliares V2 antigos.
-- `MiniMarketSegmentedStaminaRuntimeGuard`.
-- diagnósticos antigos específicos de Camera V2.
-- minimapa legado `MiniMarketMiniMapController`.
+- `PlayerMove` antigo;
+- Camera V2 antiga (`CameraV2Controller`, `Camera3Person`, `Camera1Person`);
+- `MiniMarketSegmentedStaminaRuntimeGuard`;
+- diagnósticos específicos da Camera V2;
+- `MiniMarketMiniMapController` legado.
 
-Antes de apagar uma classe obsoleta, conferir se alguma cena ou prefab ainda guarda seu GUID.
+Antes de remover qualquer classe antiga, conferir GUIDs de cenas e prefabs.
 
-## Organização de scripts
+## Organização
 
-- A organização automática destrutiva está desativada.
-- `ScriptProjectOrganizer` gera somente `Relatorios/AUDITORIA_SCRIPTS.md`.
-- Nenhuma ferramenta de organização deve mover, renomear ou apagar arquivos automaticamente.
-- Brick Project Studio permanece fora de qualquer auditoria ou reparo.
+- organização automática destrutiva desativada;
+- `ScriptProjectOrganizer` apenas audita;
+- nenhuma ferramenta deve mover, renomear ou apagar scripts automaticamente;
+- Brick Project Studio não pode ser alterado.
 
 ## Cena esperada
-
-Estrutura lógica mínima:
 
 ```text
 Character 01
 ├── CharacterController
 ├── CameraRelativeMovement
-├── Animator em si ou em um filho
+├── Animator
 ├── CameraTarget
 └── FirstPersonEye
 
@@ -108,40 +118,46 @@ PlayerCameraRig
 ├── GetItemController
 └── InteractionFocusController
 
-Área de compra existente
-├── Collider com BuySceneEntryTrigger
-├── BuySceneCameraModeController + PurchaseModeBridge
-├── BuySceneLandPurchaseController
-├── BuyableLandAreaMarker(s)
-└── Canvas/Painel de confirmação
+GameSystemsConfiguration
+├── RuntimeMiniMap
+├── MobileControlsHUD
+└── FirstPersonReticleController
+
+Buy_Area
+├── Collider sólido da calçada
+└── BuySceneEntryTrigger_Runtime
+    ├── BoxCollider trigger
+    └── BuySceneEntryTrigger
 ```
 
-Durante gameplay normal deve existir uma câmera de jogador e um AudioListener ativos. Câmeras auxiliares com `RenderTexture`, como o minimapa, podem permanecer ativas sem AudioListener.
+Durante gameplay normal existe uma câmera e um AudioListener de jogador. Câmeras auxiliares com `RenderTexture` podem permanecer ativas sem AudioListener.
 
 ## Dados persistidos
 
-- ID local do jogador.
-- nome.
-- gold.
-- gemas.
-- stamina atual e máxima.
-- quantidade atual e máxima de segmentos de energia.
-- reserva de recarga dos segmentos.
-- IDs das empresas compradas.
-- estado das propriedades.
-- última cena, posição e rotação, quando o sistema correspondente chamar o banco.
-- tempo jogado.
+- ID;
+- nome;
+- gold;
+- gemas;
+- stamina atual e máxima;
+- segmentos atuais e máximos;
+- reserva de recarga;
+- empresas;
+- propriedades;
+- última cena, posição e rotação quando registrados;
+- tempo jogado;
 - datas de criação e atualização.
 
-## Riscos conhecidos que devem ser verificados
+## Riscos e verificações
 
-1. A compra exige que o collider correto da calçada possua `BuySceneEntryTrigger`.
-2. O painel de confirmação precisa manter seus filhos `PainelWarning`, `TextAsking`, `ButtonConfirm` e `ButtonClose`, ou nomes equivalentes reconhecidos.
-3. Animator Controller pode usar parâmetros ou nomes de estados diferentes; usar a ferramenta de diagnóstico antes de alterar animações.
-4. Portas antigas podem exigir configurar `InteractiveObject.onInteract` se o método existente não usar um dos nomes reconhecidos.
-5. UI mobile ainda precisa de botões/joystick visuais na cena; os métodos de entrada já existem.
-6. O perfil mobile reduz custo global, mas assets pesados ainda precisam de LOD, compressão e lightmaps adequados.
-7. Alterações locais grandes devem ser commitadas antes de `git pull`; não usar `git clean -fd` ou `git reset --hard` sem backup.
+1. `Buy_Area` precisa manter um collider válido.
+2. O painel de compra precisa preservar filhos reconhecidos ou referências explícitas.
+3. Animator Controller pode exigir parâmetros próprios.
+4. Portas antigas podem exigir configurar `InteractiveObject.onInteract`.
+5. `click_on` e `click_off` devem estar importados como Sprite (2D and UI).
+6. O HUD de energia precisa apontar para a imagem de preenchimento, não para a moldura.
+7. O HUD mobile deve ser validado em aparelho real com multitouch e notch.
+8. Assets pesados ainda precisam de LOD, compressão e lightmaps.
+9. Alterações locais devem ser commitadas antes de pull; não usar `git clean -fd` ou `git reset --hard` sem backup.
 
 ## Ferramentas do Editor
 
@@ -150,5 +166,7 @@ Durante gameplay normal deve existir uma câmera de jogador e um AudioListener a
 - `Tools > Player System > Print Animator Diagnostics`
 - `Tools > Game Systems > Repair Data HUD Interactions and Mobile`
 - `Tools > Game Systems > Repair Purchase Minimap Diagnostics Energy Reticle`
+- `Tools > Game Systems > Apply Gameplay Polish (HUD Grab Purchase MiniMap Mobile)`
+- `Tools > Game Systems > Validate Gameplay Polish`
 - `Tools > Project Maintenance > Clean Cross-Scene References`
 - `Tools > Project Maintenance > Generate Safe Script Organization Audit`
