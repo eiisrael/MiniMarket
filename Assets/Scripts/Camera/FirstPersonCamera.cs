@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Modo de câmera em primeira pessoa sem head bob ou sway.
-/// Calcula posição/rotação; CameraModeController é a única autoridade do Transform.
+/// Calcula posição/rotação; PlayerCameraController é a única autoridade do Transform.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class FirstPersonCamera : MonoBehaviour
@@ -35,10 +35,11 @@ public sealed class FirstPersonCamera : MonoBehaviour
     private float yaw;
     private float pitch;
     private bool initialized;
+    private bool externalAimHeld;
 
     public float Yaw => yaw;
     public float Pitch => pitch;
-    public bool IsAiming => useAimZoom && Input.GetMouseButton(aimMouseButton);
+    public bool IsAiming => useAimZoom && (Input.GetMouseButton(aimMouseButton) || externalAimHeld);
 
     public void Initialize(Transform cameraTransform)
     {
@@ -56,6 +57,22 @@ public sealed class FirstPersonCamera : MonoBehaviour
     {
         yaw = newYaw;
         pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
+        initialized = true;
+    }
+
+    public void SetExternalAimHeld(bool held)
+    {
+        externalAimHeld = held;
+    }
+
+    public void AddLookDelta(Vector2 degreesDelta)
+    {
+        if (degreesDelta.sqrMagnitude <= 0.000001f)
+            return;
+
+        yaw += degreesDelta.x;
+        pitch += invertY ? degreesDelta.y : -degreesDelta.y;
+        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
         initialized = true;
     }
 
@@ -98,6 +115,11 @@ public sealed class FirstPersonCamera : MonoBehaviour
         }
 
         return true;
+    }
+
+    private void OnDisable()
+    {
+        externalAimHeld = false;
     }
 
     private void OnValidate()
