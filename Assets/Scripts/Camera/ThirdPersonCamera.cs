@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Modo de câmera em terceira pessoa.
-/// Este componente calcula a pose; somente CameraModeController escreve no Transform da câmera.
+/// Este componente calcula a pose; somente PlayerCameraController escreve no Transform da câmera.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class ThirdPersonCamera : MonoBehaviour
@@ -70,6 +70,17 @@ public sealed class ThirdPersonCamera : MonoBehaviour
     {
         yaw = newYaw;
         pitch = Mathf.Clamp(newPitch, minPitch, maxPitch);
+        initialized = true;
+    }
+
+    public void AddLookDelta(Vector2 degreesDelta)
+    {
+        if (degreesDelta.sqrMagnitude <= 0.000001f)
+            return;
+
+        yaw += degreesDelta.x;
+        pitch += invertY ? degreesDelta.y : -degreesDelta.y;
+        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
         initialized = true;
     }
 
