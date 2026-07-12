@@ -1,10 +1,10 @@
-# Interações e realce visual
+# Interações, realce visual e objetos móveis
 
-Atualizado em: 2026-07-11
+Atualizado em: 2026-07-12
 
 ## Objetivo
 
-Portas, caixas, objetos móveis, interruptores e outros elementos interativos devem mudar de cor quando estão sob a mira, tanto em primeira quanto em terceira pessoa.
+Portas, caixas, objetos móveis, interruptores e outros elementos interativos devem mudar de cor sob a mira em primeira e terceira pessoa. Objetos físicos devem ser soltos com segurança e somente a ação explícita de arremesso pode lançá-los.
 
 ## Componentes
 
@@ -14,66 +14,107 @@ Responsável apenas pelo visual.
 
 - usa `MaterialPropertyBlock`;
 - não instancia materiais;
-- preserva o bloco de propriedades existente;
+- preserva propriedades existentes;
 - suporta `_BaseColor` do URP e `_Color` do shader Standard;
-- possui cor de foco e cor de interação ativa;
+- possui cor de foco e cor ativa;
 - restaura o estado original ao perder foco ou desabilitar.
 
 ### `InteractiveObject`
 
-Marca objetos genéricos, como portas e mecanismos.
+Marca portas e mecanismos.
 
 - eventos de foco, perda de foco e interação;
 - `onInteract` configurável no Inspector;
-- compatibilidade opcional com métodos públicos antigos sem parâmetros:
-  - `Interact`
-  - `Interagir`
-  - `Toggle`
-  - `Alternar`
-  - `Open`
-  - `Abrir`
-  - `Use`
-  - `Usar`
-  - `Activate`
-  - `Ativar`
-
-A reflexão acontece somente quando o jogador interage, nunca por frame.
+- compatibilidade opcional com métodos antigos sem parâmetros;
+- reflexão somente no momento da interação.
 
 ### `InteractionFocusController`
 
-Fica no objeto da câmera do jogador.
+Fica na câmera do jogador.
 
-- raycast/spherecast pelo centro da tela;
+- raycast/spherecast pelo centro;
 - funciona em primeira e terceira pessoa;
-- tecla `E` e clique configurável no desktop;
-- método `RequestInteract()` para botão mobile;
-- posição de toque externa opcional;
-- ignora colliders do personagem.
+- tecla `E` e clique no Desktop;
+- `RequestInteract()` para mobile;
+- posição de toque opcional;
+- ignora o personagem.
 
 ### `GrabbableItem`
 
-Marca objetos que podem ser movidos fisicamente.
+Marca objetos físicos.
 
-- integra automaticamente `InteractionHighlight`;
+- integra `InteractionHighlight`;
 - foco usa cor de seleção;
-- enquanto está sendo segurado usa cor ativa;
-- mantém eventos de selecionar, pegar, soltar e desselecionar.
+- segurando usa cor ativa;
+- eventos de selecionar, pegar, soltar e desselecionar.
 
 ### `GetItemController`
 
 - funciona em primeira e terceira pessoa;
-- entrada desktop por mouse;
-- entrada mobile por `RequestGrabPressed`, `RequestGrabReleased` e `RequestThrow`;
-- posição de toque externa opcional;
+- mouse no Desktop;
+- `RequestGrabPressed`, `RequestGrabReleased` e `RequestThrow` no mobile;
 - movimento físico com mola;
-- proteção contra atravessar paredes;
-- preserva e restaura configurações do Rigidbody.
+- proteção contra paredes;
+- preserva e restaura o Rigidbody.
+
+## Soltura segura
+
+A soltura comum e o arremesso são fluxos diferentes.
+
+### Soltura comum
+
+Acontece quando:
+
+- o botão de pegar é liberado;
+- o input fica bloqueado;
+- o componente é desativado;
+- o objeto sai muito do ponto seguro;
+- o jogador sai da primeira pessoa enquanto segura um item pego nessa visão.
+
+Comportamento:
+
+- não adiciona força para frente;
+- não herda a velocidade da câmera por padrão;
+- reduz velocidade linear e angular;
+- limita a velocidade final;
+- restaura gravidade, damping, constraints, interpolação e collision mode.
+
+Campos:
+
+```text
+dropWhenLeavingFirstPerson
+inheritCameraVelocityOnNormalRelease
+safeDropVelocityMultiplier
+safeDropAngularVelocityMultiplier
+maximumSafeDropSpeed
+```
+
+### Arremesso
+
+Somente ocorre por:
+
+```text
+throwKey
+RequestThrow()
+```
+
+Nesse caminho é aplicada `throwForce` para frente.
+
+## Mira click_on
+
+`FirstPersonReticleController` usa:
+
+- `click_off`: estado normal;
+- `click_on`: item selecionado;
+- `click_on`: item segurado.
+
+A mira inteira fica oculta em terceira pessoa, menus e modo de compra.
+
+A ferramenta `GameplayPolishSetup` procura os sprites pelo nome no `AssetDatabase` e preenche os campos automaticamente.
 
 ## Configuração de objetos
 
 ### Caixa ou produto móvel
-
-Componentes mínimos:
 
 ```text
 Collider
@@ -84,42 +125,41 @@ InteractionHighlight
 
 ### Porta ou mecanismo
 
-Componentes mínimos:
-
 ```text
 Collider
 Renderer em si ou em filhos
 InteractiveObject
 InteractionHighlight
-Script real da porta, quando existir
+Script real da porta
 ```
 
-No `InteractiveObject.onInteract`, ligar explicitamente a função da porta é a opção mais segura. A invocação automática existe somente como compatibilidade.
+No `InteractiveObject.onInteract`, ligar explicitamente a função real da porta é a opção mais segura.
 
 ## Conflito entre pegar e interagir
 
-Objetos com `GrabbableItem` são controlados pelo `GetItemController`. O instalador não adiciona `InteractiveObject` ao mesmo objeto, evitando duas ações no mesmo clique.
+Objetos com `GrabbableItem` pertencem ao `GetItemController`. O instalador não adiciona `InteractiveObject` ao mesmo alvo, evitando duas ações no mesmo clique.
 
-## Cores
+## Performance
 
-Cores devem ser configuradas no `InteractionHighlight`, não por troca de `sharedMaterial`.
-
-Motivos:
-
-- evita duplicação de material;
-- reduz memória no mobile;
-- impede que uma seleção altere todos os objetos que compartilham o material;
-- funciona sem destruir a cor original.
+- nenhuma troca de `sharedMaterial`;
+- nenhuma criação de material por seleção;
+- spherecasts usam buffers reutilizados;
+- busca de referências acontece somente quando faltam referências;
+- reflexão não ocorre por frame.
 
 ## Testes obrigatórios
 
-1. Mirar uma caixa em terceira pessoa: mudar cor.
-2. Sair da caixa: restaurar cor original.
-3. Pegar a caixa: usar cor ativa.
-4. Soltar: restaurar estado correto.
-5. Repetir em primeira pessoa.
-6. Mirar porta: mudar cor.
-7. Pressionar `E` ou clicar: executar ação uma vez.
-8. Abrir menu: foco deve desaparecer e nenhuma ação deve ocorrer.
-9. Testar dois objetos com o mesmo material e confirmar que apenas o alvo muda.
-10. Testar botão mobile chamando `RequestInteract()`.
+1. Mirar uma caixa em terceira pessoa e confirmar cor.
+2. Sair da caixa e confirmar restauração.
+3. Repetir em primeira pessoa.
+4. Confirmar `click_on` ao selecionar.
+5. Pegar e confirmar `click_on` durante a retenção.
+6. Liberar o botão e confirmar queda, sem lançamento.
+7. Pegar em primeira pessoa e liberar AIM; confirmar queda segura.
+8. Usar THROW e confirmar que apenas essa ação arremessa.
+9. Confirmar proteção contra parede.
+10. Mirar porta e confirmar realce.
+11. Pressionar `E` uma vez e executar uma ação.
+12. Abrir menu e confirmar remoção do foco.
+13. Testar dois objetos com o mesmo material e confirmar alteração somente no alvo.
+14. Testar os botões mobile de interagir, pegar, soltar e arremessar.
