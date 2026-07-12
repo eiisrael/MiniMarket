@@ -1,22 +1,22 @@
 # Stamina, energia segmentada e HUD
 
-Atualizado em: 2026-07-11
+Atualizado em: 2026-07-12
 
 ## Sistema ativo
 
-A lógica runtime está em:
+Lógica runtime:
 
 ```text
 Assets/Scripts/Movement/CameraRelativeMovement.cs
 ```
 
-O HUD está em:
+HUD:
 
 ```text
 Assets/Scripts/UI/MiniMarketEnergySegmentHUD.cs
 ```
 
-A persistência está em:
+Persistência:
 
 ```text
 Assets/Scripts/Database/MiniMarketPlayerDatabase.cs
@@ -26,15 +26,15 @@ Assets/Scripts/Database/MiniMarketPlayerDatabase.cs
 
 Configuração padrão:
 
-- 5 segmentos.
-- cada segmento possui uma barra de `maxStamina`.
-- corrida consome a barra ativa.
-- quando a barra chega a zero e ainda há mais de um segmento, um segmento é consumido e a barra ativa volta ao máximo.
-- quando o último segmento termina, o contador vai para `0/5`, a barra vai para zero e a corrida é interrompida.
-- após o delay de recuperação, a barra final começa a recuperar; ao ficar positiva, o sistema volta para `1/5`.
-- depois de completar a barra ativa, a reserva recupera os segmentos adicionais até o máximo.
+- 5 segmentos;
+- cada segmento usa uma barra de `maxStamina`;
+- corrida consome a barra ativa;
+- ao zerar uma barra e ainda existir outro segmento, o contador diminui e a barra ativa volta ao máximo;
+- ao consumir o último segmento, o sistema chega a `0/5` e impede corrida;
+- depois do delay, a barra recupera e o sistema volta a `1/5`;
+- após completar a barra ativa, a reserva recupera os segmentos adicionais.
 
-## Dados públicos usados por HUD e menu
+## Dados públicos
 
 - `StaminaAtual`
 - `StaminaMaxima`
@@ -50,68 +50,108 @@ Configuração padrão:
 
 ## Persistência
 
-A movimentação não grava no banco a cada frame.
+A movimentação não grava no banco a cada frame. Ela sincroniza quando a diferença mínima, mudança de segmentos, reserva ou intervalo justificam a atualização e força save em pausa, desativação e encerramento.
 
-Ela marca o estado como alterado e sincroniza quando:
+## HUD atual
 
-- a diferença mínima de stamina é atingida;
-- um segmento muda;
-- a reserva muda o suficiente;
-- o intervalo de sincronização termina;
-- o aplicativo pausa;
-- o componente é desativado;
-- o aplicativo fecha.
-
-O banco faz a escrita física usando salvamento diferido e backup.
-
-## HUD
-
-`MiniMarketEnergySegmentHUD` é dirigido por eventos:
+`MiniMarketEnergySegmentHUD`:
 
 - assina `CameraRelativeMovement.OnStaminaChanged`;
 - assina `MiniMarketPlayerDatabase.OnDatabaseChanged`;
-- faz apenas uma verificação lenta de segurança;
+- mantém verificação lenta de segurança;
 - não usa reflexão;
 - não busca o jogador a cada frame;
-- altera texto, fill e cor somente quando o valor muda.
+- atualiza texto, fill, cor e sprite somente quando necessário.
 
-Campos principais:
+### Barra principal
 
-- `textoEnergia`: texto `5/5`.
-- `barraEnergia`: imagem Filled horizontal da barra ativa.
-- `iconeEnergia`: ícone opcional.
-- sprites alto/médio/baixo: opcionais.
-- `mostrarPercentualDaBarra`: inclui percentual total quando ligado.
+O modo padrão é:
+
+```text
+PrimaryBarDisplayMode.ActiveSegment
+```
+
+Assim, a barra grande mostra exatamente a carga ativa:
+
+```text
+100% -> 0% ao correr
+0% -> 100% ao recuperar
+```
+
+Também existem os modos `TotalEnergy` e `Auto` para layouts alternativos.
+
+### Barras segmentadas
+
+- imagens com nomes de segmento são detectadas automaticamente;
+- se a cena não possuir barras pequenas, o componente cria barras runtime abaixo da barra principal;
+- a quantidade acompanha `StaminaSegmentosMaximos`;
+- cada barra usa `Image.Type.Filled` horizontal;
+- a reserva pode preencher parcialmente o próximo segmento;
+- a ordem pode ser invertida pelo Inspector.
+
+Campos importantes:
+
+- `modoBarraPrincipal`;
+- `barraEnergia`;
+- `barrasSegmentos`;
+- `criarBarrasSegmentadasQuandoAusentes`;
+- `alturaBarrasAutomaticas`;
+- `espacoEntreBarras`;
+- `deslocamentoVerticalBarras`;
+- `animarPreenchimento`;
+- `velocidadePreenchimento`;
+- `toleranciaVisual`.
+
+Menus de contexto:
+
+```text
+HUD > Rebuscar barras e atualizar
+HUD > Recriar barras segmentadas automáticas
+```
 
 ## Cores padrão
 
-- alta: verde.
-- média: amarelo/laranja.
+- alta: verde;
+- média: amarelo/laranja;
 - baixa: vermelho.
 
-A cor é baseada no percentual total das cargas, enquanto o fill representa a barra ativa.
+A cor usa o percentual total, enquanto a barra principal usa a carga ativa.
 
 ## Restauração de energia
 
-O menu chama `CameraRelativeMovement.RestoreStaminaFull()` quando o jogador está presente. O método restaura:
+`CameraRelativeMovement.RestoreStaminaFull()` restaura:
 
-- stamina atual para o máximo;
-- segmentos atuais para o máximo;
-- reserva para zero;
-- estado de corrida para parado;
-- banco imediatamente.
+- stamina atual;
+- segmentos;
+- reserva;
+- estado de corrida;
+- banco.
+
+`FreeEnergyRestoreService` reaplica a restauração no fluxo de UI para impedir que listeners antigos recuperem o valor anterior.
 
 ## Compatibilidade
 
-`MiniMarketSegmentedStaminaRuntimeGuard` foi aposentado. A classe permanece vazia apenas para não quebrar cenas antigas. Ela não deve ser adicionada a novos objetos.
+`MiniMarketSegmentedStaminaRuntimeGuard` está aposentado e não deve ser usado em novos objetos.
+
+## Ferramenta de configuração
+
+Fora do Play Mode:
+
+```text
+Tools > Game Systems > Apply Gameplay Polish (HUD Grab Purchase MiniMap Mobile)
+```
+
+Ela encontra a barra mais provável, liga o movimento, ativa preenchimento animado e habilita barras automáticas.
 
 ## Testes obrigatórios
 
 1. Iniciar em `5/5` com barra cheia.
-2. Correr e observar o fill diminuir suavemente.
-3. Consumir uma barra: contador deve mudar para `4/5` e fill voltar ao máximo.
-4. Consumir tudo: `0/5`, sem corrida.
-5. Soltar corrida e aguardar recuperação: voltar para `1/5`.
-6. Fechar/reabrir Play Mode e verificar continuidade.
-7. Clicar em energia grátis e confirmar `5/5`.
-8. Abrir menu durante corrida e confirmar que consumo/movimento não ficam presos.
+2. Correr e observar a barra grande diminuir suavemente.
+3. Consumir uma barra e confirmar `4/5` com barra ativa restaurada.
+4. Confirmar cinco barras pequenas visualmente.
+5. Consumir tudo e confirmar `0/5`.
+6. Aguardar recuperação e observar a barra carregar suavemente.
+7. Confirmar recuperação de segmentos adicionais.
+8. Fechar e reabrir Play Mode para validar persistência.
+9. Usar energia grátis e confirmar que permanece em `5/5`.
+10. Abrir menu durante corrida e confirmar que entrada e consumo não ficam presos.
