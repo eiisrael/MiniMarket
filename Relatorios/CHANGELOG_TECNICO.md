@@ -2,6 +2,67 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-12 — HUD, soltura segura, Buy_Area, minimapa e controles mobile
+
+### Stamina e HUD
+
+- `MiniMarketEnergySegmentHUD` passou a usar por padrão a carga do segmento ativo na barra principal;
+- carga e descarga visual usam interpolação com tolerância de conclusão;
+- barras segmentadas são detectadas por nomes específicos;
+- quando não existem, cinco barras runtime são criadas abaixo da barra principal;
+- a reserva de recarga pode preencher visualmente o próximo segmento;
+- criado reparo explícito para localizar a barra correta no HUD sem reorganizar a cena.
+
+### Interação física
+
+- soltura comum e arremesso foram separados em `GetItemController`;
+- liberar o botão de pegar ou sair da primeira pessoa faz queda segura;
+- soltura comum não herda velocidade da transição da câmera por padrão;
+- velocidades linear e angular são amortecidas e limitadas;
+- somente a ação explícita de arremesso aplica força para frente.
+
+### Entrada de compra
+
+- `PurchaseSystemBootstrapHost` reconhece explicitamente `Buy_Area`;
+- o collider sólido da calçada é preservado;
+- um filho `BuySceneEntryTrigger_Runtime` recebe o collider trigger;
+- borda e X visual são recriados acima do chão;
+- controlador, painel, terrenos e jogador são religados;
+- criado reparo de Editor seguro e manual para persistir a configuração na cena.
+
+### Minimapa
+
+- `RuntimeMiniMap` agora expõe no Inspector posição, tamanhos Desktop/Mobile, margens, cores, botões, zoom, altura, camadas, resolução e sorting order;
+- o componente pode ser salvo na cena e reutilizado pelo bootstrap runtime;
+- adicionados menus de contexto para aplicar configurações e recriar o visual.
+
+### Mira e click_on
+
+- `FirstPersonReticleController` procura `click_off` e `click_on`;
+- `click_on` é aplicado ao selecionar ou segurar um `GrabbableItem`;
+- a mira continua oculta em terceira pessoa, menus e modo de compra;
+- o reparo do Editor atribui os sprites pelo `AssetDatabase` quando encontrados.
+
+### Mobile
+
+- criado `MobileControlsHUD` com joystick, área de olhar, correr, pular, interagir, pegar/soltar, arremessar e mirar;
+- o HUD aparece automaticamente apenas em Android/iOS;
+- Desktop permanece oculto, com opção de teste forçado no Inspector;
+- layout respeita `Screen.safeArea`;
+- `PlayerCameraController`, `FirstPersonCamera` e `ThirdPersonCamera` receberam entrada touch externa sem remover teclado/mouse.
+
+### Ferramentas e migração
+
+- criado `Tools > Game Systems > Apply Gameplay Polish (HUD Grab Purchase MiniMap Mobile)`;
+- criado `Tools > Game Systems > Validate Gameplay Polish`;
+- as ferramentas não executam automaticamente, não movem arquivos e não tocam em Brick Project Studio;
+- relatório completo: `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`.
+
+### Validação
+
+- contratos públicos e dependências foram revisados estaticamente no repositório;
+- compilação, teste físico, UI e build Android devem ser confirmados no Unity local.
+
 ## 2026-07-11 — Recuperação de compra, minimapa, diagnósticos, energia e mira
 
 ### Causa raiz
