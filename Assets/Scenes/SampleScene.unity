@@ -8304,7 +8304,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 810}
+  m_AnchoredPosition: {x: 0, y: 741}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &498094958 stripped
@@ -9542,6 +9542,11 @@ MonoBehaviour:
   wallPadding: 0.12
   releaseErrorDistance: 3
   ignorePlayerCollisionsWhileHeld: 1
+  dropWhenLeavingFirstPerson: 1
+  inheritCameraVelocityOnNormalRelease: 0
+  safeDropVelocityMultiplier: 0.12
+  safeDropAngularVelocityMultiplier: 0.2
+  maximumSafeDropSpeed: 1.25
   throwForce: 8
   inheritCameraVelocity: 0.25
   releaseVelocityMultiplier: 0.65
@@ -9576,6 +9581,9 @@ MonoBehaviour:
   fieldOfViewSpeed: 16
   instantOnStart: 1
   instantOnModeChange: 1
+  mobileLookSensitivityX: 0.12
+  mobileLookSensitivityY: 0.1
+  mobileAimAlsoUsesFirstPerson: 1
   renderersHiddenInFirstPerson:
   - {fileID: 1347759753}
   - {fileID: 1997737033}
@@ -11206,7 +11214,13 @@ MonoBehaviour:
   movimento: {fileID: 1149804567}
   autoDetectarBarras: 1
   preencherBarraPrincipalComEnergiaTotal: 1
+  modoBarraPrincipal: 0
   inverterOrdemSegmentos: 0
+  criarBarrasSegmentadasQuandoAusentes: 1
+  alturaBarrasAutomaticas: 8
+  espacoEntreBarras: 2
+  deslocamentoVerticalBarras: -8
+  corFundoSegmento: {r: 0.05, g: 0.08, b: 0.05, a: 0.72}
   energiaAltaSprite: {fileID: 0}
   energiaMediaSprite: {fileID: 0}
   energiaBaixaSprite: {fileID: 0}
@@ -11221,6 +11235,7 @@ MonoBehaviour:
   formatoComPercentual: '{0}/{1}  {2}%'
   animarPreenchimento: 1
   velocidadePreenchimento: 12
+  toleranciaVisual: 0.001
   intervaloBuscaReferencias: 1
   intervaloVerificacaoSeguranca: 0.25
   atualizarMesmoDesativado: 0
