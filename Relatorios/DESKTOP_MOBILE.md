@@ -1,6 +1,6 @@
 # Desktop e Mobile
 
-Atualizado em: 2026-07-11
+Atualizado em: 2026-07-12
 
 ## Perfil runtime
 
@@ -10,120 +10,158 @@ Arquivo:
 Assets/Scripts/Performance/PlatformRenderProfile.cs
 ```
 
-O componente é criado automaticamente antes da cena e escolhe um perfil:
+Perfis:
 
-- `Desktop`
-- `Mobile`
-- `LowEndMobile`
-- perfil forçado para testes
+- `Desktop`;
+- `Mobile`;
+- `LowEndMobile`;
+- perfil forçado para testes.
 
-O perfil é reaplicado no primeiro `LateUpdate` após cada carregamento de cena. Isso impede que sistemas legados executados durante o bootstrap sobrescrevam o target de FPS, VSync ou render scale escolhidos para o aparelho.
+O perfil é reaplicado depois do carregamento da cena para impedir sobrescrita de FPS, VSync e render scale.
 
 ## Desktop
 
 Configuração padrão:
 
-- target de 60 FPS;
+- alvo de 60 FPS;
 - render scale 1.0;
-- VSync respeitado quando configurado;
-- qualidade global definida pelo Quality Settings do projeto;
-- nenhum material ou pipeline é substituído em runtime.
+- VSync conforme Quality Settings;
+- teclado e mouse ativos;
+- HUD touch oculto;
+- nenhum material ou pipeline substituído em runtime.
 
 ## Mobile
 
 Configuração padrão:
 
-- target de 60 FPS;
+- alvo de 60 FPS;
 - VSync desligado;
 - render scale 0.85;
 - até 2 pixel lights;
-- shadow distance limitada;
-- MSAA limitado a 2x;
+- distância de sombra limitada;
+- MSAA até 2x;
 - reflexos em tempo real desligados;
 - soft particles desligadas;
 - LOD bias reduzido;
-- aparelho impedido de dormir durante o jogo.
+- tela impedida de dormir.
 
 ## Low-End Mobile
 
-Ativado automaticamente quando RAM ou VRAM estão abaixo dos limites configurados.
+Ativado por limites de RAM/VRAM configurados:
 
-- target de 30 FPS;
+- alvo de 30 FPS;
 - render scale 0.70;
-- shadow distance menor;
-- duas influências de osso por vértice;
-- LOD máximo mais agressivo;
-- filtragem anisotrópica desligada.
+- sombra reduzida;
+- bone weights limitados;
+- LOD mais agressivo;
+- anisotropic filtering desligado.
 
 ## URP
 
-O perfil tenta ajustar `renderScale`, MSAA, HDR e shadow distance no pipeline ativo por reflexão. Isso evita dependência rígida de uma versão específica do pacote Universal RP.
+`PlatformRenderProfile` tenta ajustar propriedades do URP por reflexão para manter compatibilidade entre versões do pacote. Propriedades indisponíveis são ignoradas sem quebrar o perfil global.
 
-Se a versão do URP expuser uma propriedade somente para leitura, a alteração é ignorada e as configurações globais continuam válidas.
+## HUD touch oficial
 
-## Entrada mobile disponível
+Arquivo:
 
-### Movimento
+```text
+Assets/Scripts/UI/MobileControlsHUD.cs
+```
+
+Visibilidade:
+
+- Android/iOS: visível automaticamente;
+- Desktop: oculto por padrão;
+- Editor/Desktop de teste: ligar `forcarVisivelParaTestes`.
+
+O HUD respeita `Screen.safeArea` e limpa toda entrada ao pausar, desabilitar ou bloquear gameplay.
+
+### Controles
+
+- joystick esquerdo: movimento;
+- área direita: olhar/câmera;
+- `RUN`: correr enquanto pressionado;
+- `JUMP`: pular;
+- `E`: interagir;
+- `GRAB`: pegar e soltar;
+- `THROW`: arremessar;
+- `AIM`: primeira pessoa/mira enquanto pressionado.
+
+### APIs conectadas
 
 `CameraRelativeMovement`:
 
-- `SetMoveInput(Vector2)`
-- `SetRunInput(bool)`
-- `RequestJump()`
+- `SetMoveInput(Vector2)`;
+- `SetRunInput(bool)`;
+- `RequestJump()`.
 
-### Interação
+`PlayerCameraController`:
+
+- `AddMobileLookDelta(Vector2)`;
+- `SetMobileFirstPersonHeld(bool)`;
+- `SetMobileFirstPerson(bool)`.
 
 `InteractionFocusController`:
 
-- `RequestInteract()`
-- `SetPointerScreenPosition(Vector2)`
-- `ClearPointerScreenPosition()`
-
-### Pegar objetos
+- `RequestInteract()`;
+- `SetPointerScreenPosition(Vector2)`;
+- `ClearPointerScreenPosition()`.
 
 `GetItemController`:
 
-- `RequestGrabPressed()`
-- `RequestGrabReleased()`
-- `RequestThrow()`
-- `SetPointerScreenPosition(Vector2)`
-- `ClearPointerScreenPosition()`
+- `RequestGrabPressed()`;
+- `RequestGrabReleased()`;
+- `RequestThrow()`;
+- `SetPointerScreenPosition(Vector2)`;
+- `ClearPointerScreenPosition()`.
 
-Esses métodos podem ser chamados por botões UI, joystick virtual ou pelo novo Input System.
+## Câmera touch
 
-## UI mobile ainda necessária na cena
+`FirstPersonCamera` e `ThirdPersonCamera` aceitam deltas externos de olhar sem remover o input do mouse. `PlayerCameraController` acumula o delta touch e aplica uma única vez por frame.
 
-O código oferece entrada externa, mas a cena precisa dos controles visuais:
+O botão AIM:
 
-- joystick esquerdo para movimento;
-- área de arrasto direita para câmera;
-- botão de pulo;
-- botão de corrida;
-- botão de interagir;
-- botão de pegar/soltar;
-- botão de arremessar, quando usado.
+- entra na primeira pessoa ao pressionar;
+- ativa FOV de mira;
+- retorna à terceira pessoa ao soltar;
+- faz objetos segurados em primeira pessoa caírem com segurança ao sair da mira.
+
+## Configuração no Inspector
+
+A ferramenta:
+
+```text
+Tools > Game Systems > Apply Gameplay Polish (HUD Grab Purchase MiniMap Mobile)
+```
+
+cria ou reutiliza `MobileControlsHUD` na cena e preenche referências do movimento, câmera, interação e objetos.
 
 ## Recomendações de assets
 
-- Preferir luz baked/mixed em ambientes estáticos.
-- Evitar várias Point Lights com sombras.
-- Comprimir texturas por plataforma.
-- Usar atlas e reduzir materiais únicos.
-- Adicionar LOD a prédios e objetos distantes.
-- Usar occlusion culling somente após validar o mapa.
-- Evitar transparências grandes sobrepostas.
-- Verificar overdraw do HUD.
-- Limitar partículas em mobile.
+- preferir luz baked/mixed;
+- limitar Point Lights com sombra;
+- comprimir texturas por plataforma;
+- usar atlas;
+- reduzir materiais únicos;
+- usar LOD em prédios e objetos distantes;
+- validar occlusion culling antes de habilitar;
+- reduzir transparências sobrepostas e overdraw do HUD;
+- limitar partículas no mobile.
 
 ## Testes obrigatórios
 
-1. Testar no Editor com perfil Desktop.
-2. Forçar perfil Mobile no Inspector.
-3. Forçar perfil LowEndMobile.
-4. Trocar/recarregar a cena e confirmar que o perfil permanece aplicado.
-5. Verificar uma câmera e um AudioListener.
-6. Testar orientação e resolução alvo.
-7. Fazer build Android real; o Game View não substitui teste no aparelho.
-8. Verificar temperatura, memória e FPS por pelo menos dez minutos.
-9. Testar pause/resume e retorno do aplicativo.
-10. Confirmar save após o aplicativo ir para segundo plano.
+1. Validar perfil Desktop.
+2. Forçar perfil Mobile.
+3. Forçar LowEndMobile.
+4. Recarregar a cena e confirmar persistência do perfil.
+5. Confirmar uma câmera e um AudioListener de gameplay.
+6. Ativar `forcarVisivelParaTestes` e testar todos os controles com o mouse.
+7. Confirmar joystick, olhar, corrida, pulo e interação.
+8. Confirmar pegar, soltar e arremessar.
+9. Confirmar AIM e retorno à terceira pessoa.
+10. Fazer build Android real.
+11. Validar safe area em aparelho com notch.
+12. Testar multitouch: mover + olhar + correr.
+13. Medir temperatura, memória e FPS por pelo menos dez minutos.
+14. Testar pause/resume e segundo plano.
+15. Confirmar save após o aplicativo ir para segundo plano.
