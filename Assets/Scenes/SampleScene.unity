@@ -8304,7 +8304,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 800}
+  m_AnchoredPosition: {x: 0, y: 810}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &498094958 stripped
@@ -9604,8 +9604,8 @@ MonoBehaviour:
   playerBody: {fileID: 1149804561}
   eyePoint: {fileID: 779697902}
   localEyeOffset: {x: 0, y: 1.68, z: 0.08}
-  sensitivityX: 175
-  sensitivityY: 125
+  sensitivityX: 30
+  sensitivityY: 30
   invertY: 0
   mouseDeadZone: 0.0008
   minPitch: -78
@@ -9631,15 +9631,15 @@ MonoBehaviour:
   target: {fileID: 1149804561}
   lookTarget: {fileID: 296433259}
   targetOffset: {x: 0, y: 1.45, z: 0}
-  distance: 4.25
+  distance: 2
   shoulderOffset: 0.45
   verticalOffset: 0.12
   minPitch: -35
   maxPitch: 65
   initialYaw: 0
   initialPitch: 18
-  sensitivityX: 180
-  sensitivityY: 130
+  sensitivityX: 20
+  sensitivityY: 20
   invertY: 0
   mouseDeadZone: 0.0008
   useCollision: 1
