@@ -2,6 +2,51 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-13 — Barra Energy progressiva e sprites por faixa
+
+### Causa
+
+- `Canvas > StaminaHUD > Energy` podia permanecer visualmente vazio enquanto `Txt_Qtd` mostrava `5/5`;
+- o HUD antigo podia usar apenas a stamina do segmento ativo, sem representar a energia total dos cinco segmentos;
+- os sprites verde, amarelo e vermelho não eram autoridades da imagem principal;
+- a detecção automática podia deixar mais de um componente tentando controlar o mesmo `fillAmount`.
+
+### Barra visual
+
+- criado `Assets/Scripts/UI/MiniMarketEnergyProgressBar.cs`;
+- o componente é instalado automaticamente no objeto `Energy` ao entrar no Play Mode;
+- a barra usa `Image.Type.Filled`, preenchimento horizontal e origem à esquerda;
+- o valor visual representa energia total contínua entre `0/5` e `5/5`;
+- `Txt_Qtd` permanece sincronizado com os segmentos;
+- estado inconsistente com segmentos disponíveis e stamina ativa zerada fora da corrida é normalizado visualmente;
+- `energy_green`, `energy_yellow` e `energy_red` são aplicados por faixa;
+- nomes antigos `green_energy`, `yellow_energy` e `red_energy` também são aceitos;
+- o HUD segmentado anterior deixa de disputar a imagem `Energy`;
+- atualização usa eventos e cache, sem busca global no loop normal.
+
+### Ferramenta do Editor
+
+- criado `Assets/Editor/ProjectMaintenance/EnergyProgressBarSetup.cs`;
+- menu `Tools > MiniMarket > Criar ou Reparar Barra de Energia`;
+- menu `Tools > MiniMarket > Validar Barra de Energia`;
+- a ferramenta encontra ou cria `StaminaHUD` e `Energy`;
+- adiciona o componente, liga `Txt_Qtd` e `CameraRelativeMovement`;
+- localiza os três PNGs em qualquer pasta;
+- configura as texturas como Sprite, transparência ligada e mipmaps desligados;
+- salva a cena atual sem mover arquivos e sem alterar `Assets/Brick Project Studio`.
+
+### Desktop e Mobile
+
+- a mesma fonte de stamina segmentada é usada nas duas plataformas;
+- o preenchimento usa `Time.unscaledDeltaTime`;
+- referências persistidas pela ferramenta são válidas para builds Desktop e Android.
+
+### Validação
+
+- contratos de movimento, banco e HUD revisados estaticamente;
+- compilação e teste visual final dependem do Unity local;
+- relatório: `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`.
+
 ## 2026-07-12 — HUD, soltura segura, Buy_Area, minimapa e controles mobile
 
 ### Stamina e HUD
