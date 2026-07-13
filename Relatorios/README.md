@@ -15,6 +15,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 
 ## Relatório mais recente
 
+- `ENERGIA_PERCENTUAL_CORES.md`: troca `5/5` por porcentagem e alterna ícone/cor verde, amarelo e vermelho pela energia total.
 - `OBJETOS_RUNTIME_PERSISTENTES.md`: materialização dos objetos visuais e hosts de configuração que antes apareciam somente no Play Mode.
 - `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: preserva o artwork de `Canvas/StaminaHUD/Energy` e cria uma barra verde interna separada para descarga e recarga.
 
@@ -29,6 +30,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: melhorias de 2026-07-12.
 - `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: barra verde interna, cálculo segmentado e ferramenta de criação/reparo.
 - `OBJETOS_RUNTIME_PERSISTENTES.md`: hierarquia persistente e editável para energia, minimapa, mobile, mira, compra e serviços.
+- `ENERGIA_PERCENTUAL_CORES.md`: texto percentual, três sprites e três cores por faixa de energia.
 - `TESTES_POS_GIT_PULL.md`: checklist de compilação e validação manual.
 - `CHANGELOG_TECNICO.md`: histórico das mudanças que afetam arquitetura ou comportamento.
 
