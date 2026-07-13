@@ -1,6 +1,6 @@
 # Testes após Git Pull
 
-Atualizado em: 2026-07-12
+Atualizado em: 2026-07-13
 
 Execute este checklist depois de qualquer atualização relevante.
 
@@ -40,6 +40,8 @@ Tools > Player System > Create or Repair Player System
 Tools > Player System > Repair Player Animator
 Tools > Game Systems > Apply Gameplay Polish (HUD Grab Purchase MiniMap Mobile)
 Tools > Game Systems > Validate Gameplay Polish
+Tools > MiniMarket > Criar ou Reparar Barra de Energia
+Tools > MiniMarket > Validar Barra de Energia
 ```
 
 Executar `Clean Cross-Scene References` apenas fora do Play Mode e somente quando o aviso realmente existir.
@@ -55,6 +57,7 @@ Confirmar:
 - `PlayerCameraRig` com uma Camera e um AudioListener;
 - `PlayerCameraController`, `GetItemController` e `InteractionFocusController`;
 - `GameSystemsConfiguration` com minimapa, mobile e mira;
+- `Canvas > StaminaHUD > Energy` com `Image` e `MiniMarketEnergyProgressBar`;
 - `Buy_Area` com collider sólido;
 - filho `BuySceneEntryTrigger_Runtime` com BoxCollider trigger;
 - nenhuma câmera antiga ativa.
@@ -73,11 +76,15 @@ Confirmar:
 
 ## 6. Stamina e HUD
 
-- iniciar em `5/5` ou no valor salvo;
-- correr e observar a barra principal descarregar suavemente;
-- consumir um segmento e confirmar mudança para `4/5`;
-- confirmar cinco barras segmentadas;
-- aguardar recuperação e observar a barra carregar;
+- iniciar em `5/5` com a imagem `Energy` cheia e verde;
+- confirmar que `Energy` usa preenchimento horizontal da esquerda para a direita;
+- correr e observar a progress bar descarregar suavemente;
+- confirmar que o texto e a progress bar representam a mesma energia segmentada;
+- consumir um segmento e confirmar mudança para `4/5` sem salto visual incorreto;
+- confirmar `energy_green` na faixa alta;
+- confirmar `energy_yellow` na faixa intermediária;
+- confirmar `energy_red` na faixa baixa;
+- aguardar recuperação e observar a progress bar carregar;
 - confirmar recuperação dos segmentos adicionais;
 - testar energia grátis e aguardar pelo menos dois segundos;
 - abrir e fechar menu durante movimento;
@@ -145,6 +152,8 @@ No Editor, ligar temporariamente `forcarVisivelParaTestes`. Depois validar build
 - AIM entra e sai da primeira pessoa;
 - safe area correta;
 - multitouch: mover + olhar + correr;
+- a progress bar `Energy` acompanha os mesmos dados do Desktop;
+- os três sprites de energia estão incluídos no build;
 - pause/resume limpa inputs presos;
 - dados persistem ao ir para segundo plano;
 - temperatura, memória e FPS aceitáveis por dez minutos.
