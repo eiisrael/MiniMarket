@@ -2,6 +2,7 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 /// <summary>
 /// Perfil de renderização seguro para Desktop e Mobile.
@@ -70,11 +71,23 @@ public sealed class PlatformRenderProfile : MonoBehaviour
         Instance = null;
     }
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CreateAutomatically()
     {
         if (Instance != null)
             return;
+
+        PlatformRenderProfile existing = Object.FindAnyObjectByType<PlatformRenderProfile>(
+            FindObjectsInactive.Include
+        );
+
+        if (existing != null)
+        {
+            Instance = existing;
+            if (existing.applyAutomatically)
+                existing.ApplyProfile();
+            return;
+        }
 
         GameObject go = new GameObject("PlatformRenderProfile");
         go.AddComponent<PlatformRenderProfile>();
