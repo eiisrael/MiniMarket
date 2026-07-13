@@ -2,57 +2,82 @@
 
 Atualizado em: 2026-07-13
 
-## Objetivo
+## Objetivo correto
 
-Corrigir o objeto:
+O objeto existente:
 
 ```text
 Canvas > StaminaHUD > Energy
 ```
 
-A imagem `Energy` deve funcionar como uma progress bar horizontal, acompanhar a energia
-segmentada de `0/5` até `5/5` e trocar automaticamente entre:
+não deve ter a própria imagem reduzida como se fosse a progress bar.
 
-```text
-energy_green.png
-energy_yellow.png
-energy_red.png
-```
+O artwork original de `Energy` deve permanecer parado. Dentro dele deve existir uma barra
+verde separada que aumenta e diminui conforme a stamina, respeitando o contador `5/5`.
 
-## Causa observada
+## Problema da primeira implementação
 
-O HUD anterior tinha duas representações diferentes:
+A primeira implementação transformava a própria `Image` do objeto `Energy` em
+`Image.Type.Filled`. Como consequência, a imagem `energy.png` inteira diminuía da esquerda
+para a direita.
 
-- o texto mostrava a quantidade de segmentos, por exemplo `5/5`;
-- a barra principal podia usar somente `StaminaPercentual01`, isto é, a carga interna do
-  segmento ativo.
+Isso estava incorreto porque `Energy` já faz parte da estrutura visual do HUD. Somente uma
+camada verde interna deve representar o carregamento.
 
-Quando o save continha segmentos disponíveis e a stamina ativa estava em zero ou ainda não
-havia sido sincronizada, o texto permanecia em `5/5`, mas a imagem `Energy` aparecia vazia.
-Além disso, os sprites verde, amarelo e vermelho eram tratados como sprites opcionais do
-ícone, não como apresentação autoritativa da progress bar principal.
+## Solução atual
 
-## Solução
-
-Foi criado:
+Arquivo runtime:
 
 ```text
 Assets/Scripts/UI/MiniMarketEnergyProgressBar.cs
 ```
 
+O componente agora mantém esta estrutura:
+
+```text
+Energy
+└── EnergyProgressArea
+    └── EnergyProgressFill
+```
+
 Responsabilidades:
 
-- localizar automaticamente `Canvas/StaminaHUD/Energy` ao entrar no Play Mode;
-- adicionar o componente ao objeto `Energy` quando ele ainda não estiver salvo na cena;
-- transformar a imagem em `Image.Type.Filled`, horizontal e da esquerda para a direita;
-- calcular energia total contínua por segmentos;
-- manter `Txt_Qtd` no formato `atual/maximo`;
-- corrigir visualmente estados inconsistentes como `5/5` com stamina ativa igual a zero;
-- trocar sprite pela energia total;
-- preservar as cores originais dos PNGs usando `Color.white`;
-- usar cor de fallback quando algum sprite não estiver disponível;
-- atualizar por eventos de stamina/banco, mantendo apenas uma verificação lenta de segurança;
-- retirar do HUD antigo a autoridade sobre a imagem `Energy`, evitando disputa de fill.
+- preservar a imagem e o RectTransform originais de `Energy`;
+- manter `Energy` como `Image.Type.Simple` e `fillAmount = 1`;
+- criar automaticamente uma área interna de preenchimento;
+- criar uma imagem verde separada dentro dessa área;
+- diminuir somente a largura de `EnergyProgressFill`;
+- animar descarga e recarga suavemente;
+- respeitar `5/5`, `4/5`, `3/5`, `2/5`, `1/5` e `0/5`;
+- manter `Txt_Qtd` sincronizado;
+- impedir que `MiniMarketEnergySegmentHUD` altere a mesma barra;
+- corrigir visualmente estados inconsistentes do save;
+- não trocar nem diminuir o sprite original `energy.png`.
+
+## Fundo separado
+
+Na hierarquia mostrada existe também:
+
+```text
+Background_Ene
+```
+
+Quando esse fundo separado é encontrado, o componente desativa somente o componente
+`Image` antigo de `Energy`, sem desativar o GameObject. Assim, o fundo e os demais elementos
+do HUD permanecem, enquanto a nova barra verde interna é exibida sem duplicar a imagem
+antiga.
+
+## Área da barra
+
+A barra interna usa por padrão a região normalizada:
+
+```text
+Ancora Minima: X 0.22 / Y 0.36
+Ancora Maxima: X 0.93 / Y 0.64
+```
+
+Esses valores ficam disponíveis no Inspector do `MiniMarketEnergyProgressBar` para pequenos
+ajustes visuais sem alterar código.
 
 ## Cálculo visual
 
@@ -73,24 +98,12 @@ Exemplos:
 0/5                              = 0%
 ```
 
-Quando existem segmentos disponíveis, mas o save informa stamina ativa igual a zero fora da
-corrida, o componente considera o segmento ativo cheio para que o visual respeite o contador.
-
-## Faixas de sprite
-
-Padrão:
-
-```text
-acima de 55%: energy_green
-de 25% até 55%: energy_yellow
-até 25%: energy_red
-```
-
-Os limites permanecem editáveis no Inspector.
+A cor permanece verde durante todo o carregamento. O estado da energia é indicado pelo
+tamanho da barra e pelo texto segmentado.
 
 ## Ferramenta do Editor
 
-Foi criado:
+Arquivo:
 
 ```text
 Assets/Editor/ProjectMaintenance/EnergyProgressBarSetup.cs
@@ -108,27 +121,25 @@ A ferramenta:
 - encontra ou cria `StaminaHUD`;
 - encontra ou cria `Energy`;
 - adiciona `MiniMarketEnergyProgressBar`;
-- encontra `Txt_Qtd`;
-- liga `CameraRelativeMovement`;
-- procura os três PNGs por nome em qualquer pasta;
-- converte os PNGs para `Sprite (2D and UI)` quando necessário;
-- desativa mipmaps e ativa transparência;
-- configura e salva a cena atual;
+- mantém a imagem original como `Simple`, nunca como `Filled`;
+- cria `EnergyProgressArea` e `EnergyProgressFill`;
+- liga `Txt_Qtd` e `CameraRelativeMovement`;
+- desliga a autoridade antiga sobre a mesma barra;
+- salva a cena atual;
 - não move arquivos;
 - não altera `Assets/Brick Project Studio`.
 
 ## Inicialização automática
 
-Mesmo sem executar a ferramenta, no Editor o componente é instalado automaticamente ao
-apertar Play e procura os sprites pelo `AssetDatabase`.
+Mesmo sem executar a ferramenta, ao apertar Play o componente procura `Energy`, instala-se e
+cria a barra verde interna.
 
-Para persistir as referências na cena e garantir que os sprites sejam incluídos no build,
-execute uma vez o menu `Criar ou Reparar Barra de Energia` fora do Play Mode.
+Executar o menu uma vez fora do Play Mode é recomendado para salvar a nova estrutura na cena.
 
 ## Desktop e Mobile
 
-A lógica usa a mesma fonte de dados nos dois ambientes. O preenchimento usa
-`Time.unscaledDeltaTime`, não depende de resolução e permanece compatível com o Canvas atual.
+A mesma fonte de dados é usada nos dois ambientes. A animação usa
+`Time.unscaledDeltaTime`, não grava em disco por frame e não depende da resolução da tela.
 
 ## Validação realizada
 
@@ -137,7 +148,7 @@ Foi feita revisão estática dos contratos de:
 - `CameraRelativeMovement`;
 - `MiniMarketPlayerDatabase`;
 - `MiniMarketEnergySegmentHUD`;
-- hierarquia mostrada no Unity.
+- hierarquia `StaminaHUD` mostrada no Unity.
 
 A compilação e o teste visual final precisam ser confirmados no Unity local.
 
@@ -146,10 +157,10 @@ A compilação e o teste visual final precisam ser confirmados no Unity local.
 1. Console sem erros vermelhos.
 2. Fora do Play, executar `Criar ou Reparar Barra de Energia`.
 3. Executar `Validar Barra de Energia`.
-4. Iniciar em `5/5` e confirmar barra cheia verde.
-5. Correr e confirmar redução suave.
-6. Confirmar continuidade quando o contador muda para `4/5`.
-7. Confirmar amarelo na faixa intermediária.
-8. Confirmar vermelho próximo de `1/5` e `0/5`.
+4. Confirmar que `Energy` não está como `Image.Type.Filled`.
+5. Confirmar os filhos `EnergyProgressArea/EnergyProgressFill`.
+6. Iniciar em `5/5` com a barra verde interna cheia.
+7. Correr e confirmar que apenas a barra verde diminui.
+8. Confirmar que `energy.png`, `Background_Ene`, ícone e texto não diminuem.
 9. Parar e confirmar recuperação suave.
-10. Fechar e abrir Play Mode para validar persistência.
+10. Consumir um segmento e confirmar continuidade correta em `4/5`.
