@@ -3,9 +3,9 @@ using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Controla a barra verde interna de Canvas/StaminaHUD/Energy.
-/// O artwork original do objeto Energy permanece estático; somente o preenchimento
-/// interno aumenta e diminui conforme a energia segmentada.
+/// Controla a barra interna de Canvas/StaminaHUD/Energy.
+/// O artwork original permanece estático. O preenchimento, o texto percentual e o ícone
+/// mudam de estado conforme a energia total segmentada.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(25500)]
@@ -18,14 +18,39 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     [Tooltip("Imagem original do objeto Energy. Ela não será usada como progress bar.")]
     public Image imagemOriginal;
 
-    [Tooltip("Área interna onde a barra verde será desenhada.")]
+    [Tooltip("Área interna onde a barra será desenhada.")]
     public RectTransform areaPreenchimento;
 
-    [Tooltip("Imagem verde criada dentro da área de preenchimento.")]
+    [Tooltip("Imagem interna que aumenta e diminui.")]
     public Image preenchimentoVerde;
 
+    [Tooltip("Texto que mostrava 5/5. Agora mostra a porcentagem total da energia.")]
     public Text textoQuantidade;
+
+    [Tooltip("Imagem do ícone de energia que alterna entre verde, amarelo e vermelho.")]
+    public Image iconeEnergia;
+
     public CameraRelativeMovement movimento;
+
+    [Header("Sprites do ícone de energia")]
+    public Sprite energiaVerdeSprite;
+    public Sprite energiaAmarelaSprite;
+    public Sprite energiaVermelhaSprite;
+
+    [Header("Faixas de energia")]
+    [Tooltip("Verde entre 100% e 61%.")]
+    [Range(0f, 1f)] public float limiteVerde = 0.61f;
+
+    [Tooltip("Vermelho entre 25% e 0%. Entre os dois limites será amarelo.")]
+    [Range(0f, 1f)] public float limiteVermelho = 0.25f;
+
+    [Header("Cores do progress bar")]
+    public Color corAlta = new Color(0.18f, 0.95f, 0.22f, 1f);
+    public Color corMedia = new Color(1f, 0.78f, 0.08f, 1f);
+    public Color corBaixa = new Color(1f, 0.18f, 0.08f, 1f);
+
+    [Tooltip("Compatibilidade com cenas antigas. Representa a cor alta/verde.")]
+    public Color corBarra = new Color(0.18f, 0.95f, 0.22f, 1f);
 
     [Header("Área da barra dentro de Energy")]
     [Tooltip("Posição normalizada do canto inferior esquerdo da barra dentro de Energy.")]
@@ -35,10 +60,15 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     public Vector2 ancoraMaxima = new Vector2(0.93f, 0.64f);
 
     [Header("Visual")]
-    public Color corBarra = new Color(0.18f, 0.95f, 0.22f, 1f);
-
     [Tooltip("Quando existe Background_Ene separado, oculta somente a Image original de Energy para não duplicar a barra.")]
     public bool ocultarImagemOriginalComFundoSeparado = true;
+
+    [Header("Texto")]
+    public bool mostrarPorcentagem = true;
+    public string formatoPorcentagem = "{0}%";
+
+    [Tooltip("Compatibilidade antiga. Deve permanecer desligado quando Mostrar Porcentagem estiver ligado.")]
+    public bool manterTextoSegmentado;
 
     [Header("Animação")]
     public bool animar = true;
@@ -46,13 +76,12 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     [Min(0.0001f)] public float tolerancia = 0.001f;
 
     [Header("Comportamento")]
-    [Tooltip("A barra representa a energia total dos segmentos, respeitando 5/5, 4/5 etc.")]
+    [Tooltip("A barra representa a energia total dos segmentos.")]
     public bool usarEnergiaTotalSegmentada = true;
 
     [Tooltip("Corrige somente o visual quando o save informa segmentos disponíveis e stamina ativa zerada fora da corrida.")]
     public bool corrigirEstadoInconsistente = true;
 
-    public bool manterTextoSegmentado = true;
     [Min(0.1f)] public float intervaloBusca = 0.5f;
 
     private MiniMarketPlayerDatabase database;
@@ -65,6 +94,8 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     private int ultimoAtual = -1;
     private int ultimoMaximo = -1;
     private float ultimoAlvo = -1f;
+    private int ultimoPercentualExibido = -1;
+    private int ultimoEstadoVisual = -1;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void InstalarAutomaticamente()
@@ -176,7 +207,7 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     private void Update()
     {
         if (Time.unscaledTime >= proximaBusca &&
-            (movimento == null || imagemOriginal == null || database == null))
+            (movimento == null || imagemOriginal == null || database == null || iconeEnergia == null))
         {
             ResolverReferencias(false);
             GarantirEstruturaVisual();
@@ -200,10 +231,12 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         ultimoAtual = -1;
         ultimoMaximo = -1;
         ultimoAlvo = -1f;
+        ultimoPercentualExibido = -1;
+        ultimoEstadoVisual = -1;
         AtualizarAlvo(true);
     }
 
-    [ContextMenu("Energia/Recriar barra verde interna")]
+    [ContextMenu("Energia/Recriar barra interna")]
     public void RecriarBarraInterna()
     {
         if (areaPreenchimento != null)
@@ -246,6 +279,9 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
 
         if (textoQuantidade == null && imagemOriginal != null)
             textoQuantidade = EncontrarTextoQuantidade(imagemOriginal.transform.parent);
+
+        if (iconeEnergia == null && imagemOriginal != null)
+            iconeEnergia = EncontrarIconeEnergia(imagemOriginal.transform.parent, imagemOriginal);
 
         if (hudLegado == null && imagemOriginal != null)
         {
@@ -308,11 +344,10 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
 
         preenchimentoVerde.sprite = null;
         preenchimentoVerde.type = Image.Type.Simple;
-        preenchimentoVerde.color = corBarra;
         preenchimentoVerde.raycastTarget = false;
         preenchimentoVerde.preserveAspect = false;
 
-        AplicarValorVisual(valorVisual);
+        AplicarValorVisual(valorVisual, true);
     }
 
     private bool TemFundoSeparado()
@@ -355,7 +390,7 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         }
 
         if (textoQuantidade != null)
-            hudLegado.textoEnergia = textoQuantidade;
+            hudLegado.textoEnergia = null;
     }
 
     private static Text EncontrarTextoQuantidade(Transform raiz)
@@ -374,16 +409,55 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
 
             string nome = Normalizar(texto.name);
             if (nome == "txtqtd" || nome == "quantidade" ||
-                nome == "energytext" || nome == "staminatext")
+                nome == "energytext" || nome == "staminatext" ||
+                nome == "percentual" || nome == "porcentagem")
             {
                 return texto;
             }
 
-            if (fallback == null && PareceContador(texto.text))
+            if (fallback == null && (PareceContador(texto.text) || ParecePorcentagem(texto.text)))
                 fallback = texto;
         }
 
         return fallback;
+    }
+
+    private static Image EncontrarIconeEnergia(Transform raiz, Image energyPrincipal)
+    {
+        if (raiz == null)
+            return null;
+
+        Image[] imagens = raiz.GetComponentsInChildren<Image>(true);
+        Image melhor = null;
+        int melhorPontuacao = int.MinValue;
+
+        for (int i = 0; i < imagens.Length; i++)
+        {
+            Image imagem = imagens[i];
+            if (imagem == null || imagem == energyPrincipal)
+                continue;
+            if (imagem.transform.IsChildOf(energyPrincipal.transform))
+                continue;
+
+            string nome = Normalizar(imagem.name);
+            if (nome.Contains("background") || nome.Contains("fundo") ||
+                nome.Contains("progress") || nome.Contains("fill"))
+                continue;
+
+            int pontuacao = 0;
+            if (nome.Contains("iconeenergia") || nome.Contains("energyicon")) pontuacao += 1000;
+            if (nome.Contains("icone") || nome.Contains("icon")) pontuacao += 500;
+            if (nome == "image") pontuacao += 350;
+            if (imagem.sprite != null && Normalizar(imagem.sprite.name).Contains("energy")) pontuacao += 700;
+
+            if (pontuacao > melhorPontuacao)
+            {
+                melhorPontuacao = pontuacao;
+                melhor = imagem;
+            }
+        }
+
+        return melhorPontuacao > 0 ? melhor : null;
     }
 
     private void AtualizarAlvo(bool forcar)
@@ -451,11 +525,11 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         if (forcar)
             valorVisual = valorAlvo;
 
-        if (manterTextoSegmentado && textoQuantidade != null)
+        if (manterTextoSegmentado && !mostrarPorcentagem && textoQuantidade != null)
             textoQuantidade.text = atual + "/" + maximo;
 
         if (forcar)
-            AplicarValorVisual(valorVisual);
+            AplicarValorVisual(valorVisual, true);
     }
 
     private void AnimarPreenchimento()
@@ -478,23 +552,76 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
                 valorVisual = valorAlvo;
         }
 
-        AplicarValorVisual(valorVisual);
+        AplicarValorVisual(valorVisual, false);
     }
 
-    private void AplicarValorVisual(float valor)
+    private void AplicarValorVisual(float valor, bool forcarEstado)
     {
         if (preenchimentoVerde == null)
             return;
 
-        RectTransform rect = preenchimentoVerde.rectTransform;
         float normalizado = Mathf.Clamp01(valor);
+        RectTransform rect = preenchimentoVerde.rectTransform;
         rect.anchorMin = Vector2.zero;
         rect.anchorMax = new Vector2(normalizado, 1f);
         rect.pivot = new Vector2(0f, 0.5f);
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
-        preenchimentoVerde.color = corBarra;
         preenchimentoVerde.enabled = normalizado > 0.0001f;
+
+        AtualizarTextoPercentual(normalizado);
+        AtualizarEstadoVisual(normalizado, forcarEstado);
+    }
+
+    private void AtualizarTextoPercentual(float normalizado)
+    {
+        if (!mostrarPorcentagem || textoQuantidade == null)
+            return;
+
+        int percentual = Mathf.Clamp(Mathf.RoundToInt(normalizado * 100f), 0, 100);
+        if (percentual == ultimoPercentualExibido)
+            return;
+
+        ultimoPercentualExibido = percentual;
+        textoQuantidade.text = string.IsNullOrWhiteSpace(formatoPorcentagem)
+            ? percentual + "%"
+            : string.Format(formatoPorcentagem, percentual);
+    }
+
+    private void AtualizarEstadoVisual(float normalizado, bool forcar)
+    {
+        int estado = normalizado >= limiteVerde ? 2 : normalizado <= limiteVermelho ? 0 : 1;
+        if (!forcar && estado == ultimoEstadoVisual)
+            return;
+
+        ultimoEstadoVisual = estado;
+
+        Color cor;
+        Sprite sprite;
+        if (estado == 2)
+        {
+            cor = corAlta;
+            sprite = energiaVerdeSprite;
+        }
+        else if (estado == 1)
+        {
+            cor = corMedia;
+            sprite = energiaAmarelaSprite;
+        }
+        else
+        {
+            cor = corBaixa;
+            sprite = energiaVermelhaSprite;
+        }
+
+        preenchimentoVerde.color = cor;
+
+        if (iconeEnergia != null && sprite != null)
+        {
+            iconeEnergia.sprite = sprite;
+            iconeEnergia.color = Color.white;
+            iconeEnergia.preserveAspect = true;
+        }
     }
 
     private void InscreverEventos()
@@ -554,6 +681,11 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
                char.IsDigit(valor[indice + 1]);
     }
 
+    private static bool ParecePorcentagem(string valor)
+    {
+        return !string.IsNullOrWhiteSpace(valor) && valor.Contains("%");
+    }
+
     private static string Normalizar(string valor)
     {
         if (string.IsNullOrWhiteSpace(valor))
@@ -583,8 +715,19 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         ancoraMinima.y = Mathf.Clamp01(ancoraMinima.y);
         ancoraMaxima.x = Mathf.Clamp(ancoraMaxima.x, ancoraMinima.x, 1f);
         ancoraMaxima.y = Mathf.Clamp(ancoraMaxima.y, ancoraMinima.y, 1f);
+        limiteVerde = Mathf.Clamp01(limiteVerde);
+        limiteVermelho = Mathf.Clamp(limiteVermelho, 0f, limiteVerde);
         velocidade = Mathf.Max(0.1f, velocidade);
         tolerancia = Mathf.Max(0.0001f, tolerancia);
         intervaloBusca = Mathf.Max(0.1f, intervaloBusca);
+
+        corBarra = corAlta;
+
+        if (!Application.isPlaying && preenchimentoVerde != null)
+        {
+            preenchimentoVerde.color = corAlta;
+            if (iconeEnergia != null && energiaVerdeSprite != null)
+                iconeEnergia.sprite = energiaVerdeSprite;
+        }
     }
 }
