@@ -15,6 +15,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 
 ## Relatório mais recente
 
+- `OBJETOS_RUNTIME_PERSISTENTES.md`: materialização dos objetos visuais e hosts de configuração que antes apareciam somente no Play Mode.
 - `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: preserva o artwork de `Canvas/StaminaHUD/Energy` e cria uma barra verde interna separada para descarga e recarga.
 
 ## Relatórios disponíveis
@@ -27,6 +28,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `RECUPERACAO_COMPRA_MINIMAPA_ENERGIA.md`: recuperação dos sistemas removidos pela organização antiga.
 - `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: melhorias de 2026-07-12.
 - `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: barra verde interna, cálculo segmentado e ferramenta de criação/reparo.
+- `OBJETOS_RUNTIME_PERSISTENTES.md`: hierarquia persistente e editável para energia, minimapa, mobile, mira, compra e serviços.
 - `TESTES_POS_GIT_PULL.md`: checklist de compilação e validação manual.
 - `CHANGELOG_TECNICO.md`: histórico das mudanças que afetam arquitetura ou comportamento.
 
@@ -39,10 +41,11 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - Banco: `Assets/Scripts/Database/MiniMarketPlayerDatabase.cs`.
 - HUD de energia segmentada: `Assets/Scripts/UI/MiniMarketEnergySegmentHUD.cs`.
 - Barra visual principal `Canvas/StaminaHUD/Energy`: `Assets/Scripts/UI/MiniMarketEnergyProgressBar.cs`.
-- Minimapa: `Assets/Scripts/UI/RuntimeMiniMap.cs`.
-- Controles mobile: `Assets/Scripts/UI/MobileControlsHUD.cs`.
+- Minimapa: `Assets/Scripts/UI/RuntimeMiniMap.cs` com `RuntimeMiniMapHierarchyBinding.cs`.
+- Controles mobile: `Assets/Scripts/UI/MobileControlsHUD.cs` com `MobileControlsHierarchyBinding.cs`.
 - Mira: `Assets/Scripts/UI/FirstPersonReticleController.cs`.
-- Perfil de renderização: `Assets/Scripts/Performance/PlatformRenderProfile.cs`.
+- Perfil de renderização: `Assets/Scripts/Performance/PlatformRenderProfile.cs` salvo na cena quando materializado.
+- Materializador: `Assets/Editor/ProjectMaintenance/EditableRuntimeHierarchySetup.cs`.
 
 ## Regras permanentes
 
@@ -52,6 +55,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - Evitar referências serializadas entre a cena normal e `DontDestroyOnLoad`.
 - Não gravar banco, PlayerPrefs ou arquivos a cada frame.
 - Desktop e Mobile devem compartilhar a mesma lógica de gameplay.
+- Objetos visuais configuráveis devem ser salvos na cena; somente recursos transitórios devem nascer apenas no Play Mode.
 - Não afirmar que o Unity compilou ou executou sem validação no Editor local.
 
 ## Quando houver divergência
