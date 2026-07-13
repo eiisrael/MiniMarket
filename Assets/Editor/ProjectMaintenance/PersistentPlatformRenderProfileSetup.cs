@@ -12,31 +12,19 @@ using Object = UnityEngine.Object;
 [InitializeOnLoad]
 public static class PersistentPlatformRenderProfileSetup
 {
+    private static bool verificacaoAgendada;
+
     static PersistentPlatformRenderProfileSetup()
     {
-        EditorApplication.hierarchyChanged -= VerificarHierarquiaMaterializada;
-        EditorApplication.hierarchyChanged += VerificarHierarquiaMaterializada;
+        EditorApplication.hierarchyChanged -= AgendarVerificacao;
+        EditorApplication.hierarchyChanged += AgendarVerificacao;
     }
 
     [MenuItem("Tools/MiniMarket/Materializar Platform Render Profile", priority = 2)]
     public static void MaterializarAgora()
     {
-        if (EditorApplication.isPlayingOrWillChangePlaymode)
-        {
-            Debug.LogWarning(
-                "[PersistentPlatformRenderProfileSetup] Saia do Play Mode antes de executar."
-            );
+        if (!PodeEditarCena(out Scene scene, true))
             return;
-        }
-
-        Scene scene = SceneManager.GetActiveScene();
-        if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrWhiteSpace(scene.path))
-        {
-            Debug.LogWarning(
-                "[PersistentPlatformRenderProfileSetup] Abra e salve a SampleScene primeiro."
-            );
-            return;
-        }
 
         PlatformRenderProfile existing = Object.FindAnyObjectByType<PlatformRenderProfile>(
             FindObjectsInactive.Include
@@ -61,29 +49,41 @@ public static class PersistentPlatformRenderProfileSetup
         );
     }
 
-    private static void VerificarHierarquiaMaterializada()
+    private static void AgendarVerificacao()
     {
-        if (EditorApplication.isPlayingOrWillChangePlaymode ||
+        if (verificacaoAgendada ||
+            EditorApplication.isPlayingOrWillChangePlaymode ||
             EditorApplication.isCompiling ||
             EditorApplication.isUpdating)
         {
             return;
         }
 
-        // Só atua depois que o usuário executou o materializador principal.
         RuntimeMiniMapHierarchyBinding marker =
             Object.FindAnyObjectByType<RuntimeMiniMapHierarchyBinding>(FindObjectsInactive.Include);
         if (marker == null)
             return;
 
-        PlatformRenderProfile existing = Object.FindAnyObjectByType<PlatformRenderProfile>(
-            FindObjectsInactive.Include
-        );
-        if (existing != null)
+        if (Object.FindAnyObjectByType<PlatformRenderProfile>(FindObjectsInactive.Include) != null)
             return;
 
-        Scene scene = SceneManager.GetActiveScene();
-        if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrWhiteSpace(scene.path))
+        verificacaoAgendada = true;
+        EditorApplication.delayCall += MaterializarDepoisDaAlteracao;
+    }
+
+    private static void MaterializarDepoisDaAlteracao()
+    {
+        verificacaoAgendada = false;
+
+        if (!PodeEditarCena(out Scene scene, false))
+            return;
+
+        RuntimeMiniMapHierarchyBinding marker =
+            Object.FindAnyObjectByType<RuntimeMiniMapHierarchyBinding>(FindObjectsInactive.Include);
+        if (marker == null)
+            return;
+
+        if (Object.FindAnyObjectByType<PlatformRenderProfile>(FindObjectsInactive.Include) != null)
             return;
 
         GameObject host = new GameObject("PlatformRenderProfile");
@@ -91,6 +91,37 @@ public static class PersistentPlatformRenderProfileSetup
         EditorUtility.SetDirty(profile);
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
+    }
+
+    private static bool PodeEditarCena(out Scene scene, bool logar)
+    {
+        scene = SceneManager.GetActiveScene();
+
+        if (EditorApplication.isPlayingOrWillChangePlaymode ||
+            EditorApplication.isCompiling ||
+            EditorApplication.isUpdating)
+        {
+            if (logar)
+            {
+                Debug.LogWarning(
+                    "[PersistentPlatformRenderProfileSetup] Saia do Play Mode e aguarde a compilação."
+                );
+            }
+            return false;
+        }
+
+        if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrWhiteSpace(scene.path))
+        {
+            if (logar)
+            {
+                Debug.LogWarning(
+                    "[PersistentPlatformRenderProfileSetup] Abra e salve a SampleScene primeiro."
+                );
+            }
+            return false;
+        }
+
+        return true;
     }
 }
 #endif
