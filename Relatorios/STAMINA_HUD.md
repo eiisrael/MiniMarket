@@ -71,23 +71,35 @@ A movimentação não grava no banco a cada frame. Ela sincroniza quando a difer
 
 ## Barra visual Canvas/StaminaHUD/Energy
 
-`MiniMarketEnergyProgressBar` é a autoridade da imagem:
+`MiniMarketEnergyProgressBar` controla o preenchimento interno do objeto:
 
 ```text
 Canvas > StaminaHUD > Energy
 ```
 
+A imagem original de `Energy` não é a progress bar. Ela permanece estática.
+
+Estrutura criada:
+
+```text
+Energy
+└── EnergyProgressArea
+    └── EnergyProgressFill
+```
+
 Comportamento:
 
 - instala-se automaticamente no objeto `Energy` ao entrar no Play Mode;
-- usa `Image.Type.Filled` horizontal da esquerda para a direita;
+- mantém `Energy` como `Image.Type.Simple` e `fillAmount = 1`;
+- cria uma barra verde separada dentro de `Energy`;
+- altera somente a largura de `EnergyProgressFill`;
 - representa a energia total contínua dos cinco segmentos;
 - mantém `Txt_Qtd` no formato `5/5`, `4/5`, `3/5`, `2/5`, `1/5` ou `0/5`;
-- usa `energy_green`, `energy_yellow` e `energy_red`;
-- mantém `Color.white` quando existe sprite, preservando a cor original da textura;
-- usa cor verde, amarela ou vermelha como fallback;
+- a cor permanece verde durante descarga e recuperação;
 - corrige visualmente um save inconsistente que informe segmentos disponíveis e stamina ativa zerada fora da corrida;
-- impede que `MiniMarketEnergySegmentHUD` dispute o `fillAmount` da mesma imagem.
+- impede que `MiniMarketEnergySegmentHUD` dispute o mesmo preenchimento.
+
+Quando existe um `Background_Ene` separado, o componente pode ocultar somente a `Image` antiga de `Energy`, sem desativar o GameObject e sem afetar os filhos. Isso evita duplicar a imagem enquanto mantém a barra verde interna.
 
 ### Cálculo da progress bar
 
@@ -108,15 +120,16 @@ Exemplos:
 
 O segmento ativo continua sendo representado de forma contínua. Assim, com `5/5` e a barra ativa na metade, a progress bar mostra aproximadamente 90%.
 
-### Faixas visuais
+### Área visual interna
 
 Padrão:
 
-- acima de 55%: `energy_green`;
-- de 25% até 55%: `energy_yellow`;
-- até 25%: `energy_red`.
+```text
+Ancora Minima: X 0.22 / Y 0.36
+Ancora Maxima: X 0.93 / Y 0.64
+```
 
-Os limites podem ser alterados no Inspector.
+Esses valores são editáveis no Inspector para encaixar a barra verde precisamente dentro do artwork existente.
 
 ## Ferramenta de configuração
 
@@ -132,19 +145,17 @@ A ferramenta:
 - encontra ou cria `StaminaHUD`;
 - encontra ou cria `Energy`;
 - adiciona `MiniMarketEnergyProgressBar`;
+- mantém a imagem original como `Simple`;
+- cria `EnergyProgressArea` e `EnergyProgressFill`;
 - liga `Txt_Qtd` e `CameraRelativeMovement`;
-- procura `energy_green.png`, `energy_yellow.png` e `energy_red.png` em qualquer pasta;
-- aceita também os nomes antigos `green_energy`, `yellow_energy` e `red_energy`;
-- configura as texturas como `Sprite (2D and UI)`;
-- ativa transparência e desativa mipmaps;
 - salva a cena atual;
 - não move arquivos nem altera `Assets/Brick Project Studio`.
 
 ## Inicialização automática e builds
 
-No Editor, apertar Play é suficiente para instalar o componente e procurar sprites pelo `AssetDatabase`.
+Apertar Play já é suficiente para instalar o componente e criar a barra verde interna.
 
-Para serializar as referências e garantir inclusão correta dos três sprites em builds Desktop/Mobile, executar uma vez `Criar ou Reparar Barra de Energia` e salvar a cena.
+Para salvar a estrutura na cena e facilitar ajustes de posição, executar uma vez `Criar ou Reparar Barra de Energia` fora do Play Mode e salvar a cena.
 
 ## Restauração de energia
 
@@ -169,13 +180,14 @@ A barra progressiva usa a mesma fonte de dados no Desktop e Mobile, sem buscas g
 1. Console sem erros vermelhos.
 2. Executar `Criar ou Reparar Barra de Energia` fora do Play Mode.
 3. Executar `Validar Barra de Energia`.
-4. Iniciar em `5/5` com barra cheia e verde.
-5. Correr e observar redução suave.
-6. Consumir um segmento e confirmar continuidade visual em `4/5`.
-7. Confirmar amarelo na faixa intermediária.
-8. Confirmar vermelho próximo de `1/5` e `0/5`.
-9. Parar e observar recuperação suave.
-10. Fechar e reabrir Play Mode para validar persistência.
-11. Testar em build Desktop e Android.
+4. Confirmar que `Energy` não está como Filled.
+5. Confirmar `EnergyProgressArea/EnergyProgressFill`.
+6. Iniciar em `5/5` com a barra verde interna cheia.
+7. Correr e observar somente a barra verde diminuir.
+8. Confirmar que `energy.png`, fundo, ícone e texto permanecem estáticos.
+9. Consumir um segmento e confirmar continuidade visual em `4/5`.
+10. Parar e observar recuperação suave.
+11. Fechar e reabrir Play Mode para validar persistência.
+12. Testar em build Desktop e Android.
 
 A compilação e o teste visual final dependem do Unity local.
