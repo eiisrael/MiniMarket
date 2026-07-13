@@ -58,6 +58,7 @@ Confirmar:
 - `PlayerCameraController`, `GetItemController` e `InteractionFocusController`;
 - `GameSystemsConfiguration` com minimapa, mobile e mira;
 - `Canvas > StaminaHUD > Energy` com `Image` e `MiniMarketEnergyProgressBar`;
+- `Energy > EnergyProgressArea > EnergyProgressFill`;
 - `Buy_Area` com collider sólido;
 - filho `BuySceneEntryTrigger_Runtime` com BoxCollider trigger;
 - nenhuma câmera antiga ativa.
@@ -76,15 +77,15 @@ Confirmar:
 
 ## 6. Stamina e HUD
 
-- iniciar em `5/5` com a imagem `Energy` cheia e verde;
-- confirmar que `Energy` usa preenchimento horizontal da esquerda para a direita;
-- correr e observar a progress bar descarregar suavemente;
-- confirmar que o texto e a progress bar representam a mesma energia segmentada;
-- consumir um segmento e confirmar mudança para `4/5` sem salto visual incorreto;
-- confirmar `energy_green` na faixa alta;
-- confirmar `energy_yellow` na faixa intermediária;
-- confirmar `energy_red` na faixa baixa;
-- aguardar recuperação e observar a progress bar carregar;
+- iniciar em `5/5` com `EnergyProgressFill` cheio e verde;
+- confirmar que a imagem original de `Energy` não diminui;
+- confirmar que `Energy` não está como `Image.Type.Filled`;
+- confirmar que somente a largura de `EnergyProgressFill` diminui;
+- confirmar que `Background_Ene`, ícone e `Txt_Qtd` permanecem estáticos;
+- correr e observar a barra verde descarregar suavemente;
+- confirmar que o texto e a barra representam a mesma energia segmentada;
+- consumir um segmento e confirmar mudança para `4/5` sem salto incorreto;
+- aguardar recuperação e observar a barra verde carregar;
 - confirmar recuperação dos segmentos adicionais;
 - testar energia grátis e aguardar pelo menos dois segundos;
 - abrir e fechar menu durante movimento;
@@ -152,8 +153,7 @@ No Editor, ligar temporariamente `forcarVisivelParaTestes`. Depois validar build
 - AIM entra e sai da primeira pessoa;
 - safe area correta;
 - multitouch: mover + olhar + correr;
-- a progress bar `Energy` acompanha os mesmos dados do Desktop;
-- os três sprites de energia estão incluídos no build;
+- a barra verde interna acompanha os mesmos dados do Desktop;
 - pause/resume limpa inputs presos;
 - dados persistem ao ir para segundo plano;
 - temperatura, memória e FPS aceitáveis por dez minutos.
