@@ -15,7 +15,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 
 ## Relatório mais recente
 
-- `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: correção de `Canvas/StaminaHUD/Energy`, progress bar segmentada e troca entre `energy_green`, `energy_yellow` e `energy_red`.
+- `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: preserva o artwork de `Canvas/StaminaHUD/Energy` e cria uma barra verde interna separada para descarga e recarga.
 
 ## Relatórios disponíveis
 
@@ -26,7 +26,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `DESKTOP_MOBILE.md`: perfil de renderização e entrada para as duas plataformas.
 - `RECUPERACAO_COMPRA_MINIMAPA_ENERGIA.md`: recuperação dos sistemas removidos pela organização antiga.
 - `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: melhorias de 2026-07-12.
-- `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: barra `Energy` progressiva, sprites por faixa e ferramenta de criação/reparo.
+- `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: barra verde interna, cálculo segmentado e ferramenta de criação/reparo.
 - `TESTES_POS_GIT_PULL.md`: checklist de compilação e validação manual.
 - `CHANGELOG_TECNICO.md`: histórico das mudanças que afetam arquitetura ou comportamento.
 
