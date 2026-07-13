@@ -1,6 +1,5 @@
 #if UNITY_EDITOR
 using System;
-using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -9,8 +8,8 @@ using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Cria ou repara a barra Canvas/StaminaHUD/Energy e persiste as referências
-/// dos sprites energy_green, energy_yellow e energy_red na cena.
+/// Cria ou repara a barra verde interna de Canvas/StaminaHUD/Energy.
+/// O objeto Energy original permanece como estrutura/artwork e não é diminuído.
 /// </summary>
 public static class EnergyProgressBarSetup
 {
@@ -71,41 +70,28 @@ public static class EnergyProgressBarSetup
             if (controlador == null)
                 controlador = Undo.AddComponent<MiniMarketEnergyProgressBar>(energy.gameObject);
 
-            Undo.RecordObject(controlador, "Configurar barra de energia");
-            Undo.RecordObject(energy, "Configurar imagem de energia");
+            Undo.RecordObject(controlador, "Configurar barra verde interna");
+            Undo.RecordObject(energy, "Preservar imagem Energy");
 
-            controlador.barra = energy;
+            controlador.imagemOriginal = energy;
             controlador.textoQuantidade = EncontrarTextoQuantidade(staminaHud);
             controlador.movimento = Object.FindAnyObjectByType<CameraRelativeMovement>(
                 FindObjectsInactive.Include
             );
-
-            controlador.energiaVerde = EncontrarEPrepararSprite(
-                "energy_green", "green_energy"
-            );
-            controlador.energiaAmarela = EncontrarEPrepararSprite(
-                "energy_yellow", "yellow_energy"
-            );
-            controlador.energiaVermelha = EncontrarEPrepararSprite(
-                "energy_red", "red_energy"
-            );
-
-            controlador.procurarSpritesAutomaticamente = true;
+            controlador.usarEnergiaTotalSegmentada = true;
             controlador.corrigirEstadoInconsistente = true;
             controlador.manterTextoSegmentado = true;
+            controlador.ocultarImagemOriginalComFundoSeparado = true;
             controlador.animar = true;
             controlador.velocidade = Mathf.Max(12f, controlador.velocidade);
-            controlador.limiteAmarelo = 0.55f;
-            controlador.limiteVermelho = 0.25f;
+            controlador.corBarra = new Color(0.18f, 0.95f, 0.22f, 1f);
 
-            energy.type = Image.Type.Filled;
-            energy.fillMethod = Image.FillMethod.Horizontal;
-            energy.fillOrigin = (int)Image.OriginHorizontal.Left;
-            energy.fillClockwise = true;
+            // Energy não é mais a própria progress bar.
+            energy.type = Image.Type.Simple;
             energy.fillAmount = 1f;
-            energy.color = Color.white;
             energy.raycastTarget = false;
-            energy.preserveAspect = false;
+
+            controlador.RecriarBarraInterna();
 
             MiniMarketEnergySegmentHUD hud =
                 staminaHud.GetComponentInChildren<MiniMarketEnergySegmentHUD>(true);
@@ -116,8 +102,11 @@ public static class EnergyProgressBarSetup
                 hud.autoDetectarBarras = false;
                 hud.criarBarrasSegmentadasQuandoAusentes = false;
 
-                if (hud.barraEnergia == energy)
+                if (hud.barraEnergia == energy ||
+                    hud.barraEnergia == controlador.preenchimentoVerde)
+                {
                     hud.barraEnergia = null;
+                }
 
                 if (controlador.textoQuantidade != null)
                     hud.textoEnergia = controlador.textoQuantidade;
@@ -127,6 +116,12 @@ public static class EnergyProgressBarSetup
 
             EditorUtility.SetDirty(controlador);
             EditorUtility.SetDirty(energy);
+
+            if (controlador.areaPreenchimento != null)
+                EditorUtility.SetDirty(controlador.areaPreenchimento.gameObject);
+            if (controlador.preenchimentoVerde != null)
+                EditorUtility.SetDirty(controlador.preenchimentoVerde.gameObject);
+
             EditorSceneManager.MarkSceneDirty(cena);
             EditorSceneManager.SaveScene(cena);
             AssetDatabase.SaveAssets();
@@ -134,10 +129,8 @@ public static class EnergyProgressBarSetup
             controlador.RebuscarTudo();
 
             Debug.Log(
-                "[EnergyProgressBarSetup] Barra reparada em Canvas/StaminaHUD/Energy. " +
-                "Verde=" + NomeSprite(controlador.energiaVerde) +
-                ", Amarelo=" + NomeSprite(controlador.energiaAmarela) +
-                ", Vermelho=" + NomeSprite(controlador.energiaVermelha) + ".",
+                "[EnergyProgressBarSetup] Corrigido. Energy permanece estático e " +
+                "EnergyProgressFill é a barra verde que aumenta/diminui.",
                 controlador
             );
         }
@@ -181,27 +174,27 @@ public static class EnergyProgressBarSetup
         }
         else
         {
-            if (controlador.energiaVerde == null)
+            if (controlador.imagemOriginal != energy)
             {
-                avisos++;
-                Debug.LogWarning(
-                    "[EnergyProgressBarValidator] energy_green não foi atribuído."
+                erros++;
+                Debug.LogError(
+                    "[EnergyProgressBarValidator] Imagem Original não aponta para Energy."
                 );
             }
 
-            if (controlador.energiaAmarela == null)
+            if (controlador.areaPreenchimento == null)
             {
-                avisos++;
-                Debug.LogWarning(
-                    "[EnergyProgressBarValidator] energy_yellow não foi atribuído."
+                erros++;
+                Debug.LogError(
+                    "[EnergyProgressBarValidator] EnergyProgressArea ausente."
                 );
             }
 
-            if (controlador.energiaVermelha == null)
+            if (controlador.preenchimentoVerde == null)
             {
-                avisos++;
-                Debug.LogWarning(
-                    "[EnergyProgressBarValidator] energy_red não foi atribuído."
+                erros++;
+                Debug.LogError(
+                    "[EnergyProgressBarValidator] EnergyProgressFill ausente."
                 );
             }
 
@@ -223,11 +216,12 @@ public static class EnergyProgressBarSetup
             }
         }
 
-        if (energy != null && energy.type != Image.Type.Filled)
+        if (energy != null && energy.type == Image.Type.Filled)
         {
             erros++;
             Debug.LogError(
-                "[EnergyProgressBarValidator] Energy não está como Image.Type.Filled."
+                "[EnergyProgressBarValidator] Energy ainda está como Filled. " +
+                "Apenas EnergyProgressFill deve diminuir."
             );
         }
 
@@ -243,11 +237,7 @@ public static class EnergyProgressBarSetup
         if (canvas == null)
             return null;
 
-        GameObject objeto = new GameObject(
-            "StaminaHUD",
-            typeof(RectTransform)
-        );
-
+        GameObject objeto = new GameObject("StaminaHUD", typeof(RectTransform));
         Undo.RegisterCreatedObjectUndo(objeto, "Criar StaminaHUD");
         objeto.transform.SetParent(canvas.transform, false);
 
@@ -270,7 +260,7 @@ public static class EnergyProgressBarSetup
             typeof(Image)
         );
 
-        Undo.RegisterCreatedObjectUndo(objeto, "Criar barra Energy");
+        Undo.RegisterCreatedObjectUndo(objeto, "Criar Energy");
         objeto.transform.SetParent(staminaHud, false);
 
         RectTransform rect = objeto.GetComponent<RectTransform>();
@@ -281,6 +271,7 @@ public static class EnergyProgressBarSetup
         rect.sizeDelta = new Vector2(310.4f, 69.4f);
 
         Image image = objeto.GetComponent<Image>();
+        image.type = Image.Type.Simple;
         image.raycastTarget = false;
         return image;
     }
@@ -300,11 +291,8 @@ public static class EnergyProgressBarSetup
             if (nome == "energy")
                 return imagem;
 
-            if (fallback == null &&
-                (nome == "energia" || nome == "energyfill" || nome == "barraenergia"))
-            {
+            if (fallback == null && nome == "energia")
                 fallback = imagem;
-            }
         }
 
         return fallback;
@@ -355,80 +343,6 @@ public static class EnergyProgressBarSetup
         return null;
     }
 
-    private static Sprite EncontrarEPrepararSprite(params string[] aliases)
-    {
-        for (int a = 0; a < aliases.Length; a++)
-        {
-            string[] guids = AssetDatabase.FindAssets(aliases[a]);
-
-            for (int i = 0; i < guids.Length; i++)
-            {
-                string caminho = AssetDatabase.GUIDToAssetPath(guids[i]);
-                if (string.IsNullOrWhiteSpace(caminho))
-                    continue;
-
-                string extensao = Path.GetExtension(caminho);
-                if (!string.Equals(extensao, ".png", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                string nome = Normalizar(Path.GetFileNameWithoutExtension(caminho));
-                if (!Corresponde(nome, aliases))
-                    continue;
-
-                TextureImporter importer = AssetImporter.GetAtPath(caminho) as TextureImporter;
-                if (importer != null)
-                {
-                    bool alterado = false;
-
-                    if (importer.textureType != TextureImporterType.Sprite)
-                    {
-                        importer.textureType = TextureImporterType.Sprite;
-                        alterado = true;
-                    }
-
-                    if (importer.spriteImportMode != SpriteImportMode.Single)
-                    {
-                        importer.spriteImportMode = SpriteImportMode.Single;
-                        alterado = true;
-                    }
-
-                    if (!importer.alphaIsTransparency)
-                    {
-                        importer.alphaIsTransparency = true;
-                        alterado = true;
-                    }
-
-                    if (importer.mipmapEnabled)
-                    {
-                        importer.mipmapEnabled = false;
-                        alterado = true;
-                    }
-
-                    if (alterado)
-                        importer.SaveAndReimport();
-                }
-
-                Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(caminho);
-                if (sprite != null)
-                    return sprite;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool Corresponde(string nome, string[] aliases)
-    {
-        for (int i = 0; i < aliases.Length; i++)
-        {
-            string alias = Normalizar(aliases[i]);
-            if (nome == alias || nome.Contains(alias))
-                return true;
-        }
-
-        return false;
-    }
-
     private static bool PareceContador(string valor)
     {
         if (string.IsNullOrWhiteSpace(valor))
@@ -439,11 +353,6 @@ public static class EnergyProgressBarSetup
                indice < valor.Length - 1 &&
                char.IsDigit(valor[indice - 1]) &&
                char.IsDigit(valor[indice + 1]);
-    }
-
-    private static string NomeSprite(Sprite sprite)
-    {
-        return sprite != null ? sprite.name : "não encontrado";
     }
 
     private static string Normalizar(string valor)
