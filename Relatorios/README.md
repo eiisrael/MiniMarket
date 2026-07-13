@@ -15,7 +15,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 
 ## Relatório mais recente
 
-- `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: stamina visual, soltura segura, `Buy_Area`, minimapa editável, controles touch e sprite `click_on`.
+- `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: correção de `Canvas/StaminaHUD/Energy`, progress bar segmentada e troca entre `energy_green`, `energy_yellow` e `energy_red`.
 
 ## Relatórios disponíveis
 
@@ -26,6 +26,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `DESKTOP_MOBILE.md`: perfil de renderização e entrada para as duas plataformas.
 - `RECUPERACAO_COMPRA_MINIMAPA_ENERGIA.md`: recuperação dos sistemas removidos pela organização antiga.
 - `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: melhorias de 2026-07-12.
+- `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: barra `Energy` progressiva, sprites por faixa e ferramenta de criação/reparo.
 - `TESTES_POS_GIT_PULL.md`: checklist de compilação e validação manual.
 - `CHANGELOG_TECNICO.md`: histórico das mudanças que afetam arquitetura ou comportamento.
 
@@ -36,7 +37,8 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - Objetos móveis: `Assets/Scripts/Interaction/GetItemController.cs` e `GrabbableItem.cs`.
 - Objetos interativos: `InteractionFocusController.cs`, `InteractiveObject.cs` e `InteractionHighlight.cs`.
 - Banco: `Assets/Scripts/Database/MiniMarketPlayerDatabase.cs`.
-- HUD de energia: `Assets/Scripts/UI/MiniMarketEnergySegmentHUD.cs`.
+- HUD de energia segmentada: `Assets/Scripts/UI/MiniMarketEnergySegmentHUD.cs`.
+- Barra visual principal `Canvas/StaminaHUD/Energy`: `Assets/Scripts/UI/MiniMarketEnergyProgressBar.cs`.
 - Minimapa: `Assets/Scripts/UI/RuntimeMiniMap.cs`.
 - Controles mobile: `Assets/Scripts/UI/MobileControlsHUD.cs`.
 - Mira: `Assets/Scripts/UI/FirstPersonReticleController.cs`.
