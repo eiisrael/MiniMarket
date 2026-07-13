@@ -2,44 +2,39 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
-## 2026-07-13 — Barra Energy progressiva e sprites por faixa
+## 2026-07-13 — Correção da barra verde interna de Energy
 
-### Causa
+### Problema da primeira implementação
 
-- `Canvas > StaminaHUD > Energy` podia permanecer visualmente vazio enquanto `Txt_Qtd` mostrava `5/5`;
-- o HUD antigo podia usar apenas a stamina do segmento ativo, sem representar a energia total dos cinco segmentos;
-- os sprites verde, amarelo e vermelho não eram autoridades da imagem principal;
-- a detecção automática podia deixar mais de um componente tentando controlar o mesmo `fillAmount`.
+- a própria imagem `Canvas > StaminaHUD > Energy` foi convertida em `Image.Type.Filled`;
+- como resultado, o artwork `energy.png` inteiro diminuía como uma progress bar;
+- o comportamento esperado era manter o objeto original estático e alterar apenas uma barra verde interna.
 
-### Barra visual
+### Barra visual corrigida
 
-- criado `Assets/Scripts/UI/MiniMarketEnergyProgressBar.cs`;
-- o componente é instalado automaticamente no objeto `Energy` ao entrar no Play Mode;
-- a barra usa `Image.Type.Filled`, preenchimento horizontal e origem à esquerda;
-- o valor visual representa energia total contínua entre `0/5` e `5/5`;
-- `Txt_Qtd` permanece sincronizado com os segmentos;
-- estado inconsistente com segmentos disponíveis e stamina ativa zerada fora da corrida é normalizado visualmente;
-- `energy_green`, `energy_yellow` e `energy_red` são aplicados por faixa;
-- nomes antigos `green_energy`, `yellow_energy` e `red_energy` também são aceitos;
-- o HUD segmentado anterior deixa de disputar a imagem `Energy`;
-- atualização usa eventos e cache, sem busca global no loop normal.
+- `MiniMarketEnergyProgressBar` mantém a imagem original de `Energy` como `Image.Type.Simple` e `fillAmount = 1`;
+- criada a hierarquia `Energy/ EnergyProgressArea/ EnergyProgressFill`;
+- somente a largura de `EnergyProgressFill` aumenta e diminui;
+- a cor permanece verde durante descarga e recuperação;
+- `Background_Ene`, ícone, texto e artwork não são redimensionados;
+- quando existe `Background_Ene`, somente o componente `Image` antigo de `Energy` pode ser ocultado para evitar duplicação, mantendo o GameObject e seus filhos ativos;
+- o preenchimento continua representando a energia total segmentada entre `0/5` e `5/5`;
+- a posição interna da barra é ajustável por âncoras no Inspector;
+- `MiniMarketEnergySegmentHUD` deixa de disputar a mesma imagem.
 
 ### Ferramenta do Editor
 
-- criado `Assets/Editor/ProjectMaintenance/EnergyProgressBarSetup.cs`;
-- menu `Tools > MiniMarket > Criar ou Reparar Barra de Energia`;
-- menu `Tools > MiniMarket > Validar Barra de Energia`;
-- a ferramenta encontra ou cria `StaminaHUD` e `Energy`;
-- adiciona o componente, liga `Txt_Qtd` e `CameraRelativeMovement`;
-- localiza os três PNGs em qualquer pasta;
-- configura as texturas como Sprite, transparência ligada e mipmaps desligados;
-- salva a cena atual sem mover arquivos e sem alterar `Assets/Brick Project Studio`.
+- `Tools > MiniMarket > Criar ou Reparar Barra de Energia` foi corrigido;
+- a ferramenta não transforma mais `Energy` em `Filled`;
+- cria e salva `EnergyProgressArea` e `EnergyProgressFill`;
+- liga `Txt_Qtd` e `CameraRelativeMovement`;
+- `Tools > MiniMarket > Validar Barra de Energia` acusa erro quando `Energy` ainda estiver como `Filled`.
 
 ### Desktop e Mobile
 
-- a mesma fonte de stamina segmentada é usada nas duas plataformas;
-- o preenchimento usa `Time.unscaledDeltaTime`;
-- referências persistidas pela ferramenta são válidas para builds Desktop e Android.
+- a mesma fonte de stamina segmentada continua válida para as duas plataformas;
+- animação usa `Time.unscaledDeltaTime`;
+- nenhuma gravação em disco ocorre por frame.
 
 ### Validação
 
