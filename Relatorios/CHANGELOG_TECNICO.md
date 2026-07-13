@@ -2,6 +2,62 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-13 — Objetos runtime materializados na Hierarchy
+
+### Problema
+
+- diversos sistemas criavam GameObjects somente ao apertar Play;
+- alterações de cor, posição, tamanho e referências feitas nesses objetos desapareciam ao pressionar Stop;
+- energia, minimapa, HUD mobile, mira, hosts de compra, diagnóstico e perfil de renderização não possuíam uma hierarquia editável completa.
+
+### Materializador
+
+- criado `Assets/Editor/ProjectMaintenance/EditableRuntimeHierarchySetup.cs`;
+- criado menu `Tools > MiniMarket > Materializar Todos os Objetos Runtime na Hierarquia`;
+- criado menu `Tools > MiniMarket > Validar Objetos Runtime Persistentes`;
+- a ferramenta usa Undo, salva a cena e não move nem apaga arquivos existentes;
+- são materializados energia, minimapa, HUD mobile, mira, compra, diagnóstico, EventSystem e perfil de renderização;
+- assets de suporte são criados somente em `Assets/Generated/MiniMarket`.
+
+### Barra de energia
+
+- `EnergyProgressArea` e `EnergyProgressFill` ficam salvos como filhos de `Energy`;
+- criado Inspector customizado `MiniMarketEnergyProgressBarEditor`;
+- `Cor Barra`, `Ancora Minima` e `Ancora Maxima` podem ser ajustados fora do Play Mode;
+- botão do Inspector aplica preview imediatamente;
+- somente `EnergyProgressFill` muda de largura durante o jogo.
+
+### Minimapa persistente
+
+- criado `RuntimeMiniMapHierarchyBinding`;
+- câmera, Canvas, borda, máscara, `MapImage`, ponto do jogador e botões ficam salvos na cena;
+- somente a `RenderTexture` permanece temporária em runtime;
+- callbacks de zoom são ligados na inicialização;
+- nenhum objeto visual precisa ser recriado ao entrar no Play.
+
+### HUD mobile persistente
+
+- criado `MobileControlsHierarchyBinding`;
+- Canvas, SafeArea, área de olhar, joystick, thumb e seis botões ficam salvos na cena;
+- callbacks touch são ligados durante a execução;
+- reflexão é cacheada e usada somente na inicialização/eventos, nunca por frame;
+- objetos permanecem editáveis fora do Play, mesmo que o Canvas seja ocultado no Desktop durante o jogo.
+
+### Compra, mira e serviços
+
+- controlador de mira e imagem `Mira` são persistidos quando ausentes;
+- `PurchaseSystemRuntimeRepair`, controlador de compra, trigger e LineRenderers são materializados;
+- criado material persistente `Assets/Generated/MiniMarket/Materials/BuyAreaLine.mat`;
+- `RuntimeDiagnosticsPanel` fica salvo como host configurável;
+- `PlatformRenderProfile` passa a reutilizar componente existente na cena antes de criar fallback runtime;
+- criado reparo complementar para materializar o perfil de renderização.
+
+### Validação
+
+- contratos de `RuntimeMiniMap`, `MobileControlsHUD`, energia, compra, mira, diagnóstico e renderização revisados estaticamente;
+- compilação e teste visual final dependem do Unity local;
+- relatório: `OBJETOS_RUNTIME_PERSISTENTES.md`.
+
 ## 2026-07-13 — Correção da barra verde interna de Energy
 
 ### Problema da primeira implementação
