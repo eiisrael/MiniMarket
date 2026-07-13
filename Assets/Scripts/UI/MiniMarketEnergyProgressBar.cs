@@ -1,37 +1,44 @@
-using System;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
-
 /// <summary>
-/// Autoridade visual da barra Canvas/StaminaHUD/Energy.
-/// Mostra a energia total segmentada de 0/5 até 5/5, anima o preenchimento e
-/// troca entre energy_green, energy_yellow e energy_red.
+/// Controla a barra verde interna de Canvas/StaminaHUD/Energy.
+/// O artwork original do objeto Energy permanece estático; somente o preenchimento
+/// interno aumenta e diminui conforme a energia segmentada.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(25500)]
 public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
 {
+    private const string FillAreaName = "EnergyProgressArea";
+    private const string FillName = "EnergyProgressFill";
+
     [Header("Referências")]
-    public Image barra;
+    [Tooltip("Imagem original do objeto Energy. Ela não será usada como progress bar.")]
+    public Image imagemOriginal;
+
+    [Tooltip("Área interna onde a barra verde será desenhada.")]
+    public RectTransform areaPreenchimento;
+
+    [Tooltip("Imagem verde criada dentro da área de preenchimento.")]
+    public Image preenchimentoVerde;
+
     public Text textoQuantidade;
     public CameraRelativeMovement movimento;
 
-    [Header("Sprites")]
-    public Sprite energiaVerde;
-    public Sprite energiaAmarela;
-    public Sprite energiaVermelha;
-    public bool procurarSpritesAutomaticamente = true;
+    [Header("Área da barra dentro de Energy")]
+    [Tooltip("Posição normalizada do canto inferior esquerdo da barra dentro de Energy.")]
+    public Vector2 ancoraMinima = new Vector2(0.22f, 0.36f);
 
-    [Header("Faixas")]
-    [Range(0f, 1f)] public float limiteAmarelo = 0.55f;
-    [Range(0f, 1f)] public float limiteVermelho = 0.25f;
+    [Tooltip("Posição normalizada do canto superior direito da barra dentro de Energy.")]
+    public Vector2 ancoraMaxima = new Vector2(0.93f, 0.64f);
+
+    [Header("Visual")]
+    public Color corBarra = new Color(0.18f, 0.95f, 0.22f, 1f);
+
+    [Tooltip("Quando existe Background_Ene separado, oculta somente a Image original de Energy para não duplicar a barra.")]
+    public bool ocultarImagemOriginalComFundoSeparado = true;
 
     [Header("Animação")]
     public bool animar = true;
@@ -39,35 +46,25 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     [Min(0.0001f)] public float tolerancia = 0.001f;
 
     [Header("Comportamento")]
+    [Tooltip("A barra representa a energia total dos segmentos, respeitando 5/5, 4/5 etc.")]
+    public bool usarEnergiaTotalSegmentada = true;
+
+    [Tooltip("Corrige somente o visual quando o save informa segmentos disponíveis e stamina ativa zerada fora da corrida.")]
     public bool corrigirEstadoInconsistente = true;
+
     public bool manterTextoSegmentado = true;
     [Min(0.1f)] public float intervaloBusca = 0.5f;
 
     private MiniMarketPlayerDatabase database;
     private MiniMarketEnergySegmentHUD hudLegado;
+    private CameraRelativeMovement movimentoInscrito;
+    private MiniMarketPlayerDatabase databaseInscrito;
     private float valorAlvo = 1f;
     private float valorVisual = 1f;
     private float proximaBusca;
     private int ultimoAtual = -1;
     private int ultimoMaximo = -1;
     private float ultimoAlvo = -1f;
-    private bool inscritoMovimento;
-    private bool inscritoBanco;
-
-    private static readonly string[] NomesVerde =
-    {
-        "energy_green", "green_energy", "energygreen", "greenenergy"
-    };
-
-    private static readonly string[] NomesAmarelo =
-    {
-        "energy_yellow", "yellow_energy", "energyyellow", "yellowenergy"
-    };
-
-    private static readonly string[] NomesVermelho =
-    {
-        "energy_red", "red_energy", "energyred", "redenergy"
-    };
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void InstalarAutomaticamente()
@@ -83,8 +80,8 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
             return;
         }
 
-        Image alvo = EncontrarBarraEnergy();
-        if (alvo == null)
+        Image energy = EncontrarImagemEnergy();
+        if (energy == null)
         {
             Debug.LogWarning(
                 "[EnergyProgressBar] Canvas/StaminaHUD/Energy não foi encontrado. " +
@@ -94,16 +91,16 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         }
 
         MiniMarketEnergyProgressBar controlador =
-            alvo.GetComponent<MiniMarketEnergyProgressBar>();
+            energy.GetComponent<MiniMarketEnergyProgressBar>();
 
         if (controlador == null)
-            controlador = alvo.gameObject.AddComponent<MiniMarketEnergyProgressBar>();
+            controlador = energy.gameObject.AddComponent<MiniMarketEnergyProgressBar>();
 
-        controlador.barra = alvo;
+        controlador.imagemOriginal = energy;
         controlador.RebuscarTudo();
     }
 
-    private static Image EncontrarBarraEnergy()
+    private static Image EncontrarImagemEnergy()
     {
         Image[] imagens = Object.FindObjectsByType<Image>(
             FindObjectsInactive.Include,
@@ -119,27 +116,23 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
             if (imagem == null || imagem.GetComponentInParent<Canvas>() == null)
                 continue;
 
-            string nome = NormalizarNome(imagem.name);
-            int pontuacao = 0;
-
-            if (nome == "energy")
-                pontuacao += 1000;
-            else if (nome == "energia" || nome == "energyfill" || nome == "barraenergia")
-                pontuacao += 700;
-            else
+            string nome = Normalizar(imagem.name);
+            if (nome != "energy" && nome != "energia")
                 continue;
 
+            int pontuacao = nome == "energy" ? 1000 : 700;
             Transform pai = imagem.transform.parent;
+
             while (pai != null)
             {
-                string nomePai = NormalizarNome(pai.name);
+                string nomePai = Normalizar(pai.name);
                 if (nomePai == "staminahud")
                 {
                     pontuacao += 1000;
                     break;
                 }
 
-                if (nomePai.Contains("stamina") || nomePai.Contains("energy") || nomePai.Contains("energia"))
+                if (nomePai.Contains("stamina"))
                     pontuacao += 100;
 
                 if (pai.GetComponent<Canvas>() != null)
@@ -147,9 +140,6 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
 
                 pai = pai.parent;
             }
-
-            if (imagem.gameObject.activeInHierarchy)
-                pontuacao += 10;
 
             if (pontuacao > melhorPontuacao)
             {
@@ -164,16 +154,16 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     private void Awake()
     {
         ResolverReferencias(true);
-        ResolverSprites();
-        AssumirAutoridadeVisual();
+        GarantirEstruturaVisual();
+        TransferirAutoridadeDoHudAntigo();
         AtualizarAlvo(true);
     }
 
     private void OnEnable()
     {
         ResolverReferencias(true);
-        ResolverSprites();
-        AssumirAutoridadeVisual();
+        GarantirEstruturaVisual();
+        TransferirAutoridadeDoHudAntigo();
         InscreverEventos();
         AtualizarAlvo(true);
     }
@@ -186,39 +176,59 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
     private void Update()
     {
         if (Time.unscaledTime >= proximaBusca &&
-            (movimento == null || barra == null || database == null))
+            (movimento == null || imagemOriginal == null || database == null))
         {
             ResolverReferencias(false);
-            ResolverSprites();
-            AssumirAutoridadeVisual();
+            GarantirEstruturaVisual();
+            TransferirAutoridadeDoHudAntigo();
             InscreverEventos();
         }
 
         AtualizarAlvo(false);
-        AnimarBarra();
+        AnimarPreenchimento();
     }
 
     [ContextMenu("Energia/Rebuscar tudo")]
     public void RebuscarTudo()
     {
-        ResolverReferencias(true);
-        ResolverSprites();
-        AssumirAutoridadeVisual();
         DesinscreverEventos();
+        ResolverReferencias(true);
+        GarantirEstruturaVisual();
+        TransferirAutoridadeDoHudAntigo();
         InscreverEventos();
+
         ultimoAtual = -1;
         ultimoMaximo = -1;
         ultimoAlvo = -1f;
         AtualizarAlvo(true);
     }
 
+    [ContextMenu("Energia/Recriar barra verde interna")]
+    public void RecriarBarraInterna()
+    {
+        if (areaPreenchimento != null)
+        {
+            GameObject alvo = areaPreenchimento.gameObject;
+            areaPreenchimento = null;
+            preenchimentoVerde = null;
+
+            if (Application.isPlaying)
+                Destroy(alvo);
+            else
+                DestroyImmediate(alvo);
+        }
+
+        GarantirEstruturaVisual();
+        AtualizarAlvo(true);
+    }
+
     private void ResolverReferencias(bool forcar)
     {
-        if (barra == null)
-            barra = GetComponent<Image>();
+        if (imagemOriginal == null)
+            imagemOriginal = GetComponent<Image>();
 
-        if (barra == null)
-            barra = EncontrarBarraEnergy();
+        if (imagemOriginal == null)
+            imagemOriginal = EncontrarImagemEnergy();
 
         if (forcar || movimento == null)
         {
@@ -234,21 +244,118 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
                 database = MiniMarketPlayerDatabase.ObterOuCriar();
         }
 
-        if (textoQuantidade == null && barra != null)
-            textoQuantidade = EncontrarTextoQuantidade(barra.transform.parent);
+        if (textoQuantidade == null && imagemOriginal != null)
+            textoQuantidade = EncontrarTextoQuantidade(imagemOriginal.transform.parent);
 
-        if (hudLegado == null && barra != null)
+        if (hudLegado == null && imagemOriginal != null)
         {
-            hudLegado = barra.GetComponentInParent<MiniMarketEnergySegmentHUD>();
-            if (hudLegado == null && barra.transform.parent != null)
+            hudLegado = imagemOriginal.GetComponentInParent<MiniMarketEnergySegmentHUD>();
+            if (hudLegado == null && imagemOriginal.transform.parent != null)
             {
-                hudLegado = barra.transform.parent.GetComponentInChildren<MiniMarketEnergySegmentHUD>(
-                    true
-                );
+                hudLegado = imagemOriginal.transform.parent
+                    .GetComponentInChildren<MiniMarketEnergySegmentHUD>(true);
             }
         }
 
         proximaBusca = Time.unscaledTime + Mathf.Max(0.1f, intervaloBusca);
+    }
+
+    private void GarantirEstruturaVisual()
+    {
+        if (imagemOriginal == null)
+            return;
+
+        imagemOriginal.raycastTarget = false;
+        imagemOriginal.type = Image.Type.Simple;
+        imagemOriginal.fillAmount = 1f;
+
+        bool fundoSeparado = TemFundoSeparado();
+        imagemOriginal.enabled = !(ocultarImagemOriginalComFundoSeparado && fundoSeparado);
+
+        Transform areaExistente = imagemOriginal.transform.Find(FillAreaName);
+        if (areaPreenchimento == null && areaExistente != null)
+            areaPreenchimento = areaExistente as RectTransform;
+
+        if (areaPreenchimento == null)
+        {
+            GameObject area = new GameObject(FillAreaName, typeof(RectTransform));
+            area.transform.SetParent(imagemOriginal.transform, false);
+            areaPreenchimento = area.GetComponent<RectTransform>();
+        }
+
+        areaPreenchimento.anchorMin = ancoraMinima;
+        areaPreenchimento.anchorMax = ancoraMaxima;
+        areaPreenchimento.pivot = new Vector2(0f, 0.5f);
+        areaPreenchimento.offsetMin = Vector2.zero;
+        areaPreenchimento.offsetMax = Vector2.zero;
+        areaPreenchimento.localScale = Vector3.one;
+
+        Transform fillExistente = areaPreenchimento.Find(FillName);
+        if (preenchimentoVerde == null && fillExistente != null)
+            preenchimentoVerde = fillExistente.GetComponent<Image>();
+
+        if (preenchimentoVerde == null)
+        {
+            GameObject fill = new GameObject(
+                FillName,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image)
+            );
+            fill.transform.SetParent(areaPreenchimento, false);
+            preenchimentoVerde = fill.GetComponent<Image>();
+        }
+
+        preenchimentoVerde.sprite = null;
+        preenchimentoVerde.type = Image.Type.Simple;
+        preenchimentoVerde.color = corBarra;
+        preenchimentoVerde.raycastTarget = false;
+        preenchimentoVerde.preserveAspect = false;
+
+        AplicarValorVisual(valorVisual);
+    }
+
+    private bool TemFundoSeparado()
+    {
+        if (imagemOriginal == null || imagemOriginal.transform.parent == null)
+            return false;
+
+        Transform pai = imagemOriginal.transform.parent;
+        for (int i = 0; i < pai.childCount; i++)
+        {
+            Transform filho = pai.GetChild(i);
+            if (filho == null || filho == imagemOriginal.transform)
+                continue;
+
+            string nome = Normalizar(filho.name);
+            if (nome.Contains("backgroundene") ||
+                nome.Contains("backgroundenergy") ||
+                nome.Contains("fundoene") ||
+                nome.Contains("fundoenergia"))
+            {
+                return filho.GetComponent<Image>() != null;
+            }
+        }
+
+        return false;
+    }
+
+    private void TransferirAutoridadeDoHudAntigo()
+    {
+        if (hudLegado == null)
+            return;
+
+        hudLegado.autoDetectarBarras = false;
+        hudLegado.criarBarrasSegmentadasQuandoAusentes = false;
+
+        if (hudLegado.barraEnergia == imagemOriginal ||
+            hudLegado.barraEnergia == preenchimentoVerde)
+        {
+            hudLegado.barraEnergia = null;
+        }
+
+        if (textoQuantidade != null)
+            hudLegado.textoEnergia = textoQuantidade;
     }
 
     private static Text EncontrarTextoQuantidade(Transform raiz)
@@ -265,103 +372,19 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
             if (texto == null)
                 continue;
 
-            string nome = NormalizarNome(texto.name);
-            if (nome == "txtqtd" || nome == "quantidade" || nome == "energytext" ||
-                nome == "staminatext")
+            string nome = Normalizar(texto.name);
+            if (nome == "txtqtd" || nome == "quantidade" ||
+                nome == "energytext" || nome == "staminatext")
             {
                 return texto;
             }
 
-            if (fallback == null && PareceContadorSegmentado(texto.text))
+            if (fallback == null && PareceContador(texto.text))
                 fallback = texto;
         }
 
         return fallback;
     }
-
-    private void AssumirAutoridadeVisual()
-    {
-        if (barra == null)
-            return;
-
-        barra.raycastTarget = false;
-        barra.type = Image.Type.Filled;
-        barra.fillMethod = Image.FillMethod.Horizontal;
-        barra.fillOrigin = (int)Image.OriginHorizontal.Left;
-        barra.fillClockwise = true;
-        barra.preserveAspect = false;
-
-        if (hudLegado == null)
-            return;
-
-        hudLegado.autoDetectarBarras = false;
-        hudLegado.criarBarrasSegmentadasQuandoAusentes = false;
-
-        if (hudLegado.barraEnergia == barra)
-            hudLegado.barraEnergia = null;
-
-        if (textoQuantidade != null)
-            hudLegado.textoEnergia = textoQuantidade;
-    }
-
-    private void ResolverSprites()
-    {
-        if (!procurarSpritesAutomaticamente)
-            return;
-
-        Sprite[] carregados = Resources.FindObjectsOfTypeAll<Sprite>();
-        for (int i = 0; i < carregados.Length; i++)
-            TentarAtribuirSprite(carregados[i]);
-
-#if UNITY_EDITOR
-        if (energiaVerde == null)
-            energiaVerde = ProcurarSpriteNoProjeto(NomesVerde);
-        if (energiaAmarela == null)
-            energiaAmarela = ProcurarSpriteNoProjeto(NomesAmarelo);
-        if (energiaVermelha == null)
-            energiaVermelha = ProcurarSpriteNoProjeto(NomesVermelho);
-#endif
-    }
-
-    private void TentarAtribuirSprite(Sprite sprite)
-    {
-        if (sprite == null)
-            return;
-
-        string nome = NormalizarNome(sprite.name);
-        if (energiaVerde == null && NomeCorresponde(nome, NomesVerde))
-            energiaVerde = sprite;
-        if (energiaAmarela == null && NomeCorresponde(nome, NomesAmarelo))
-            energiaAmarela = sprite;
-        if (energiaVermelha == null && NomeCorresponde(nome, NomesVermelho))
-            energiaVermelha = sprite;
-    }
-
-#if UNITY_EDITOR
-    private static Sprite ProcurarSpriteNoProjeto(string[] aliases)
-    {
-        for (int a = 0; a < aliases.Length; a++)
-        {
-            string[] guids = AssetDatabase.FindAssets(aliases[a]);
-            for (int i = 0; i < guids.Length; i++)
-            {
-                string caminho = AssetDatabase.GUIDToAssetPath(guids[i]);
-                if (string.IsNullOrWhiteSpace(caminho))
-                    continue;
-
-                string nomeArquivo = System.IO.Path.GetFileNameWithoutExtension(caminho);
-                if (!NomeCorresponde(NormalizarNome(nomeArquivo), aliases))
-                    continue;
-
-                Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(caminho);
-                if (sprite != null)
-                    return sprite;
-            }
-        }
-
-        return null;
-    }
-#endif
 
     private void AtualizarAlvo(bool forcar)
     {
@@ -399,11 +422,18 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         if (corrigirEstadoInconsistente && atual > 0 && stamina01 <= 0.001f && !correndo)
             stamina01 = 1f;
 
-        float unidades = atual <= 0
-            ? 0f
-            : Mathf.Max(0, atual - 1) + stamina01;
-
-        float novoAlvo = Mathf.Clamp01(unidades / maximo);
+        float novoAlvo;
+        if (!usarEnergiaTotalSegmentada)
+        {
+            novoAlvo = stamina01;
+        }
+        else
+        {
+            float unidades = atual <= 0
+                ? 0f
+                : Mathf.Max(0, atual - 1) + stamina01;
+            novoAlvo = Mathf.Clamp01(unidades / maximo);
+        }
 
         bool mudou = forcar ||
                      atual != ultimoAtual ||
@@ -424,15 +454,13 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         if (manterTextoSegmentado && textoQuantidade != null)
             textoQuantidade.text = atual + "/" + maximo;
 
-        AplicarSpriteECor(valorAlvo);
-
         if (forcar)
-            AplicarFill(valorVisual);
+            AplicarValorVisual(valorVisual);
     }
 
-    private void AnimarBarra()
+    private void AnimarPreenchimento()
     {
-        if (barra == null)
+        if (preenchimentoVerde == null)
             return;
 
         if (!animar)
@@ -450,79 +478,58 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
                 valorVisual = valorAlvo;
         }
 
-        AplicarFill(valorVisual);
+        AplicarValorVisual(valorVisual);
     }
 
-    private void AplicarFill(float valor)
+    private void AplicarValorVisual(float valor)
     {
-        if (barra == null)
+        if (preenchimentoVerde == null)
             return;
 
-        AssumirAutoridadeVisual();
-        barra.fillAmount = Mathf.Clamp01(valor);
-    }
-
-    private void AplicarSpriteECor(float valor)
-    {
-        if (barra == null)
-            return;
-
-        Sprite desejado;
-        Color fallback;
-
-        if (valor <= limiteVermelho)
-        {
-            desejado = energiaVermelha;
-            fallback = new Color(1f, 0.18f, 0.08f, 1f);
-        }
-        else if (valor <= limiteAmarelo)
-        {
-            desejado = energiaAmarela;
-            fallback = new Color(1f, 0.78f, 0.08f, 1f);
-        }
-        else
-        {
-            desejado = energiaVerde;
-            fallback = new Color(0.15f, 0.9f, 0.25f, 1f);
-        }
-
-        if (desejado != null)
-        {
-            if (barra.sprite != desejado)
-                barra.sprite = desejado;
-            barra.color = Color.white;
-        }
-        else
-        {
-            barra.color = fallback;
-        }
+        RectTransform rect = preenchimentoVerde.rectTransform;
+        float normalizado = Mathf.Clamp01(valor);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = new Vector2(normalizado, 1f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        preenchimentoVerde.color = corBarra;
+        preenchimentoVerde.enabled = normalizado > 0.0001f;
     }
 
     private void InscreverEventos()
     {
-        if (movimento != null && !inscritoMovimento)
+        if (movimentoInscrito != movimento)
         {
-            movimento.OnStaminaChanged += AoAlterarStamina;
-            inscritoMovimento = true;
+            if (movimentoInscrito != null)
+                movimentoInscrito.OnStaminaChanged -= AoAlterarStamina;
+
+            movimentoInscrito = movimento;
+            if (movimentoInscrito != null)
+                movimentoInscrito.OnStaminaChanged += AoAlterarStamina;
         }
 
-        if (database != null && !inscritoBanco)
+        if (databaseInscrito != database)
         {
-            database.OnDatabaseChanged += AoAlterarBanco;
-            inscritoBanco = true;
+            if (databaseInscrito != null)
+                databaseInscrito.OnDatabaseChanged -= AoAlterarBanco;
+
+            databaseInscrito = database;
+            if (databaseInscrito != null)
+                databaseInscrito.OnDatabaseChanged += AoAlterarBanco;
         }
     }
 
     private void DesinscreverEventos()
     {
-        if (movimento != null && inscritoMovimento)
-            movimento.OnStaminaChanged -= AoAlterarStamina;
+        if (movimentoInscrito != null)
+            movimentoInscrito.OnStaminaChanged -= AoAlterarStamina;
 
-        if (database != null && inscritoBanco)
-            database.OnDatabaseChanged -= AoAlterarBanco;
+        if (databaseInscrito != null)
+            databaseInscrito.OnDatabaseChanged -= AoAlterarBanco;
 
-        inscritoMovimento = false;
-        inscritoBanco = false;
+        movimentoInscrito = null;
+        databaseInscrito = null;
     }
 
     private void AoAlterarStamina()
@@ -535,31 +542,19 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
         AtualizarAlvo(false);
     }
 
-    private static bool PareceContadorSegmentado(string valor)
+    private static bool PareceContador(string valor)
     {
         if (string.IsNullOrWhiteSpace(valor))
             return false;
 
-        int barraIndex = valor.IndexOf('/');
-        return barraIndex > 0 &&
-               barraIndex < valor.Length - 1 &&
-               char.IsDigit(valor[barraIndex - 1]) &&
-               char.IsDigit(valor[barraIndex + 1]);
+        int indice = valor.IndexOf('/');
+        return indice > 0 &&
+               indice < valor.Length - 1 &&
+               char.IsDigit(valor[indice - 1]) &&
+               char.IsDigit(valor[indice + 1]);
     }
 
-    private static bool NomeCorresponde(string nomeNormalizado, string[] aliases)
-    {
-        for (int i = 0; i < aliases.Length; i++)
-        {
-            string alias = NormalizarNome(aliases[i]);
-            if (nomeNormalizado == alias || nomeNormalizado.Contains(alias))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static string NormalizarNome(string valor)
+    private static string Normalizar(string valor)
     {
         if (string.IsNullOrWhiteSpace(valor))
             return string.Empty;
@@ -584,8 +579,10 @@ public sealed class MiniMarketEnergyProgressBar : MonoBehaviour
 
     private void OnValidate()
     {
-        limiteVermelho = Mathf.Clamp01(limiteVermelho);
-        limiteAmarelo = Mathf.Clamp(limiteAmarelo, limiteVermelho, 1f);
+        ancoraMinima.x = Mathf.Clamp01(ancoraMinima.x);
+        ancoraMinima.y = Mathf.Clamp01(ancoraMinima.y);
+        ancoraMaxima.x = Mathf.Clamp(ancoraMaxima.x, ancoraMinima.x, 1f);
+        ancoraMaxima.y = Mathf.Clamp(ancoraMaxima.y, ancoraMinima.y, 1f);
         velocidade = Mathf.Max(0.1f, velocidade);
         tolerancia = Mathf.Max(0.0001f, tolerancia);
         intervaloBusca = Mathf.Max(0.1f, intervaloBusca);
