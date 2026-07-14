@@ -4,8 +4,9 @@ using UnityEngine;
 /// Autoridade de foco e interação para primeira e terceira pessoa.
 ///
 /// O raycast central continua sendo a primeira opção. Em terceira pessoa, portas e
-/// mecanismos próximos também podem ser selecionados sem exigir mira. A busca usa
-/// buffers reutilizados, ignora itens pegáveis e mantém proteção contra paredes.
+/// mecanismos próximos também podem ser selecionados pelo espaço ao redor do jogador,
+/// sem exigir mira. A busca usa buffers reutilizados, ignora itens pegáveis e mantém
+/// proteção contra paredes.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(1100)]
@@ -154,12 +155,7 @@ public sealed class InteractionFocusController : MonoBehaviour
 
         bool success = focusedObject.Interact();
         if (success && logInteractions)
-        {
-            Debug.Log(
-                "[Interaction] Interagiu com: " + focusedObject.displayName,
-                focusedObject
-            );
-        }
+            Debug.Log("[Interaction] Interagiu com: " + focusedObject.displayName, focusedObject);
 
         return success;
     }
@@ -206,10 +202,7 @@ public sealed class InteractionFocusController : MonoBehaviour
             }
         }
 
-        candidate = FindThirdPersonProximityCandidate(
-            playerOrigin,
-            explicitInteractionRequest
-        );
+        candidate = FindThirdPersonProximityCandidate(playerOrigin, explicitInteractionRequest);
 
         DrawDebugRay(cameraRay, interactionDistance, false);
         DrawDebugRay(playerRay, fallbackDistance, false);
@@ -324,7 +317,7 @@ public sealed class InteractionFocusController : MonoBehaviour
                 continue;
             }
 
-            Vector3 targetPoint = GetSafeClosestPoint(candidateCollider, origin);
+            Vector3 targetPoint = candidateCollider.ClosestPoint(origin);
             if ((targetPoint - origin).sqrMagnitude <= 0.0001f)
                 targetPoint = candidateCollider.bounds.center;
 
@@ -371,35 +364,10 @@ public sealed class InteractionFocusController : MonoBehaviour
             Vector3 direction = cameraForward.sqrMagnitude > 0.0001f
                 ? cameraForward
                 : playerForward;
-            Debug.DrawRay(
-                origin,
-                direction * radius,
-                best != null ? Color.cyan : Color.yellow
-            );
+            Debug.DrawRay(origin, direction * radius, best != null ? Color.cyan : Color.yellow);
         }
 
         return best;
-    }
-
-    private static Vector3 GetSafeClosestPoint(Collider collider, Vector3 origin)
-    {
-        if (collider == null)
-            return origin;
-
-        if (collider is BoxCollider ||
-            collider is SphereCollider ||
-            collider is CapsuleCollider)
-        {
-            return collider.ClosestPoint(origin);
-        }
-
-        MeshCollider meshCollider = collider as MeshCollider;
-        if (meshCollider != null && meshCollider.convex)
-            return meshCollider.ClosestPoint(origin);
-
-        // Unity emite warning ao usar Collider.ClosestPoint em MeshCollider não convexo,
-        // TerrainCollider e colliders customizados. Bounds.ClosestPoint é seguro nesses casos.
-        return collider.bounds.ClosestPoint(origin);
     }
 
     private bool HasLineOfSight(
@@ -471,12 +439,11 @@ public sealed class InteractionFocusController : MonoBehaviour
             return true;
         }
 
-        InteractiveObject hitInteractive =
-            hitTransform.GetComponentInParent<InteractiveObject>();
+        InteractiveObject hitInteractive = hitTransform.GetComponentInParent<InteractiveObject>();
         return hitInteractive == target;
     }
 
-    private static bool IsValidCandidate(InteractiveObject candidate)
+    private bool IsValidCandidate(InteractiveObject candidate)
     {
         return candidate != null &&
                candidate.canInteract &&
@@ -487,8 +454,7 @@ public sealed class InteractionFocusController : MonoBehaviour
     {
         return IsThirdPerson() &&
                playerRoot != null &&
-               (usePlayerOriginFallbackInThirdPerson ||
-                useProximityFallbackInThirdPerson);
+               (usePlayerOriginFallbackInThirdPerson || useProximityFallbackInThirdPerson);
     }
 
     private bool IsThirdPerson()
@@ -583,20 +549,9 @@ public sealed class InteractionFocusController : MonoBehaviour
         thirdPersonOriginHeight = Mathf.Max(0f, thirdPersonOriginHeight);
         thirdPersonFallbackDistance = Mathf.Max(0.1f, thirdPersonFallbackDistance);
         thirdPersonProximityRadius = Mathf.Max(0.5f, thirdPersonProximityRadius);
-        thirdPersonProximityAngle = Mathf.Clamp(
-            thirdPersonProximityAngle,
-            10f,
-            180f
-        );
-        interactionRequestProximityRadius = Mathf.Max(
-            0.5f,
-            interactionRequestProximityRadius
-        );
-        interactionRequestProximityAngle = Mathf.Clamp(
-            interactionRequestProximityAngle,
-            10f,
-            180f
-        );
+        thirdPersonProximityAngle = Mathf.Clamp(thirdPersonProximityAngle, 10f, 180f);
+        interactionRequestProximityRadius = Mathf.Max(0.5f, interactionRequestProximityRadius);
+        interactionRequestProximityAngle = Mathf.Clamp(interactionRequestProximityAngle, 10f, 180f);
         closeRangeOccluderTolerance = Mathf.Max(0f, closeRangeOccluderTolerance);
         closeRangeToleranceDistance = Mathf.Max(0.25f, closeRangeToleranceDistance);
     }
