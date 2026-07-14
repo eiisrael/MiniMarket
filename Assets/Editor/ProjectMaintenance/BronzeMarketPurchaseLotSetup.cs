@@ -333,7 +333,7 @@ public static class BronzeMarketPurchaseLotSetup
         }
 
         GameObject triggerObject = FindOrCreateChild(buyArea, RuntimeTriggerName, false, out bool triggerObjectCreated);
-        BoxCollider triggerCollider = EnsureComponent(triggerObject, out bool triggerColliderCreated);
+        BoxCollider triggerCollider = EnsureComponent<BoxCollider>(triggerObject, out bool triggerColliderCreated);
         BuySceneEntryTrigger entryTrigger = EnsureComponent<BuySceneEntryTrigger>(triggerObject, out bool triggerCreated);
 
         if (triggerObjectCreated || triggerColliderCreated)
@@ -485,8 +485,6 @@ public static class BronzeMarketPurchaseLotSetup
         GameObject statusObject = FindOrCreateChild(root, StatusName, true, out bool statusCreated);
         RectTransform statusRect = statusObject.GetComponent<RectTransform>();
 
-        // Defaults são aplicados somente na primeira criação. Uma cópia mantém exatamente
-        // o RectTransform, escala, posição e tamanho que vieram da loja original.
         if (statusCreated)
         {
             statusObject.transform.position = new Vector3(
@@ -587,8 +585,7 @@ public static class BronzeMarketPurchaseLotSetup
         }
 
         BronzeMarketLotStatusView view = statusObject.GetComponent<BronzeMarketLotStatusView>();
-        bool viewCreated = view == null;
-        if (viewCreated)
+        if (view == null)
         {
             view = Undo.AddComponent<BronzeMarketLotStatusView>(statusObject);
             view.mostrarPreviewForaDoPlay = true;
