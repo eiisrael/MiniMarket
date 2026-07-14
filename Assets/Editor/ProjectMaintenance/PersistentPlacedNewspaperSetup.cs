@@ -5,19 +5,13 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Garante que cada Put_Area possua um Placed_Newspaper_Runtime persistente,
-/// salvo na cena e totalmente editável fora do Play Mode.
+/// Cria/repara manualmente o Placed_Newspaper_Runtime persistente.
+/// Não executa após recompilar, não usa hierarchyChanged e não salva a cena sozinho.
 /// </summary>
-[InitializeOnLoad]
 public static class PersistentPlacedNewspaperSetup
 {
     private const string MenuPath =
         "Tools/MiniMarket/Jornal/Reconciliar Jornal Colocado Persistente";
-
-    static PersistentPlacedNewspaperSetup()
-    {
-        EditorApplication.delayCall += AutoConfigureLoadedScene;
-    }
 
     [MenuItem(MenuPath, priority = 2602)]
     public static void ConfigureNow()
@@ -31,20 +25,7 @@ public static class PersistentPlacedNewspaperSetup
         return !EditorApplication.isPlayingOrWillChangePlaymode;
     }
 
-    private static void AutoConfigureLoadedScene()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode ||
-            EditorApplication.isCompiling ||
-            EditorApplication.isUpdating)
-        {
-            EditorApplication.delayCall += AutoConfigureLoadedScene;
-            return;
-        }
-
-        ConfigureLoadedScene(false);
-    }
-
-    private static void ConfigureLoadedScene(bool logResult)
+    public static void ConfigureLoadedScene(bool logResult)
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
             return;
@@ -66,34 +47,73 @@ public static class PersistentPlacedNewspaperSetup
             if (controller == null || controller.gameObject.scene != scene)
                 continue;
 
+            bool controllerChanged = false;
+
             if (controller.putArea == null)
             {
                 Undo.RecordObject(controller, "Configurar Put_Area persistente");
                 controller.putArea = controller.transform;
-                sceneChanged = true;
+                controllerChanged = true;
             }
 
             if (controller.newspaperSourceVisual == null && sourceNewspaper != null)
             {
                 Undo.RecordObject(controller, "Configurar fonte do jornal colocado");
                 controller.newspaperSourceVisual = sourceNewspaper;
+                controllerChanged = true;
+            }
+
+            GameObject persistent = ResolvePersistentPlacedVisual(controller);
+            bool createdNow = false;
+
+            if (persistent == null)
+            {
+                GameObject source = controller.newspaperSourceVisual != null
+                    ? controller.newspaperSourceVisual
+                    : sourceNewspaper;
+
+                if (source == null)
+                    continue;
+
+                persistent = Object.Instantiate(source);
+                persistent.name = NewspaperPlacementAreaController.PersistentPlacedVisualName;
+                persistent.transform.SetParent(controller.putArea, false);
+                persistent.transform.localPosition = controller.placedLocalPosition;
+                persistent.transform.localRotation = controller.useSourceLocalRotation
+                    ? source.transform.localRotation
+                    : Quaternion.Euler(controller.placedLocalEuler);
+                persistent.transform.localScale = controller.useSourceLocalScale
+                    ? source.transform.localScale
+                    : controller.placedLocalScale;
+
+                Undo.RegisterCreatedObjectUndo(
+                    persistent,
+                    "Criar Placed_Newspaper_Runtime persistente"
+                );
+
+                SanitizeNewPersistentVisual(persistent);
+                createdNow = true;
                 sceneChanged = true;
             }
 
-            GameObject persistent = EnsurePersistentPlacedVisual(
-                controller,
-                sourceNewspaper,
-                ref sceneChanged
-            );
-
-            if (persistent == null)
-                continue;
+            if (controller.placedNewspaperVisual != persistent)
+            {
+                Undo.RecordObject(controller, "Vincular jornal persistente");
+                controller.placedNewspaperVisual = persistent;
+                controllerChanged = true;
+            }
 
             PersistentPlacedNewspaperVisual marker =
                 persistent.GetComponent<PersistentPlacedNewspaperVisual>();
 
-            bool firstConfiguration = marker != null && !marker.SetupDefaultsApplied;
-            if (firstConfiguration)
+            if (marker == null)
+            {
+                marker = Undo.AddComponent<PersistentPlacedNewspaperVisual>(persistent);
+                createdNow = true;
+                sceneChanged = true;
+            }
+
+            if (!marker.SetupDefaultsApplied)
             {
                 Undo.RecordObject(controller, "Ativar edição do jornal persistente");
                 controller.keepPlacedVisualInScene = true;
@@ -105,8 +125,8 @@ public static class PersistentPlacedNewspaperSetup
                 marker.transformControlledByInspector = true;
                 marker.MarkSetupDefaultsApplied();
 
-                EditorUtility.SetDirty(marker);
-                sceneChanged = true;
+                controllerChanged = true;
+                createdNow = true;
             }
 
             bool shouldPreview = controller.previewPlacedVisualInEditMode;
@@ -117,104 +137,66 @@ public static class PersistentPlacedNewspaperSetup
                 sceneChanged = true;
             }
 
-            EditorUtility.SetDirty(controller);
+            if (controllerChanged)
+            {
+                EditorUtility.SetDirty(controller);
+                sceneChanged = true;
+            }
+
+            if (createdNow)
+            {
+                EditorUtility.SetDirty(marker);
+                EditorUtility.SetDirty(persistent);
+            }
+
             configured++;
         }
 
         if (sceneChanged)
-        {
             EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
-            AssetDatabase.SaveAssets();
-        }
 
         if (logResult)
         {
             Debug.Log(
-                "[PersistentNewspaperSetup] Jornais persistentes reconciliados: " + configured +
-                " | Fonte: " + (sourceNewspaper != null ? sourceNewspaper.name : "não encontrada")
+                "[PersistentNewspaperSetup] Jornais persistentes verificados: " + configured +
+                ". Use Ctrl+S uma vez; nenhuma manutenção automática continuará alterando a cena."
             );
         }
     }
 
-    private static GameObject EnsurePersistentPlacedVisual(
-        NewspaperPlacementAreaController controller,
-        GameObject fallbackSource,
-        ref bool sceneChanged)
+    private static GameObject ResolvePersistentPlacedVisual(
+        NewspaperPlacementAreaController controller)
     {
-        Transform putArea = controller.putArea != null
-            ? controller.putArea
-            : controller.transform;
+        GameObject current = controller.placedNewspaperVisual;
+        if (IsPersistentPlacedVisual(current))
+            return current;
 
-        GameObject persistent = controller.placedNewspaperVisual;
-        if (persistent == null || !IsPersistentPlacedVisual(persistent))
-        {
-            Transform existing = FindPersistentChild(putArea);
-            persistent = existing != null ? existing.gameObject : null;
-        }
-
-        if (persistent == null)
-        {
-            GameObject source = controller.newspaperSourceVisual != null
-                ? controller.newspaperSourceVisual
-                : fallbackSource;
-
-            if (source == null)
-                return null;
-
-            persistent = Object.Instantiate(source);
-            persistent.name = NewspaperPlacementAreaController.PersistentPlacedVisualName;
-            persistent.transform.SetParent(putArea, false);
-
-            persistent.transform.localPosition = controller.placedLocalPosition;
-            persistent.transform.localRotation =
-                controller.useSourceLocalRotation && source != null
-                    ? source.transform.localRotation
-                    : Quaternion.Euler(controller.placedLocalEuler);
-            persistent.transform.localScale =
-                controller.useSourceLocalScale && source != null
-                    ? source.transform.localScale
-                    : controller.placedLocalScale;
-
-            Undo.RegisterCreatedObjectUndo(
-                persistent,
-                "Criar Placed_Newspaper_Runtime persistente"
-            );
-            sceneChanged = true;
-        }
-
-        if (controller.placedNewspaperVisual != persistent)
-        {
-            Undo.RecordObject(controller, "Vincular jornal persistente");
-            controller.placedNewspaperVisual = persistent;
-            sceneChanged = true;
-        }
-
-        PersistentPlacedNewspaperVisual marker =
-            persistent.GetComponent<PersistentPlacedNewspaperVisual>();
-        if (marker == null)
-        {
-            marker = Undo.AddComponent<PersistentPlacedNewspaperVisual>(persistent);
-            sceneChanged = true;
-        }
-
-        ClearHideFlagsRecursively(persistent.transform);
-        SanitizePersistentPlacedVisual(persistent);
-        EditorUtility.SetDirty(persistent);
-        return persistent;
+        Transform root = controller.putArea != null ? controller.putArea : controller.transform;
+        Transform found = FindPersistentChild(root);
+        return found != null ? found.gameObject : null;
     }
 
     private static GameObject FindSourceNewspaper(Scene scene)
     {
-        Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include);
+        NewspaperStandController[] stands =
+            Object.FindObjectsByType<NewspaperStandController>(FindObjectsInactive.Include);
 
+        for (int i = 0; i < stands.Length; i++)
+        {
+            NewspaperStandController stand = stands[i];
+            if (stand != null && stand.gameObject.scene == scene && stand.newspaperVisual != null)
+                return stand.newspaperVisual;
+        }
+
+        Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include);
         for (int i = 0; i < all.Length; i++)
         {
             Transform candidate = all[i];
-            if (candidate == null || candidate.gameObject.scene != scene)
+            if (candidate == null || candidate.gameObject.scene != scene ||
+                candidate.name != "Newspaper_Stand")
+            {
                 continue;
-            if (candidate.name != "Newspaper_Stand")
-                continue;
+            }
 
             Transform newspaper = FindChildRecursive(candidate, "Jornal");
             if (newspaper != null)
@@ -274,40 +256,19 @@ public static class PersistentPlacedNewspaperSetup
         return null;
     }
 
-    private static void ClearHideFlagsRecursively(Transform root)
+    private static void SanitizeNewPersistentVisual(GameObject target)
     {
-        if (root == null)
+        if (target == null)
             return;
 
-        root.gameObject.hideFlags = HideFlags.None;
-        Component[] components = root.GetComponents<Component>();
-        for (int i = 0; i < components.Length; i++)
-        {
-            if (components[i] != null)
-                components[i].hideFlags = HideFlags.None;
-        }
+        target.hideFlags = HideFlags.None;
 
-        for (int i = 0; i < root.childCount; i++)
-            ClearHideFlagsRecursively(root.GetChild(i));
-    }
-
-    private static void SanitizePersistentPlacedVisual(GameObject target)
-    {
         NewspaperStandController[] standControllers =
             target.GetComponentsInChildren<NewspaperStandController>(true);
         for (int i = 0; i < standControllers.Length; i++)
         {
             if (standControllers[i] != null)
                 standControllers[i].enabled = false;
-        }
-
-        NewspaperPlacementAreaController[] placementControllers =
-            target.GetComponentsInChildren<NewspaperPlacementAreaController>(true);
-        for (int i = 0; i < placementControllers.Length; i++)
-        {
-            NewspaperPlacementAreaController value = placementControllers[i];
-            if (value != null && value.gameObject != target)
-                value.enabled = false;
         }
 
         NewspaperWorldPromptVisual[] prompts =
@@ -318,14 +279,6 @@ public static class PersistentPlacedNewspaperSetup
                 continue;
             prompts[i].SetVisible(false);
             prompts[i].enabled = false;
-        }
-
-        NewspaperInstructionTextSettings[] textSettings =
-            target.GetComponentsInChildren<NewspaperInstructionTextSettings>(true);
-        for (int i = 0; i < textSettings.Length; i++)
-        {
-            if (textSettings[i] != null)
-                textSettings[i].enabled = false;
         }
 
         GrabbableItem[] grabbables = target.GetComponentsInChildren<GrabbableItem>(true);
@@ -361,7 +314,6 @@ public static class PersistentPlacedNewspaperSetup
             Rigidbody body = bodies[i];
             if (body == null)
                 continue;
-
             body.useGravity = false;
             body.isKinematic = true;
         }
