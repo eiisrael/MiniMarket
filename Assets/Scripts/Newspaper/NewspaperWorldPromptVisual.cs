@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -5,9 +6,10 @@ using UnityEngine.UI;
 /// <summary>
 /// Prompt circular persistente do sistema de jornal.
 ///
-/// O RectTransform raiz e o objeto Instruction podem ser editados livremente
-/// no Inspector. O script não sobrescreve posição, rotação, escala ou tamanho
-/// quando os respectivos modos de edição livre estão ativados.
+/// O layout é aplicado somente na criação/reparo. Durante o jogo, o componente altera
+/// apenas estado, visibilidade e animações explicitamente habilitadas. Assim os
+/// RectTransforms, cores, transparências e tamanhos ajustados no Inspector não são
+/// sobrescritos a cada frame.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -17,30 +19,47 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     public bool previewInEditMode = true;
     public bool animateInEditMode;
     public bool faceCamera;
+
+    [Tooltip("Mantém o billboard vertical e impede que o prompt fique apontado para o céu/chão.")]
+    public bool keepBillboardUpright = true;
+
+    [Tooltip("Correção adicional aplicada depois do billboard.")]
+    public Vector3 billboardEulerOffset;
+
+    [Range(0f, 1f)] public float visibleOpacity = 1f;
     public bool showInstructionText = true;
     public int sortingOrder = 260;
 
     [Header("Controle do Transform Raiz")]
-    [Tooltip("Marcado: posição, rotação, escala, largura e altura do objeto raiz são controladas diretamente pelo Inspector.")]
+    [Tooltip("Marcado: posição, escala e tamanho do objeto raiz vêm diretamente do Inspector.")]
     public bool useRootTransformAsSource = true;
 
-    [Tooltip("Campo de compatibilidade. Só controla a raiz quando Use Root Transform As Source está desmarcado.")]
+    [Tooltip("Usado apenas quando Use Root Transform As Source está desmarcado ou na criação inicial.")]
     [Min(0.0001f)] public float worldScale = 0.0023f;
 
-    [Tooltip("Campo de compatibilidade. Só controla a raiz quando Use Root Transform As Source está desmarcado.")]
+    [Tooltip("Usado apenas quando Use Root Transform As Source está desmarcado ou na criação inicial.")]
     public Vector3 localOffset = new Vector3(0f, 0.72f, 0f);
 
-    [Header("Círculo")]
+    [Header("CircularPrompt Editável")]
+    [Tooltip("Marcado: posição, rotação, escala e tamanho de CircularPrompt vêm do próprio RectTransform.")]
+    public bool useCircularPromptTransformAsSource = true;
+
+    [Tooltip("Marcado: os RectTransforms dos anéis, disco, brilhos e marcadores não são reposicionados pelo script.")]
+    public bool useGeneratedChildTransformsAsSource = true;
+
+    [Tooltip("Marcado: cores, transparências, fonte e estilos dos filhos vêm dos componentes da Hierarchy.")]
+    public bool useGeneratedGraphicStylesAsSource = true;
+
     [Min(48f)] public float circleDiameter = 86f;
     [Min(1f)] public float progressThickness = 10f;
     [Min(1f)] public float innerAccentThickness = 6f;
     [Min(4f)] public float orbitMarkerSize = 9f;
 
     [Header("Instruction Editável")]
-    [Tooltip("Marcado: posição, rotação, escala, âncoras e tamanho do filho Instruction são controlados diretamente pelo RectTransform dele.")]
+    [Tooltip("Marcado: posição, rotação, escala, âncoras e tamanho de Instruction vêm do RectTransform dele.")]
     public bool useInstructionTransformAsSource = true;
 
-    [Tooltip("Marcado: fonte, tamanho, cor, alinhamento e contorno são controlados diretamente pelo TextMeshPro do filho Instruction.")]
+    [Tooltip("Marcado: fonte, tamanho, cor, alinhamento e contorno vêm do TextMeshPro de Instruction.")]
     public bool useInstructionGraphicAsSource = true;
 
     public Vector2 instructionOffset = new Vector2(0f, 52f);
@@ -53,7 +72,13 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [Header("Animação")]
     [Min(0f)] public float rotationDegreesPerSecond = 38f;
 
-    [Tooltip("Amplitude em unidades do mundo. A raiz não é movimentada; apenas o círculo interno flutua.")]
+    [Tooltip("Desmarcado por padrão para preservar a posição editada de CircularPrompt.")]
+    public bool animateCircularPromptPosition;
+
+    [Tooltip("Desmarcado por padrão para preservar a escala editada de CircularPrompt.")]
+    public bool animateCircularPromptScale;
+
+    [Tooltip("Amplitude em unidades do mundo, aplicada relativamente à posição editada.")]
     [Min(0f)] public float floatingAmplitude = 0.015f;
 
     [Min(0f)] public float floatingSpeed = 2.1f;
@@ -63,13 +88,19 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [Min(0f)] public float glowPulseSpeed = 3.4f;
 
     [Header("Tema Infantil / Gamer")]
-    public Color glowColor = new Color32(255, 220, 84, 56);
+    public Color glowColor = new Color32(255, 220, 84, 90);
     public Color outerRingColor = new Color32(255, 205, 65, 255);
     public Color innerAccentColor = new Color32(255, 102, 171, 255);
     public Color centerDiscColor = new Color32(22, 29, 45, 244);
     public Color centerTextColor = Color.white;
     public Color instructionTextColor = new Color32(255, 248, 218, 255);
     public Color textOutlineColor = new Color32(10, 12, 20, 245);
+
+    [Header("Migração segura da Put Area")]
+    [Tooltip("Repara uma única vez escala minúscula e inclinação 3D deixadas pelas versões anteriores.")]
+    public bool repairLegacyPlacementPrompt = true;
+
+    [Min(0.0001f)] public float minimumPlacePromptScale = 0.006f;
 
     [Header("Estado Atual")]
     [SerializeField] private Color currentAccentColor = new Color32(76, 235, 124, 255);
@@ -94,10 +125,16 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [HideInInspector] public TextMeshProUGUI centerText;
     [HideInInspector] public TextMeshProUGUI instructionText;
 
+    [SerializeField, HideInInspector] private bool legacyPlacementRepairApplied;
+
     private Camera cachedCamera;
+    private float nextCameraResolveTime;
     private bool built;
-    private bool rootBindingInitialized;
-    private bool instructionBindingInitialized;
+    private bool animationBaseCaptured;
+    private Vector2 visualBaseAnchoredPosition;
+    private Vector3 visualBaseScale = Vector3.one;
+    private Quaternion rotatingRingBaseRotation = Quaternion.identity;
+    private Color glowBaseColor = Color.white;
 
     private static Sprite discSprite;
     private static Sprite ringSprite;
@@ -106,9 +143,16 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private static Texture2D ringTexture;
     private static Texture2D segmentedRingTexture;
 
-    private struct InstructionSnapshot
+    private sealed class HierarchySnapshot
     {
-        public bool valid;
+        public readonly Dictionary<string, RectSnapshot> rects =
+            new Dictionary<string, RectSnapshot>();
+        public readonly Dictionary<string, GraphicSnapshot> graphics =
+            new Dictionary<string, GraphicSnapshot>();
+    }
+
+    private struct RectSnapshot
+    {
         public Vector2 anchorMin;
         public Vector2 anchorMax;
         public Vector2 pivot;
@@ -116,12 +160,19 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         public Vector2 sizeDelta;
         public Vector3 localEulerAngles;
         public Vector3 localScale;
-        public float fontSize;
+    }
+
+    private struct GraphicSnapshot
+    {
+        public bool enabled;
         public Color color;
-        public Color outlineColor;
-        public float outlineWidth;
+        public bool raycastTarget;
+        public string text;
+        public float fontSize;
         public FontStyles fontStyle;
         public TextAlignmentOptions alignment;
+        public Color outlineColor;
+        public float outlineWidth;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -147,7 +198,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         NewspaperWorldPromptVisual visual = root.AddComponent<NewspaperWorldPromptVisual>();
         visual.localOffset = requestedLocalOffset;
-        visual.worldScale = NormalizeLegacyScale(requestedWorldScale);
+        visual.worldScale = ClampScale(requestedWorldScale);
         visual.sortingOrder = requestedSortingOrder;
         visual.ApplyCompatibilityRootTransform();
         visual.EnsurePersistentVisual();
@@ -158,36 +209,35 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private void Awake()
     {
         ResolveExistingReferences();
-        InitializeBindings();
-
-        if (Application.isPlaying)
-            EnsurePersistentVisual();
-
-        ApplyInspectorSettings();
+        EnsurePersistentVisual();
+        RepairLegacyPlacementPromptOnce();
+        CaptureAnimationBase();
+        ApplyStaticInspectorSettings();
     }
 
     private void OnEnable()
     {
         ResolveExistingReferences();
-        InitializeBindings();
+        EnsurePersistentVisual();
+        RepairLegacyPlacementPromptOnce();
+        CaptureAnimationBase();
+        ApplyStaticInspectorSettings();
 
-        if (Application.isPlaying)
-            EnsurePersistentVisual();
-
-        ApplyInspectorSettings();
-
-        if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
-            canvasGroup.alpha = 1f;
+        if (!Application.isPlaying && previewInEditMode)
+            ApplyCanvasVisibility(true);
     }
 
     private void OnValidate()
     {
         ClampInspectorValues();
         ResolveExistingReferences();
-        InitializeBindings();
+        RepairLegacyPlacementPromptOnce();
 
         if (built)
-            ApplyInspectorSettings();
+        {
+            CaptureAnimationBase();
+            ApplyStaticInspectorSettings();
+        }
     }
 
     private void LateUpdate()
@@ -195,16 +245,13 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (!built)
             return;
 
-        SyncEditableValuesFromScene();
-        ApplyInspectorSettings();
-
         bool shouldAnimate = Application.isPlaying || animateInEditMode;
         if (shouldAnimate)
             AnimatePrompt();
         else
             ResetInnerAnimation();
 
-        if (Application.isPlaying)
+        if (faceCamera && Application.isPlaying)
             FaceActiveCamera();
     }
 
@@ -212,132 +259,117 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     public void EnsurePersistentVisual()
     {
         ResolveExistingReferences();
-        InitializeBindings();
 
         if (!built)
-            Build(sortingOrder);
+        {
+            BuildMissingHierarchy(sortingOrder);
+            ResolveExistingReferences();
+        }
 
-        ApplyInspectorSettings();
+        EnsureGeneratedSprites();
+        CaptureAnimationBase();
+        ApplyStaticInspectorSettings();
 
-        if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
-            canvasGroup.alpha = 1f;
+        if (!Application.isPlaying && previewInEditMode)
+            ApplyCanvasVisibility(true);
     }
 
-    [ContextMenu("Jornal/Reconstruir visual circular")]
+    [ContextMenu("Jornal/Reconstruir visual circular preservando edições")]
     public void RebuildVisual()
     {
-        InstructionSnapshot instructionSnapshot = CaptureInstructionSnapshot();
-
+        HierarchySnapshot snapshot = CaptureHierarchySnapshot();
         ClearGeneratedChildren();
         ResetGeneratedReferences();
-        Build(sortingOrder);
+        BuildMissingHierarchy(sortingOrder);
+        ResolveExistingReferences();
+        RestoreHierarchySnapshot(snapshot);
+        EnsureGeneratedSprites();
+        CaptureAnimationBase();
+        ApplyStaticInspectorSettings();
 
-        RestoreInstructionSnapshot(instructionSnapshot);
-        instructionBindingInitialized = instructionSnapshot.valid;
-        ApplyInspectorSettings();
-
-        if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
-            canvasGroup.alpha = 1f;
+        if (!Application.isPlaying && previewInEditMode)
+            ApplyCanvasVisibility(true);
     }
 
-    private void InitializeBindings()
+    [ContextMenu("Jornal/Aplicar layout padrão aos filhos")]
+    public void ApplyDefaultChildLayout()
     {
-        InitializeRootBinding();
-        InitializeInstructionBinding();
+        ResolveExistingReferences();
+        ApplyCircularPromptDefaults();
+        ApplyGeneratedChildTransformDefaults();
+        ApplyInstructionDefaults();
+        CaptureAnimationBase();
     }
 
-    private void InitializeRootBinding()
+    private void BuildMissingHierarchy(int sortOrderOverride)
     {
-        if (rootBindingInitialized)
+        EnsureSprites();
+
+        rootRect = transform as RectTransform;
+        if (rootRect == null)
             return;
 
-        if (useRootTransformAsSource)
+        worldCanvas = GetComponent<Canvas>();
+        if (worldCanvas == null)
+            worldCanvas = gameObject.AddComponent<Canvas>();
+
+        CanvasScaler scaler = GetComponent<CanvasScaler>();
+        if (scaler == null)
+            scaler = gameObject.AddComponent<CanvasScaler>();
+
+        GraphicRaycaster raycaster = GetComponent<GraphicRaycaster>();
+        if (raycaster == null)
+            raycaster = gameObject.AddComponent<GraphicRaycaster>();
+
+        canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+
+        worldCanvas.renderMode = RenderMode.WorldSpace;
+        worldCanvas.overrideSorting = true;
+        worldCanvas.sortingOrder = sortOrderOverride;
+        scaler.dynamicPixelsPerUnit = 12f;
+        scaler.referencePixelsPerUnit = 100f;
+        raycaster.enabled = false;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+
+        if (rootRect.sizeDelta.sqrMagnitude < 1f)
+            rootRect.sizeDelta = new Vector2(220f, 125f);
+
+        visualRoot = GetOrCreateRect("CircularPrompt", rootRect);
+        glowImage = GetOrCreateImage("SoftGlow", visualRoot, discSprite);
+        outerRingImage = GetOrCreateImage("GoldenOuterRing", visualRoot, ringSprite);
+        rotatingRing = GetOrCreateRect("RotatingSegmentedRing", visualRoot);
+        rotatingRingImage = GetOrCreateImage("Segments", rotatingRing, segmentedRingSprite);
+        orbitMarker = GetOrCreateImage("OrbitSparkTop", rotatingRing, discSprite);
+        orbitMarkerSecondary = GetOrCreateImage("OrbitSparkLeft", rotatingRing, discSprite);
+        orbitMarkerTertiary = GetOrCreateImage("OrbitSparkRight", rotatingRing, discSprite);
+        progressImage = GetOrCreateImage("CircularProgress", visualRoot, ringSprite);
+        innerAccentRingImage = GetOrCreateImage("PinkInnerAccent", visualRoot, ringSprite);
+        centerDisc = GetOrCreateImage("CenterDisc", visualRoot, discSprite);
+        centerText = GetOrCreateText("CenterText", visualRoot, centerFontSize, FontStyles.Bold);
+        instructionText = GetOrCreateText("Instruction", rootRect, instructionFontSize, FontStyles.Bold);
+
+        if (centerText != null && string.IsNullOrEmpty(centerText.text))
+            centerText.text = "E";
+        if (instructionText != null && string.IsNullOrEmpty(instructionText.text))
+            instructionText.text = "Segure E para pegar";
+
+        if (progressImage != null)
         {
-            Vector3 currentScale = transform.localScale;
-            bool looksUninitialized =
-                Mathf.Abs(currentScale.x) > 0.05f ||
-                Mathf.Abs(currentScale.y) > 0.05f ||
-                Mathf.Abs(currentScale.z) > 0.05f;
-
-            if (looksUninitialized)
-                ApplyCompatibilityRootTransform();
-            else
-                SyncRootFieldsFromTransform();
-        }
-        else
-        {
-            ApplyCompatibilityRootTransform();
-        }
-
-        rootBindingInitialized = true;
-    }
-
-    private void InitializeInstructionBinding()
-    {
-        if (instructionBindingInitialized || instructionText == null)
-            return;
-
-        RectTransform rect = instructionText.rectTransform;
-        bool looksUninitialized = rect.sizeDelta.sqrMagnitude < 1f;
-
-        if (looksUninitialized)
-            ApplyInstructionDefaults();
-        else
-            SyncInstructionFieldsFromObject();
-
-        instructionBindingInitialized = true;
-    }
-
-    private void ApplyCompatibilityRootTransform()
-    {
-        transform.localPosition = localOffset;
-        float normalizedScale = NormalizeLegacyScale(worldScale);
-        worldScale = normalizedScale;
-        transform.localScale = Vector3.one * normalizedScale;
-    }
-
-    private void SyncEditableValuesFromScene()
-    {
-        SyncRootFieldsFromTransform();
-        SyncInstructionFieldsFromObject();
-    }
-
-    private void SyncRootFieldsFromTransform()
-    {
-        if (!useRootTransformAsSource)
-            return;
-
-        localOffset = transform.localPosition;
-
-        Vector3 scale = transform.localScale;
-        float averageScale = (
-            Mathf.Abs(scale.x) +
-            Mathf.Abs(scale.y) +
-            Mathf.Abs(scale.z)
-        ) / 3f;
-
-        worldScale = Mathf.Clamp(averageScale, 0.0001f, 0.02f);
-    }
-
-    private void SyncInstructionFieldsFromObject()
-    {
-        if (instructionText == null)
-            return;
-
-        if (useInstructionTransformAsSource)
-        {
-            RectTransform rect = instructionText.rectTransform;
-            instructionOffset = rect.anchoredPosition;
-            instructionSize = rect.sizeDelta;
+            progressImage.type = Image.Type.Filled;
+            progressImage.fillMethod = Image.FillMethod.Radial360;
+            progressImage.fillOrigin = 2;
+            progressImage.fillClockwise = true;
+            progressImage.fillAmount = currentProgress;
         }
 
-        if (useInstructionGraphicAsSource)
-        {
-            instructionFontSize = Mathf.Max(8f, instructionText.fontSize);
-            instructionTextColor = instructionText.color;
-            instructionOutlineWidth = Mathf.Clamp01(instructionText.outlineWidth);
-            textOutlineColor = instructionText.outlineColor;
-        }
+        ApplyCircularPromptDefaults();
+        ApplyGeneratedChildTransformDefaults();
+        ApplyInstructionDefaults();
+
+        built = true;
     }
 
     private void ResolveExistingReferences()
@@ -346,8 +378,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         worldCanvas = GetComponent<Canvas>();
         canvasGroup = GetComponent<CanvasGroup>();
 
-        Transform visual = transform.Find("CircularPrompt");
-        visualRoot = visual as RectTransform;
+        visualRoot = transform.Find("CircularPrompt") as RectTransform;
 
         if (visualRoot != null)
         {
@@ -386,83 +417,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 instructionText != null;
     }
 
-    private void Build(int sortOrderOverride)
-    {
-        EnsureSprites();
-
-        rootRect = transform as RectTransform;
-        if (rootRect == null)
-            return;
-
-        worldCanvas = GetComponent<Canvas>();
-        if (worldCanvas == null)
-            worldCanvas = gameObject.AddComponent<Canvas>();
-
-        worldCanvas.renderMode = RenderMode.WorldSpace;
-        worldCanvas.overrideSorting = true;
-        worldCanvas.sortingOrder = sortOrderOverride;
-
-        CanvasScaler scaler = GetComponent<CanvasScaler>();
-        if (scaler == null)
-            scaler = gameObject.AddComponent<CanvasScaler>();
-        scaler.dynamicPixelsPerUnit = 12f;
-        scaler.referencePixelsPerUnit = 100f;
-
-        GraphicRaycaster raycaster = GetComponent<GraphicRaycaster>();
-        if (raycaster == null)
-            raycaster = gameObject.AddComponent<GraphicRaycaster>();
-        raycaster.enabled = false;
-
-        canvasGroup = GetComponent<CanvasGroup>();
-        if (canvasGroup == null)
-            canvasGroup = gameObject.AddComponent<CanvasGroup>();
-        canvasGroup.interactable = false;
-        canvasGroup.blocksRaycasts = false;
-
-        if (rootRect.sizeDelta.sqrMagnitude < 1f)
-            rootRect.sizeDelta = new Vector2(220f, 125f);
-
-        visualRoot = CreateRect("CircularPrompt", rootRect);
-        visualRoot.anchorMin = new Vector2(0.5f, 0.5f);
-        visualRoot.anchorMax = new Vector2(0.5f, 0.5f);
-        visualRoot.pivot = new Vector2(0.5f, 0.5f);
-        visualRoot.anchoredPosition = Vector2.zero;
-
-        glowImage = CreateImage("SoftGlow", visualRoot, discSprite);
-        outerRingImage = CreateImage("GoldenOuterRing", visualRoot, ringSprite);
-
-        rotatingRing = CreateRect("RotatingSegmentedRing", visualRoot);
-        rotatingRingImage = CreateImage("Segments", rotatingRing, segmentedRingSprite);
-        Stretch(rotatingRingImage.rectTransform);
-
-        orbitMarker = CreateImage("OrbitSparkTop", rotatingRing, discSprite);
-        orbitMarkerSecondary = CreateImage("OrbitSparkLeft", rotatingRing, discSprite);
-        orbitMarkerTertiary = CreateImage("OrbitSparkRight", rotatingRing, discSprite);
-
-        progressImage = CreateImage("CircularProgress", visualRoot, ringSprite);
-        progressImage.type = Image.Type.Filled;
-        progressImage.fillMethod = Image.FillMethod.Radial360;
-        progressImage.fillOrigin = 2;
-        progressImage.fillClockwise = true;
-        progressImage.fillAmount = 0f;
-
-        innerAccentRingImage = CreateImage("PinkInnerAccent", visualRoot, ringSprite);
-        centerDisc = CreateImage("CenterDisc", visualRoot, discSprite);
-
-        centerText = CreateText("CenterText", visualRoot, centerFontSize, FontStyles.Bold);
-        centerText.text = "E";
-        centerText.alignment = TextAlignmentOptions.Center;
-
-        instructionText = CreateText("Instruction", rootRect, instructionFontSize, FontStyles.Bold);
-        instructionText.text = "Segure E para pegar";
-        instructionText.alignment = TextAlignmentOptions.Center;
-        ApplyInstructionDefaults();
-
-        built = true;
-        instructionBindingInitialized = true;
-    }
-
-    private void ApplyInspectorSettings()
+    private void ApplyStaticInspectorSettings()
     {
         if (!built)
             return;
@@ -471,16 +426,161 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         if (!useRootTransformAsSource)
             ApplyCompatibilityRootTransform();
+        else
+            SyncRootCompatibilityFields();
 
         if (worldCanvas != null)
+        {
+            worldCanvas.renderMode = RenderMode.WorldSpace;
+            worldCanvas.overrideSorting = true;
             worldCanvas.sortingOrder = sortingOrder;
+        }
 
-        if (visualRoot != null)
-            visualRoot.sizeDelta = new Vector2(circleDiameter, circleDiameter);
+        if (canvasGroup != null)
+        {
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+        }
 
+        if (!useCircularPromptTransformAsSource)
+            ApplyCircularPromptDefaults();
+
+        if (!useGeneratedChildTransformsAsSource)
+            ApplyGeneratedChildTransformDefaults();
+
+        if (!useInstructionTransformAsSource)
+            ApplyInstructionDefaults();
+        else
+            SyncInstructionCompatibilityFields();
+
+        ApplyGraphicSettings();
+        ApplyRuntimeState();
+        EnsureGeneratedSprites();
+    }
+
+    private void ApplyGraphicSettings()
+    {
+        if (!useGeneratedGraphicStylesAsSource)
+        {
+            if (glowImage != null) glowImage.color = glowColor;
+            if (outerRingImage != null) outerRingImage.color = outerRingColor;
+            if (rotatingRingImage != null) rotatingRingImage.color = currentAccentColor;
+            if (progressImage != null) progressImage.color = currentAccentColor;
+            if (innerAccentRingImage != null) innerAccentRingImage.color = innerAccentColor;
+            if (centerDisc != null) centerDisc.color = centerDiscColor;
+            if (orbitMarker != null) orbitMarker.color = currentAccentColor;
+            if (orbitMarkerSecondary != null) orbitMarkerSecondary.color = innerAccentColor;
+            if (orbitMarkerTertiary != null) orbitMarkerTertiary.color = outerRingColor;
+        }
+
+        if (centerText != null)
+        {
+            if (!useGeneratedGraphicStylesAsSource)
+            {
+                centerText.fontSize = centerFontSize;
+                centerText.color = centerTextColor;
+                centerText.outlineColor = textOutlineColor;
+                centerText.outlineWidth = centerOutlineWidth;
+                centerText.alignment = TextAlignmentOptions.Center;
+            }
+
+            centerText.textWrappingMode = TextWrappingModes.NoWrap;
+            centerText.raycastTarget = false;
+        }
+
+        if (instructionText != null)
+        {
+            if (!useInstructionGraphicAsSource)
+            {
+                instructionText.fontSize = instructionFontSize;
+                instructionText.color = instructionTextColor;
+                instructionText.outlineColor = textOutlineColor;
+                instructionText.outlineWidth = instructionOutlineWidth;
+                instructionText.alignment = TextAlignmentOptions.Center;
+            }
+
+            instructionText.textWrappingMode = TextWrappingModes.NoWrap;
+            instructionText.raycastTarget = false;
+            instructionText.gameObject.SetActive(showInstructionText);
+        }
+
+        SetRaycastDisabled(glowImage);
+        SetRaycastDisabled(outerRingImage);
+        SetRaycastDisabled(rotatingRingImage);
+        SetRaycastDisabled(progressImage);
+        SetRaycastDisabled(innerAccentRingImage);
+        SetRaycastDisabled(centerDisc);
+        SetRaycastDisabled(orbitMarker);
+        SetRaycastDisabled(orbitMarkerSecondary);
+        SetRaycastDisabled(orbitMarkerTertiary);
+    }
+
+    private void ApplyRuntimeState()
+    {
+        if (progressImage != null)
+        {
+            progressImage.enabled = progressVisible;
+            progressImage.fillAmount = currentProgress;
+        }
+    }
+
+    private void ApplyCompatibilityRootTransform()
+    {
+        transform.localPosition = localOffset;
+        worldScale = ClampScale(worldScale);
+        transform.localScale = Vector3.one * worldScale;
+    }
+
+    private void SyncRootCompatibilityFields()
+    {
+        localOffset = transform.localPosition;
+        Vector3 scale = transform.localScale;
+        worldScale = ClampScale(
+            (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f
+        );
+    }
+
+    private void SyncInstructionCompatibilityFields()
+    {
+        if (instructionText == null)
+            return;
+
+        RectTransform rect = instructionText.rectTransform;
+        instructionOffset = rect.anchoredPosition;
+        instructionSize = rect.sizeDelta;
+
+        if (useInstructionGraphicAsSource)
+        {
+            instructionFontSize = Mathf.Max(1f, instructionText.fontSize);
+            instructionTextColor = instructionText.color;
+            instructionOutlineWidth = Mathf.Clamp01(instructionText.outlineWidth);
+            textOutlineColor = instructionText.outlineColor;
+        }
+    }
+
+    private void ApplyCircularPromptDefaults()
+    {
+        if (visualRoot == null)
+            return;
+
+        visualRoot.anchorMin = new Vector2(0.5f, 0.5f);
+        visualRoot.anchorMax = new Vector2(0.5f, 0.5f);
+        visualRoot.pivot = new Vector2(0.5f, 0.5f);
+        visualRoot.anchoredPosition = Vector2.zero;
+        visualRoot.sizeDelta = new Vector2(circleDiameter, circleDiameter);
+        visualRoot.localEulerAngles = Vector3.zero;
+        visualRoot.localScale = Vector3.one;
+    }
+
+    private void ApplyGeneratedChildTransformDefaults()
+    {
         ConfigureCenteredCircle(glowImage != null ? glowImage.rectTransform : null, circleDiameter * 1.28f);
         ConfigureCenteredCircle(outerRingImage != null ? outerRingImage.rectTransform : null, circleDiameter);
         ConfigureCenteredCircle(rotatingRing, circleDiameter - 7f);
+
+        if (rotatingRingImage != null)
+            Stretch(rotatingRingImage.rectTransform);
+
         ConfigureCenteredCircle(progressImage != null ? progressImage.rectTransform : null, circleDiameter - 6f);
         ConfigureCenteredCircle(
             innerAccentRingImage != null ? innerAccentRingImage.rectTransform : null,
@@ -495,77 +595,11 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         ConfigureOrbitMarker(orbitMarkerSecondary != null ? orbitMarkerSecondary.rectTransform : null, 120f);
         ConfigureOrbitMarker(orbitMarkerTertiary != null ? orbitMarkerTertiary.rectTransform : null, 240f);
 
-        ApplyInstructionSettings();
-
         if (centerText != null)
         {
-            RectTransform rect = centerText.rectTransform;
             float centerSize = Mathf.Max(24f, circleDiameter * 0.5f);
-            ConfigureCenteredCircle(rect, centerSize);
-
-            centerText.fontSize = centerFontSize;
-            centerText.color = centerTextColor;
-            centerText.outlineColor = textOutlineColor;
-            centerText.outlineWidth = centerOutlineWidth;
-            centerText.textWrappingMode = TextWrappingModes.NoWrap;
-            centerText.raycastTarget = false;
+            ConfigureCenteredCircle(centerText.rectTransform, centerSize);
         }
-
-        if (glowImage != null)
-            glowImage.color = glowColor;
-        if (outerRingImage != null)
-            outerRingImage.color = outerRingColor;
-        if (rotatingRingImage != null)
-            rotatingRingImage.color = currentAccentColor;
-        if (progressImage != null)
-        {
-            progressImage.enabled = progressVisible;
-            progressImage.fillAmount = currentProgress;
-            progressImage.color = currentAccentColor;
-        }
-        if (innerAccentRingImage != null)
-            innerAccentRingImage.color = innerAccentColor;
-        if (centerDisc != null)
-            centerDisc.color = centerDiscColor;
-        if (orbitMarker != null)
-            orbitMarker.color = currentAccentColor;
-        if (orbitMarkerSecondary != null)
-            orbitMarkerSecondary.color = innerAccentColor;
-        if (orbitMarkerTertiary != null)
-            orbitMarkerTertiary.color = outerRingColor;
-    }
-
-    private void ApplyInstructionSettings()
-    {
-        if (instructionText == null)
-            return;
-
-        RectTransform rect = instructionText.rectTransform;
-
-        if (!useInstructionTransformAsSource)
-        {
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = instructionOffset;
-            rect.sizeDelta = instructionSize;
-            rect.localEulerAngles = Vector3.zero;
-            rect.localScale = Vector3.one;
-        }
-
-        instructionText.gameObject.SetActive(showInstructionText);
-
-        if (!useInstructionGraphicAsSource)
-        {
-            instructionText.fontSize = instructionFontSize;
-            instructionText.color = instructionTextColor;
-            instructionText.outlineColor = textOutlineColor;
-            instructionText.outlineWidth = instructionOutlineWidth;
-            instructionText.alignment = TextAlignmentOptions.Center;
-        }
-
-        instructionText.textWrappingMode = TextWrappingModes.NoWrap;
-        instructionText.raycastTarget = false;
     }
 
     private void ApplyInstructionDefaults()
@@ -582,116 +616,206 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         rect.localEulerAngles = Vector3.zero;
         rect.localScale = Vector3.one;
 
-        instructionText.fontSize = instructionFontSize;
-        instructionText.color = instructionTextColor;
-        instructionText.outlineColor = textOutlineColor;
-        instructionText.outlineWidth = instructionOutlineWidth;
-        instructionText.alignment = TextAlignmentOptions.Center;
-        instructionText.textWrappingMode = TextWrappingModes.NoWrap;
-        instructionText.raycastTarget = false;
+        if (!useInstructionGraphicAsSource)
+        {
+            instructionText.fontSize = instructionFontSize;
+            instructionText.color = instructionTextColor;
+            instructionText.outlineColor = textOutlineColor;
+            instructionText.outlineWidth = instructionOutlineWidth;
+            instructionText.alignment = TextAlignmentOptions.Center;
+        }
     }
 
-    private InstructionSnapshot CaptureInstructionSnapshot()
+    private void RepairLegacyPlacementPromptOnce()
     {
-        InstructionSnapshot snapshot = default;
-        ResolveExistingReferences();
-
-        if (instructionText == null)
-            return snapshot;
-
-        RectTransform rect = instructionText.rectTransform;
-        snapshot.valid = true;
-        snapshot.anchorMin = rect.anchorMin;
-        snapshot.anchorMax = rect.anchorMax;
-        snapshot.pivot = rect.pivot;
-        snapshot.anchoredPosition3D = rect.anchoredPosition3D;
-        snapshot.sizeDelta = rect.sizeDelta;
-        snapshot.localEulerAngles = rect.localEulerAngles;
-        snapshot.localScale = rect.localScale;
-        snapshot.fontSize = instructionText.fontSize;
-        snapshot.color = instructionText.color;
-        snapshot.outlineColor = instructionText.outlineColor;
-        snapshot.outlineWidth = instructionText.outlineWidth;
-        snapshot.fontStyle = instructionText.fontStyle;
-        snapshot.alignment = instructionText.alignment;
-        return snapshot;
-    }
-
-    private void RestoreInstructionSnapshot(InstructionSnapshot snapshot)
-    {
-        if (!snapshot.valid || instructionText == null)
+        if (!repairLegacyPlacementPrompt || legacyPlacementRepairApplied || !IsPlacementPrompt())
             return;
 
-        RectTransform rect = instructionText.rectTransform;
-        rect.anchorMin = snapshot.anchorMin;
-        rect.anchorMax = snapshot.anchorMax;
-        rect.pivot = snapshot.pivot;
-        rect.anchoredPosition3D = snapshot.anchoredPosition3D;
-        rect.sizeDelta = snapshot.sizeDelta;
-        rect.localEulerAngles = snapshot.localEulerAngles;
-        rect.localScale = snapshot.localScale;
+        bool changed = false;
+        Vector3 scale = transform.localScale;
+        float averageScale = (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f;
 
-        instructionText.fontSize = snapshot.fontSize;
-        instructionText.color = snapshot.color;
-        instructionText.outlineColor = snapshot.outlineColor;
-        instructionText.outlineWidth = snapshot.outlineWidth;
-        instructionText.fontStyle = snapshot.fontStyle;
-        instructionText.alignment = snapshot.alignment;
+        if (averageScale < minimumPlacePromptScale)
+        {
+            float repairedScale = Mathf.Max(minimumPlacePromptScale, 0.006f);
+            transform.localScale = Vector3.one * repairedScale;
+            worldScale = repairedScale;
+            changed = true;
+        }
 
-        SyncInstructionFieldsFromObject();
+        if (visualRoot != null)
+        {
+            Vector3 euler = visualRoot.localEulerAngles;
+            float tiltX = Mathf.Abs(Mathf.DeltaAngle(0f, euler.x));
+            float tiltY = Mathf.Abs(Mathf.DeltaAngle(0f, euler.y));
+
+            if (tiltX > 1f || tiltY > 1f)
+            {
+                visualRoot.localEulerAngles = new Vector3(0f, 0f, euler.z);
+                changed = true;
+            }
+
+            Vector3 visualScale = visualRoot.localScale;
+            if (visualScale.sqrMagnitude < 0.03f)
+            {
+                visualRoot.localScale = Vector3.one;
+                changed = true;
+            }
+        }
+
+        faceCamera = true;
+        keepBillboardUpright = true;
+        legacyPlacementRepairApplied = true;
+
+        if (changed)
+            CaptureAnimationBase();
+    }
+
+    private bool IsPlacementPrompt()
+    {
+        Transform current = transform;
+
+        while (current != null)
+        {
+            string value = current.name;
+            if (value.IndexOf("PlacePrompt", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("Put_Area", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.IndexOf("Jornal_Place", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
+    }
+
+    private void CaptureAnimationBase()
+    {
+        if (visualRoot != null)
+        {
+            visualBaseAnchoredPosition = visualRoot.anchoredPosition;
+            visualBaseScale = visualRoot.localScale;
+        }
+
+        if (rotatingRing != null)
+            rotatingRingBaseRotation = rotatingRing.localRotation;
+
+        if (glowImage != null)
+            glowBaseColor = glowImage.color;
+
+        animationBaseCaptured = true;
     }
 
     private void AnimatePrompt()
     {
+        if (!animationBaseCaptured)
+            CaptureAnimationBase();
+
         float time = Time.realtimeSinceStartup;
 
         if (visualRoot != null)
         {
-            float scaleY = Mathf.Max(0.0001f, Mathf.Abs(transform.localScale.y));
-            float uiAmplitude = floatingAmplitude / scaleY;
-            visualRoot.anchoredPosition = Vector2.up * (Mathf.Sin(time * floatingSpeed) * uiAmplitude);
+            if (animateCircularPromptPosition)
+            {
+                float scaleY = Mathf.Max(0.0001f, Mathf.Abs(transform.lossyScale.y));
+                float uiAmplitude = floatingAmplitude / scaleY;
+                visualRoot.anchoredPosition = visualBaseAnchoredPosition +
+                                              Vector2.up * (Mathf.Sin(time * floatingSpeed) * uiAmplitude);
+            }
 
-            float pulse = 1f + Mathf.Sin(time * pulseSpeed) * pulseAmount;
-            visualRoot.localScale = Vector3.one * pulse;
+            if (animateCircularPromptScale)
+            {
+                float pulse = 1f + Mathf.Sin(time * pulseSpeed) * pulseAmount;
+                visualRoot.localScale = visualBaseScale * pulse;
+            }
         }
 
-        if (rotatingRing != null)
-            rotatingRing.localRotation = Quaternion.Euler(0f, 0f, -time * rotationDegreesPerSecond);
-
-        if (glowImage != null)
+        if (rotatingRing != null && rotationDegreesPerSecond > 0f)
         {
-            Color animatedGlow = glowColor;
+            rotatingRing.localRotation = rotatingRingBaseRotation *
+                                         Quaternion.Euler(0f, 0f, -time * rotationDegreesPerSecond);
+        }
+
+        if (glowImage != null && glowPulseAmount > 0f)
+        {
+            Color animatedGlow = glowBaseColor;
             float pulse = 1f + Mathf.Sin(time * glowPulseSpeed) * glowPulseAmount;
-            animatedGlow.a = Mathf.Clamp01(glowColor.a * pulse);
+            animatedGlow.a = Mathf.Clamp01(glowBaseColor.a * pulse);
             glowImage.color = animatedGlow;
         }
     }
 
     private void ResetInnerAnimation()
     {
+        if (!animationBaseCaptured)
+            CaptureAnimationBase();
+
         if (visualRoot != null)
         {
-            visualRoot.anchoredPosition = Vector2.zero;
-            visualRoot.localScale = Vector3.one;
+            if (animateCircularPromptPosition)
+                visualRoot.anchoredPosition = visualBaseAnchoredPosition;
+            if (animateCircularPromptScale)
+                visualRoot.localScale = visualBaseScale;
         }
+
+        if (rotatingRing != null && rotationDegreesPerSecond > 0f)
+            rotatingRing.localRotation = rotatingRingBaseRotation;
+
+        if (glowImage != null && glowPulseAmount > 0f)
+            glowImage.color = glowBaseColor;
     }
 
     private void FaceActiveCamera()
     {
-        if (!faceCamera)
-            return;
-
-        if (cachedCamera == null || !cachedCamera.isActiveAndEnabled)
-            cachedCamera = Camera.main;
-
+        ResolveActiveCamera();
         if (cachedCamera == null)
             return;
 
         Vector3 direction = transform.position - cachedCamera.transform.position;
+
+        if (keepBillboardUpright)
+            direction = Vector3.ProjectOnPlane(direction, Vector3.up);
+
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            direction = keepBillboardUpright
+                ? Vector3.ProjectOnPlane(cachedCamera.transform.forward, Vector3.up)
+                : cachedCamera.transform.forward;
+        }
+
         if (direction.sqrMagnitude <= 0.0001f)
             return;
 
-        transform.rotation = Quaternion.LookRotation(direction.normalized, cachedCamera.transform.up);
+        Vector3 up = keepBillboardUpright ? Vector3.up : cachedCamera.transform.up;
+        transform.rotation = Quaternion.LookRotation(direction.normalized, up) *
+                             Quaternion.Euler(billboardEulerOffset);
+    }
+
+    private void ResolveActiveCamera()
+    {
+        if (cachedCamera != null && cachedCamera.isActiveAndEnabled)
+            return;
+
+        if (Time.unscaledTime < nextCameraResolveTime)
+            return;
+
+        nextCameraResolveTime = Time.unscaledTime + 0.5f;
+
+        PlayerCameraController controller =
+            UnityEngine.Object.FindAnyObjectByType<PlayerCameraController>(
+                FindObjectsInactive.Include
+            );
+
+        if (controller != null && controller.gameCamera != null &&
+            controller.gameCamera.isActiveAndEnabled)
+        {
+            cachedCamera = controller.gameCamera;
+            return;
+        }
+
+        cachedCamera = Camera.main;
     }
 
     public void SetVisible(bool visible)
@@ -701,11 +825,16 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (!built && Application.isPlaying)
             EnsurePersistentVisual();
 
+        bool finalVisible = visible || (!Application.isPlaying && previewInEditMode);
+        ApplyCanvasVisibility(finalVisible);
+    }
+
+    private void ApplyCanvasVisibility(bool visible)
+    {
         if (canvasGroup == null)
             return;
 
-        bool finalVisible = visible || (!Application.isPlaying && previewInEditMode);
-        canvasGroup.alpha = finalVisible ? 1f : 0f;
+        canvasGroup.alpha = visible ? visibleOpacity : 0f;
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
     }
@@ -730,7 +859,20 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (instructionText != null)
             instructionText.text = instruction ?? string.Empty;
 
-        ApplyInspectorSettings();
+        if (progressImage != null)
+        {
+            progressImage.enabled = progressVisible;
+            progressImage.fillAmount = currentProgress;
+
+            if (!useGeneratedGraphicStylesAsSource)
+                progressImage.color = currentAccentColor;
+        }
+
+        if (!useGeneratedGraphicStylesAsSource)
+        {
+            if (rotatingRingImage != null) rotatingRingImage.color = currentAccentColor;
+            if (orbitMarker != null) orbitMarker.color = currentAccentColor;
+        }
     }
 
     public void SetLocalOffset(Vector3 offset)
@@ -741,48 +883,141 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
     public void SetWorldScale(float scale)
     {
-        worldScale = NormalizeLegacyScale(scale);
+        worldScale = ClampScale(scale);
         transform.localScale = Vector3.one * worldScale;
     }
 
-    private void ClampInspectorValues()
+    private HierarchySnapshot CaptureHierarchySnapshot()
     {
-        worldScale = Mathf.Clamp(worldScale, 0.0001f, 0.02f);
-        circleDiameter = Mathf.Max(48f, circleDiameter);
-        progressThickness = Mathf.Clamp(progressThickness, 1f, circleDiameter * 0.25f);
-        innerAccentThickness = Mathf.Clamp(innerAccentThickness, 1f, circleDiameter * 0.2f);
-        orbitMarkerSize = Mathf.Clamp(orbitMarkerSize, 4f, circleDiameter * 0.25f);
-        instructionFontSize = Mathf.Max(8f, instructionFontSize);
-        centerFontSize = Mathf.Max(8f, centerFontSize);
-        currentProgress = Mathf.Clamp01(currentProgress);
+        HierarchySnapshot snapshot = new HierarchySnapshot();
+        RectTransform[] rects = GetComponentsInChildren<RectTransform>(true);
+
+        for (int i = 0; i < rects.Length; i++)
+        {
+            RectTransform rect = rects[i];
+            if (rect == null || rect == rootRect)
+                continue;
+
+            string path = GetRelativePath(rect.transform);
+            snapshot.rects[path] = new RectSnapshot
+            {
+                anchorMin = rect.anchorMin,
+                anchorMax = rect.anchorMax,
+                pivot = rect.pivot,
+                anchoredPosition3D = rect.anchoredPosition3D,
+                sizeDelta = rect.sizeDelta,
+                localEulerAngles = rect.localEulerAngles,
+                localScale = rect.localScale
+            };
+
+            Graphic graphic = rect.GetComponent<Graphic>();
+            if (graphic == null)
+                continue;
+
+            GraphicSnapshot value = new GraphicSnapshot
+            {
+                enabled = graphic.enabled,
+                color = graphic.color,
+                raycastTarget = graphic.raycastTarget
+            };
+
+            TMP_Text text = graphic as TMP_Text;
+            if (text != null)
+            {
+                value.text = text.text;
+                value.fontSize = text.fontSize;
+                value.fontStyle = text.fontStyle;
+                value.alignment = text.alignment;
+                value.outlineColor = text.outlineColor;
+                value.outlineWidth = text.outlineWidth;
+            }
+
+            snapshot.graphics[path] = value;
+        }
+
+        return snapshot;
     }
 
-    private void ConfigureOrbitMarker(RectTransform rect, float angleDegrees)
+    private void RestoreHierarchySnapshot(HierarchySnapshot snapshot)
     {
-        if (rect == null)
+        if (snapshot == null)
             return;
 
-        float radius = Mathf.Max(4f, (circleDiameter - 7f) * 0.5f - 3f);
-        float radians = angleDegrees * Mathf.Deg2Rad;
-        Vector2 position = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * radius;
+        foreach (KeyValuePair<string, RectSnapshot> pair in snapshot.rects)
+        {
+            Transform value = transform.Find(pair.Key);
+            RectTransform rect = value as RectTransform;
+            if (rect == null)
+                continue;
 
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = position;
-        rect.sizeDelta = new Vector2(orbitMarkerSize, orbitMarkerSize);
+            RectSnapshot state = pair.Value;
+            rect.anchorMin = state.anchorMin;
+            rect.anchorMax = state.anchorMax;
+            rect.pivot = state.pivot;
+            rect.anchoredPosition3D = state.anchoredPosition3D;
+            rect.sizeDelta = state.sizeDelta;
+            rect.localEulerAngles = state.localEulerAngles;
+            rect.localScale = state.localScale;
+        }
+
+        foreach (KeyValuePair<string, GraphicSnapshot> pair in snapshot.graphics)
+        {
+            Transform value = transform.Find(pair.Key);
+            Graphic graphic = value != null ? value.GetComponent<Graphic>() : null;
+            if (graphic == null)
+                continue;
+
+            GraphicSnapshot state = pair.Value;
+            graphic.enabled = state.enabled;
+            graphic.color = state.color;
+            graphic.raycastTarget = state.raycastTarget;
+
+            TMP_Text text = graphic as TMP_Text;
+            if (text == null)
+                continue;
+
+            text.text = state.text;
+            text.fontSize = state.fontSize;
+            text.fontStyle = state.fontStyle;
+            text.alignment = state.alignment;
+            text.outlineColor = state.outlineColor;
+            text.outlineWidth = state.outlineWidth;
+        }
+    }
+
+    private string GetRelativePath(Transform target)
+    {
+        if (target == null || target == transform)
+            return string.Empty;
+
+        string path = target.name;
+        Transform current = target.parent;
+
+        while (current != null && current != transform)
+        {
+            path = current.name + "/" + path;
+            current = current.parent;
+        }
+
+        return path;
     }
 
     private void ClearGeneratedChildren()
     {
-        for (int i = transform.childCount - 1; i >= 0; i--)
-        {
-            Transform child = transform.GetChild(i);
-            if (Application.isPlaying)
-                Destroy(child.gameObject);
-            else
-                DestroyImmediate(child.gameObject);
-        }
+        DestroyChildIfPresent("CircularPrompt");
+        DestroyChildIfPresent("Instruction");
+    }
+
+    private void DestroyChildIfPresent(string childName)
+    {
+        Transform child = transform.Find(childName);
+        if (child == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(child.gameObject);
+        else
+            DestroyImmediate(child.gameObject);
     }
 
     private void ResetGeneratedReferences()
@@ -801,13 +1036,40 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         orbitMarkerTertiary = null;
         centerText = null;
         instructionText = null;
-        instructionBindingInitialized = false;
+        animationBaseCaptured = false;
+    }
+
+    private void EnsureGeneratedSprites()
+    {
+        EnsureSprites();
+        AssignSprite(glowImage, discSprite);
+        AssignSprite(outerRingImage, ringSprite);
+        AssignSprite(rotatingRingImage, segmentedRingSprite);
+        AssignSprite(progressImage, ringSprite);
+        AssignSprite(innerAccentRingImage, ringSprite);
+        AssignSprite(centerDisc, discSprite);
+        AssignSprite(orbitMarker, discSprite);
+        AssignSprite(orbitMarkerSecondary, discSprite);
+        AssignSprite(orbitMarkerTertiary, discSprite);
+    }
+
+    private static void AssignSprite(Image image, Sprite sprite)
+    {
+        if (image == null || sprite == null)
+            return;
+
+        if (image.sprite == null || image.sprite.name.StartsWith("NewspaperPrompt_"))
+            image.sprite = sprite;
+
+        image.type = image == null ? Image.Type.Simple : image.type;
+        image.raycastTarget = false;
     }
 
     private static Image GetImage(Transform parent, string childName)
     {
         if (parent == null)
             return null;
+
         Transform child = parent.Find(childName);
         return child != null ? child.GetComponent<Image>() : null;
     }
@@ -816,39 +1078,60 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     {
         if (parent == null)
             return null;
+
         Transform child = parent.Find(childName);
         return child != null ? child.GetComponent<TextMeshProUGUI>() : null;
     }
 
-    private static RectTransform CreateRect(string name, Transform parent)
+    private static RectTransform GetOrCreateRect(string objectName, Transform parent)
     {
-        GameObject value = new GameObject(name, typeof(RectTransform));
+        Transform existing = parent != null ? parent.Find(objectName) : null;
+        RectTransform existingRect = existing as RectTransform;
+        if (existingRect != null)
+            return existingRect;
+
+        GameObject value = new GameObject(objectName, typeof(RectTransform));
         value.transform.SetParent(parent, false);
         return value.GetComponent<RectTransform>();
     }
 
-    private static Image CreateImage(string name, Transform parent, Sprite sprite)
+    private static Image GetOrCreateImage(string objectName, Transform parent, Sprite sprite)
     {
-        RectTransform rect = CreateRect(name, parent);
-        Image image = rect.gameObject.AddComponent<Image>();
+        RectTransform rect = GetOrCreateRect(objectName, parent);
+        Image image = rect.GetComponent<Image>();
+        if (image == null)
+            image = rect.gameObject.AddComponent<Image>();
+
         image.sprite = sprite;
         image.raycastTarget = false;
         return image;
     }
 
-    private static TextMeshProUGUI CreateText(
-        string name,
+    private static TextMeshProUGUI GetOrCreateText(
+        string objectName,
         Transform parent,
         float fontSize,
         FontStyles style)
     {
-        RectTransform rect = CreateRect(name, parent);
-        TextMeshProUGUI text = rect.gameObject.AddComponent<TextMeshProUGUI>();
-        text.fontSize = fontSize;
-        text.fontStyle = style;
+        RectTransform rect = GetOrCreateRect(objectName, parent);
+        TextMeshProUGUI text = rect.GetComponent<TextMeshProUGUI>();
+        if (text == null)
+            text = rect.gameObject.AddComponent<TextMeshProUGUI>();
+
+        if (text.fontSize <= 0f)
+            text.fontSize = fontSize;
+        if (text.fontStyle == FontStyles.Normal)
+            text.fontStyle = style;
+
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.raycastTarget = false;
         return text;
+    }
+
+    private static void SetRaycastDisabled(Graphic graphic)
+    {
+        if (graphic != null)
+            graphic.raycastTarget = false;
     }
 
     private static void ConfigureCenteredCircle(RectTransform rect, float diameter)
@@ -862,6 +1145,26 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = Vector2.zero;
         rect.sizeDelta = new Vector2(diameter, diameter);
+        rect.localEulerAngles = Vector3.zero;
+        rect.localScale = Vector3.one;
+    }
+
+    private void ConfigureOrbitMarker(RectTransform rect, float angleDegrees)
+    {
+        if (rect == null)
+            return;
+
+        float radius = Mathf.Max(4f, (circleDiameter - 7f) * 0.5f - 3f);
+        float radians = angleDegrees * Mathf.Deg2Rad;
+        Vector2 position = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * radius;
+
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(orbitMarkerSize, orbitMarkerSize);
+        rect.localEulerAngles = Vector3.zero;
+        rect.localScale = Vector3.one;
     }
 
     private static void Stretch(RectTransform rect)
@@ -874,13 +1177,31 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
+        rect.localEulerAngles = Vector3.zero;
+        rect.localScale = Vector3.one;
     }
 
-    private static float NormalizeLegacyScale(float value)
+    private void ClampInspectorValues()
     {
-        if (value >= 0.006f)
-            return 0.0023f;
-        return Mathf.Clamp(value, 0.0001f, 0.02f);
+        worldScale = ClampScale(worldScale);
+        visibleOpacity = Mathf.Clamp01(visibleOpacity);
+        circleDiameter = Mathf.Max(48f, circleDiameter);
+        progressThickness = Mathf.Clamp(progressThickness, 1f, circleDiameter * 0.25f);
+        innerAccentThickness = Mathf.Clamp(innerAccentThickness, 1f, circleDiameter * 0.2f);
+        orbitMarkerSize = Mathf.Clamp(orbitMarkerSize, 4f, circleDiameter * 0.25f);
+        instructionFontSize = Mathf.Max(1f, instructionFontSize);
+        centerFontSize = Mathf.Max(1f, centerFontSize);
+        rotationDegreesPerSecond = Mathf.Max(0f, rotationDegreesPerSecond);
+        floatingAmplitude = Mathf.Max(0f, floatingAmplitude);
+        floatingSpeed = Mathf.Max(0f, floatingSpeed);
+        pulseSpeed = Mathf.Max(0f, pulseSpeed);
+        glowPulseSpeed = Mathf.Max(0f, glowPulseSpeed);
+        minimumPlacePromptScale = ClampScale(minimumPlacePromptScale);
+    }
+
+    private static float ClampScale(float value)
+    {
+        return Mathf.Clamp(value, 0.0001f, 0.05f);
     }
 
     private static void EnsureSprites()
@@ -896,6 +1217,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 new Vector2(0.5f, 0.5f),
                 100f
             );
+            discSprite.name = "NewspaperPrompt_DiscSprite";
             discSprite.hideFlags = HideFlags.HideAndDontSave;
         }
 
@@ -910,6 +1232,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 new Vector2(0.5f, 0.5f),
                 100f
             );
+            ringSprite.name = "NewspaperPrompt_RingSprite";
             ringSprite.hideFlags = HideFlags.HideAndDontSave;
         }
 
@@ -924,6 +1247,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 new Vector2(0.5f, 0.5f),
                 100f
             );
+            segmentedRingSprite.name = "NewspaperPrompt_SegmentedRingSprite";
             segmentedRingSprite.hideFlags = HideFlags.HideAndDontSave;
         }
     }
@@ -945,11 +1269,21 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 float dx = (x - center) / radius;
                 float dy = (y - center) / radius;
                 float distance = Mathf.Sqrt(dx * dx + dy * dy);
-                float outerAlpha = 1f - Mathf.SmoothStep(outerRadius - 0.025f, outerRadius + 0.01f, distance);
+                float outerAlpha = 1f - Mathf.SmoothStep(
+                    outerRadius - 0.025f,
+                    outerRadius + 0.01f,
+                    distance
+                );
                 float innerAlpha = innerRadius <= 0f
                     ? 1f
-                    : Mathf.SmoothStep(innerRadius - 0.015f, innerRadius + 0.025f, distance);
-                byte alpha = (byte)Mathf.RoundToInt(Mathf.Clamp01(outerAlpha * innerAlpha) * 255f);
+                    : Mathf.SmoothStep(
+                        innerRadius - 0.015f,
+                        innerRadius + 0.025f,
+                        distance
+                    );
+                byte alpha = (byte)Mathf.RoundToInt(
+                    Mathf.Clamp01(outerAlpha * innerAlpha) * 255f
+                );
                 pixels[y * size + x] = new Color32(255, 255, 255, alpha);
             }
         }
@@ -986,9 +1320,19 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 float withinSegment = Mathf.Repeat(angle, segmentAngle) / segmentAngle;
                 bool segmentVisible = withinSegment <= segmentFill;
 
-                float outerAlpha = 1f - Mathf.SmoothStep(outerRadius - 0.025f, outerRadius + 0.01f, distance);
-                float innerAlpha = Mathf.SmoothStep(innerRadius - 0.015f, innerRadius + 0.025f, distance);
-                float alpha01 = segmentVisible ? Mathf.Clamp01(outerAlpha * innerAlpha) : 0f;
+                float outerAlpha = 1f - Mathf.SmoothStep(
+                    outerRadius - 0.025f,
+                    outerRadius + 0.01f,
+                    distance
+                );
+                float innerAlpha = Mathf.SmoothStep(
+                    innerRadius - 0.015f,
+                    innerRadius + 0.025f,
+                    distance
+                );
+                float alpha01 = segmentVisible
+                    ? Mathf.Clamp01(outerAlpha * innerAlpha)
+                    : 0f;
                 byte alpha = (byte)Mathf.RoundToInt(alpha01 * 255f);
                 pixels[y * size + x] = new Color32(255, 255, 255, alpha);
             }
