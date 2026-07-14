@@ -1,19 +1,21 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 
 /// <summary>
-/// Inventário provisório de jornais persistido no banco principal do jogador.
+/// Inventário provisório de jornais armazenado dentro do banco principal do jogador.
 ///
-/// Até o inventário definitivo existir, a quantidade é armazenada em um registro
-/// reservado de MiniMarketPlayerDatabase.propriedades. Dessa forma o dado permanece
-/// dentro do player_database.mmdb e pode ser migrado futuramente sem usar PlayerPrefs.
+/// As alterações de quantidade e de locais ocupados são agrupadas e gravadas uma única
+/// vez após o frame de interação. Isso evita executar serialização, criptografia e escrita
+/// em disco duas ou três vezes ao pegar/colocar o mesmo jornal.
 /// </summary>
 [DefaultExecutionOrder(-8500)]
 [DisallowMultipleComponent]
 public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
 {
     public const string InventoryRecordId = "INVENTORY_NEWSPAPER";
+
     private const string CountPrefix = "COUNT=";
     private const string PlacePrefix = "NEWSPAPER_PLACE_";
     private const string PlacedStatus = "PLACED=1";
@@ -23,12 +25,20 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
 
     [Header("Configuração")]
     [Min(0)] public int quantidadeInicial;
+
+    [Tooltip("Mantido por compatibilidade. Marcado: agenda a gravação logo após a interação, sem bloquear o mesmo frame.")]
     public bool salvarImediatamente = true;
+
+    [Tooltip("Tempo usado para agrupar alterações consecutivas em uma única gravação criptografada.")]
+    [Min(0.05f)] public float atrasoSalvamentoCoalescido = 0.35f;
+
     public bool logarEventos;
 
     private MiniMarketPlayerDatabase database;
     private int quantidadeJornais = -1;
     private bool subscribed;
+    private bool saveQueued;
+    private float saveAtUnscaledTime;
 
     public event Action<int> OnNewspaperCountChanged;
 
@@ -36,8 +46,7 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
     {
         get
         {
-            ResolveDatabase();
-            RefreshFromDatabase(false);
+            EnsureLoaded();
             return Mathf.Max(0, quantidadeJornais);
         }
     }
@@ -68,7 +77,6 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
         }
 
         GameObject host = new GameObject("[MiniMarket] Newspaper Inventory");
-        DontDestroyOnLoad(host);
         Instance = host.AddComponent<MiniMarketNewspaperInventoryService>();
     }
 
@@ -81,16 +89,46 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
         }
 
         Instance = this;
+
+        if (transform.parent != null)
+            transform.SetParent(null);
+
         DontDestroyOnLoad(gameObject);
         ResolveDatabase();
-        RefreshFromDatabase(true);
+        RefreshFromDatabase(true, true);
     }
 
     private void OnEnable()
     {
         ResolveDatabase();
         Subscribe();
-        RefreshFromDatabase(true);
+        RefreshFromDatabase(true, true);
+    }
+
+    private void Update()
+    {
+        if (!saveQueued || database == null)
+            return;
+
+        if (Time.unscaledTime >= saveAtUnscaledTime)
+            FlushPendingSave();
+    }
+
+    private void OnApplicationPause(bool paused)
+    {
+        if (paused)
+            FlushPendingSave();
+    }
+
+    private void OnApplicationFocus(bool focused)
+    {
+        if (!focused)
+            FlushPendingSave();
+    }
+
+    private void OnApplicationQuit()
+    {
+        FlushPendingSave();
     }
 
     private void OnDisable()
@@ -100,6 +138,7 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
 
     private void OnDestroy()
     {
+        FlushPendingSave();
         Unsubscribe();
 
         if (Instance == this)
@@ -135,12 +174,9 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
 
     public bool LocalPossuiJornal(string placeId)
     {
-        ResolveDatabase();
-        if (database == null)
-            return false;
-
+        EnsureLoaded();
         MiniMarketPlayerDatabase.MiniMarketPropertyState state =
-            database.ObterPropriedade(BuildPlaceRecordId(placeId));
+            FindRecord(BuildPlaceRecordId(placeId));
 
         return state != null &&
                string.Equals(state.status, PlacedStatus, StringComparison.OrdinalIgnoreCase);
@@ -148,54 +184,81 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
 
     public void DefinirJornalNoLocal(string placeId, bool colocado)
     {
-        ResolveDatabase();
+        EnsureLoaded();
         if (database == null)
             return;
 
         string recordId = BuildPlaceRecordId(placeId);
-        database.DefinirStatusPropriedade(
+        MiniMarketPlayerDatabase.MiniMarketPropertyState state = GetOrCreateRecord(
             recordId,
-            "Expositor de jornal",
-            false,
-            true,
-            colocado ? PlacedStatus : EmptyStatus
+            "Expositor de jornal"
         );
 
-        if (salvarImediatamente)
-            database.SalvarSePendenteOuForcar();
+        string nextStatus = colocado ? PlacedStatus : EmptyStatus;
+        if (state.status == nextStatus && !state.comprada && state.disponivel)
+            return;
+
+        state.comprada = false;
+        state.disponivel = true;
+        state.status = nextStatus;
+        state.lastUpdatedUnix = GetUnixNow();
+
+        TouchDatabaseTimestamp();
+        QueueSave();
+    }
+
+    [ContextMenu("Jornal/Salvar alterações pendentes")]
+    public void FlushPendingSave()
+    {
+        if (!saveQueued)
+            return;
+
+        saveQueued = false;
+
+        if (database == null || MiniMarketPlayerDatabase.EncerrandoAplicacao)
+            return;
+
+        database.Salvar();
     }
 
     private void SetNewspaperCount(int value)
     {
-        ResolveDatabase();
+        EnsureLoaded();
         value = Mathf.Max(0, value);
-
-        if (database == null)
-        {
-            quantidadeJornais = value;
-            OnNewspaperCountChanged?.Invoke(quantidadeJornais);
-            return;
-        }
 
         if (quantidadeJornais == value)
             return;
 
         quantidadeJornais = value;
-        database.DefinirStatusPropriedade(
-            InventoryRecordId,
-            "Inventário - Jornais",
-            false,
-            true,
-            CountPrefix + quantidadeJornais.ToString(CultureInfo.InvariantCulture)
-        );
 
-        if (salvarImediatamente)
-            database.SalvarSePendenteOuForcar();
+        if (database != null)
+        {
+            MiniMarketPlayerDatabase.MiniMarketPropertyState state = GetOrCreateRecord(
+                InventoryRecordId,
+                "Inventário - Jornais"
+            );
+
+            state.comprada = false;
+            state.disponivel = true;
+            state.status = CountPrefix + quantidadeJornais.ToString(CultureInfo.InvariantCulture);
+            state.lastUpdatedUnix = GetUnixNow();
+
+            TouchDatabaseTimestamp();
+            QueueSave();
+        }
 
         OnNewspaperCountChanged?.Invoke(quantidadeJornais);
 
         if (logarEventos)
             Debug.Log("[NewspaperInventory] Jornais: " + quantidadeJornais, this);
+    }
+
+    private void EnsureLoaded()
+    {
+        ResolveDatabase();
+
+        if (quantidadeJornais < 0)
+            RefreshFromDatabase(false, true);
     }
 
     private void ResolveDatabase()
@@ -232,12 +295,13 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
 
     private void HandleDatabaseChanged(MiniMarketPlayerDatabase.MiniMarketPlayerData data)
     {
-        RefreshFromDatabase(true);
+        RefreshFromDatabase(true, false);
     }
 
-    private void RefreshFromDatabase(bool notify)
+    private void RefreshFromDatabase(bool notify, bool createMissingRecord)
     {
         ResolveDatabase();
+
         if (database == null)
         {
             if (quantidadeJornais < 0)
@@ -245,34 +309,100 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
             return;
         }
 
-        MiniMarketPlayerDatabase.MiniMarketPropertyState state =
-            database.ObterPropriedade(InventoryRecordId);
-
+        MiniMarketPlayerDatabase.MiniMarketPropertyState state = FindRecord(InventoryRecordId);
         int loaded = state == null
             ? Mathf.Max(0, quantidadeInicial)
             : ParseCount(state.status);
 
-        if (state == null)
+        if (state == null && createMissingRecord)
         {
-            quantidadeJornais = loaded;
-            database.DefinirStatusPropriedade(
-                InventoryRecordId,
-                "Inventário - Jornais",
-                false,
-                true,
-                CountPrefix + loaded.ToString(CultureInfo.InvariantCulture)
-            );
-
-            if (salvarImediatamente)
-                database.SalvarSePendenteOuForcar();
+            state = GetOrCreateRecord(InventoryRecordId, "Inventário - Jornais");
+            state.comprada = false;
+            state.disponivel = true;
+            state.status = CountPrefix + loaded.ToString(CultureInfo.InvariantCulture);
+            state.lastUpdatedUnix = GetUnixNow();
+            TouchDatabaseTimestamp();
+            QueueSave();
         }
 
         if (quantidadeJornais == loaded)
             return;
 
         quantidadeJornais = loaded;
+
         if (notify)
             OnNewspaperCountChanged?.Invoke(quantidadeJornais);
+    }
+
+    private MiniMarketPlayerDatabase.MiniMarketPropertyState FindRecord(string recordId)
+    {
+        if (database == null || string.IsNullOrEmpty(recordId))
+            return null;
+
+        List<MiniMarketPlayerDatabase.MiniMarketPropertyState> records =
+            database.Dados.propriedades;
+
+        if (records == null)
+            return null;
+
+        for (int i = 0; i < records.Count; i++)
+        {
+            MiniMarketPlayerDatabase.MiniMarketPropertyState state = records[i];
+            if (state != null && state.areaId == recordId)
+                return state;
+        }
+
+        return null;
+    }
+
+    private MiniMarketPlayerDatabase.MiniMarketPropertyState GetOrCreateRecord(
+        string recordId,
+        string displayName)
+    {
+        MiniMarketPlayerDatabase.MiniMarketPropertyState existing = FindRecord(recordId);
+        if (existing != null)
+        {
+            if (!string.IsNullOrWhiteSpace(displayName))
+                existing.nome = displayName;
+            return existing;
+        }
+
+        MiniMarketPlayerDatabase.MiniMarketPlayerData data = database.Dados;
+        if (data.propriedades == null)
+            data.propriedades = new List<MiniMarketPlayerDatabase.MiniMarketPropertyState>();
+
+        MiniMarketPlayerDatabase.MiniMarketPropertyState created =
+            new MiniMarketPlayerDatabase.MiniMarketPropertyState
+            {
+                areaId = recordId,
+                nome = string.IsNullOrWhiteSpace(displayName) ? recordId : displayName,
+                comprada = false,
+                disponivel = true,
+                status = string.Empty,
+                lastUpdatedUnix = GetUnixNow()
+            };
+
+        data.propriedades.Add(created);
+        return created;
+    }
+
+    private void TouchDatabaseTimestamp()
+    {
+        if (database != null && database.Dados != null)
+            database.Dados.lastUpdatedUnix = GetUnixNow();
+    }
+
+    private void QueueSave()
+    {
+        if (database == null)
+            return;
+
+        saveQueued = true;
+        float delay = salvarImediatamente
+            ? Mathf.Max(0.05f, atrasoSalvamentoCoalescido)
+            : Mathf.Max(1f, atrasoSalvamentoCoalescido);
+
+        saveAtUnscaledTime = Time.unscaledTime + delay;
     }
 
     private static int ParseCount(string status)
@@ -301,5 +431,16 @@ public sealed class MiniMarketNewspaperInventoryService : MonoBehaviour
         string normalized = placeId.Trim().ToUpperInvariant();
         normalized = normalized.Replace(' ', '_').Replace('/', '_').Replace('\\', '_');
         return PlacePrefix + normalized;
+    }
+
+    private static long GetUnixNow()
+    {
+        return DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    }
+
+    private void OnValidate()
+    {
+        quantidadeInicial = Mathf.Max(0, quantidadeInicial);
+        atrasoSalvamentoCoalescido = Mathf.Max(0.05f, atrasoSalvamentoCoalescido);
     }
 }
