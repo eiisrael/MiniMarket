@@ -1,6 +1,6 @@
 # Testes após Git Pull
 
-Atualizado em: 2026-07-13
+Atualizado em: 2026-07-14
 
 Execute este checklist depois de qualquer atualização relevante.
 
@@ -29,7 +29,46 @@ Não usar `git reset --hard` ou `git clean -fd` sem backup e sem conferir os arq
 5. Confirmar zero erros vermelhos.
 6. Não executar ferramentas enquanto houver erro de compilação.
 
-## 3. Materializar objetos editáveis
+## 3. Regressão imediata de 2026-07-14
+
+### Porta em terceira pessoa
+
+1. Iniciar Play usando a câmera principal em terceira pessoa.
+2. Aproximar-se de `Ext_Door_01` sem centralizar a mira nela.
+3. Pressionar `E` uma vez.
+4. Confirmar que o campo legado `Open` alterna e a porta abre/fecha.
+5. Confirmar que um único pressionamento não executa a ação duas vezes.
+6. Repetir com clique quando a porta estiver focada.
+7. Repetir em primeira pessoa.
+8. Colocar uma parede real entre jogador e porta e confirmar que a interação é bloqueada.
+9. Confirmar ausência de spam, exceções de reflexão e `MissingReferenceException`.
+
+### Jornal — desempenho
+
+1. Aproximar-se do `Newspaper_Stand`.
+2. Segurar `E` até concluir a coleta.
+3. Confirmar que não existe travada perceptível no exato frame da coleta.
+4. Ir até `Put_Area` e pressionar `E`.
+5. Confirmar que não existe travada perceptível no exato frame da colocação.
+6. Repetir coleta e colocação três vezes.
+7. Confirmar que o banco grava depois da interação e que quantidade/local persistem após Stop/Play.
+8. Confirmar que não são criadas cópias extras de `Placed_Newspaper_Runtime`.
+
+### Newspaper_PlacePrompt
+
+1. Fora do Play, selecionar `Newspaper_PlacePrompt` e todos os filhos.
+2. Alterar levemente posição, escala ou tamanho de `CircularPrompt` e `Instruction`.
+3. Salvar com `Ctrl+S`, entrar e sair do Play.
+4. Confirmar que os ajustes permanecem.
+5. No Play, aproximar o personagem da Put_Area.
+6. Confirmar que o prompt está de frente para o jogador/câmera e permanece vertical.
+7. Confirmar que não aponta para o céu nem para o chão.
+8. Confirmar que o design continua circular e sem painel quadrado.
+9. Alterar `Visible Opacity` e confirmar a transparência total.
+10. Alterar a cor/transparência de um filho e confirmar que o script não sobrescreve por frame.
+11. Confirmar que `CircularPrompt` não volta sozinho para outra rotação/escala.
+
+## 4. Materializar objetos editáveis
 
 Com a `SampleScene` aberta, salva e fora do Play Mode:
 
@@ -40,7 +79,15 @@ Tools > MiniMarket > Validar Objetos Runtime Persistentes
 
 Depois confirmar `Erros=0`, salvar com `Ctrl + S` e reabrir a cena.
 
-## 4. Preparar as lojas Bronze
+Os reparos do jornal são manuais e só devem ser executados quando necessário:
+
+```text
+Tools > MiniMarket > Jornal > Configurar Sistema Automaticamente
+Tools > MiniMarket > Jornal > Reparar Prompt da Put Area
+Tools > MiniMarket > Jornal > Reconciliar Jornal Colocado Persistente
+```
+
+## 5. Preparar as lojas Bronze
 
 Executar fora do Play Mode:
 
@@ -56,7 +103,7 @@ O validador deve terminar com:
 erros=0
 ```
 
-## 5. Hierarquia mínima da Bronze_Market
+## 6. Hierarquia mínima da Bronze_Market
 
 Confirmar em cada raiz:
 
@@ -83,7 +130,7 @@ Verificar:
 - `Id Lote` e `Id Persistente` correspondem;
 - apenas um controlador de câmera permanece habilitado na loja.
 
-## 6. Testar duplicação da Bronze_Market
+## 7. Testar duplicação da Bronze_Market
 
 1. Selecionar a raiz completa `Bronze_Market`.
 2. Duplicar com `Ctrl + D` ou copiar/colar.
@@ -95,7 +142,7 @@ Verificar:
 8. Salvar com `Ctrl + S`.
 9. Executar `Validar Lojas Bronze` novamente.
 
-## 7. Testar compra isolada
+## 8. Testar compra isolada
 
 ### Loja A
 
@@ -125,7 +172,7 @@ Repetir o teste na cópia:
 - nenhum controlador de outra loja permanece ativo;
 - Console não apresenta spam por frame.
 
-## 8. Visual e edição fora do Play
+## 9. Visual e edição fora do Play
 
 ### Compra Bronze
 
@@ -134,6 +181,15 @@ Repetir o teste na cópia:
 - LineRenderers da calçada e terreno aparecem na Hierarchy;
 - material persistente está em `Assets/Generated/MiniMarket/Materials/BuyAreaLine.mat`;
 - Stop não remove os objetos configuráveis.
+
+### Jornal
+
+- `Newspaper_InteractionPrompt`, `Newspaper_PlacePrompt` e `Placed_Newspaper_Runtime` existem antes do Play;
+- `CircularPrompt`, `Instruction`, anéis, brilhos, disco e textos são selecionáveis;
+- Stop não remove os objetos;
+- `Ctrl+S` não volta a exibir o asterisco sem uma alteração real;
+- o prompt da Put_Area fica vertical e visível apenas quando oferecido ao jogador;
+- posição/escala dos filhos não são redefinidas a cada frame.
 
 ### Energia
 
@@ -149,31 +205,36 @@ Repetir o teste na cópia:
 - somente RenderTexture/callbacks transitórios são criados no Play;
 - HUD mobile permanece editável fora do Play.
 
-## 9. Banco
+## 10. Banco
 
 1. Alterar gold e nome.
 2. Comprar duas lojas Bronze com IDs diferentes.
-3. Parar Play.
-4. Iniciar novamente.
-5. Confirmar que as duas propriedades continuam compradas.
-6. Confirmar que uma terceira cópia com ID novo continua disponível.
-7. Confirmar ausência de referência cross-scene inválida.
+3. Coletar e colocar um jornal.
+4. Parar Play.
+5. Iniciar novamente.
+6. Confirmar que as duas propriedades continuam compradas.
+7. Confirmar que quantidade e local do jornal continuam corretos.
+8. Confirmar que uma terceira cópia com ID novo continua disponível.
+9. Confirmar ausência de referência cross-scene inválida.
+10. Confirmar que não há múltiplas gravações no mesmo frame da coleta/colocação.
 
-## 10. Interação e jogador
+## 11. Interação e jogador
 
 - WASD, Shift e Space funcionam;
 - troca primeira/terceira pessoa funciona;
 - objetos podem ser selecionados, pegos, soltos e arremessados;
 - portas e caixas mantêm highlight;
+- porta abre em terceira pessoa com `E` sem exigir mira central;
 - menu bloqueia input;
 - uma câmera e um AudioListener de gameplay;
 - compra assume e devolve a câmera sem disputa.
 
-## 11. Desktop e Mobile
+## 12. Desktop e Mobile
 
 ### Desktop
 
 - mouse e hover de compra corretos;
+- `E` interage com porta em terceira pessoa;
 - HUD mobile oculto durante Play;
 - FPS sem spam no Console.
 
@@ -182,12 +243,13 @@ Repetir o teste na cópia:
 Validar em aparelho real:
 
 - joystick, olhar, RUN, JUMP, interação, GRAB, THROW e AIM;
+- botão INTERACT usa a mesma busca de proximidade da tecla `E`;
 - safe area e multitouch;
 - dados persistem ao ir para segundo plano;
 - sistema de compra não mistura lojas;
 - temperatura, memória e FPS aceitáveis por dez minutos.
 
-## 12. Relatórios
+## 13. Relatórios
 
 Antes de encerrar:
 
@@ -195,3 +257,7 @@ Antes de encerrar:
 - atualizar relatório específico;
 - corrigir divergências entre código e documentação;
 - registrar testes não executados e riscos.
+
+## Validação ainda necessária no ambiente local
+
+A revisão desta alteração é estática. Compilação do projeto, comportamento visual, perfil de frame e persistência final precisam ser confirmados no Unity local depois do pull.
