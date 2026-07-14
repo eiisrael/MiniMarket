@@ -47,8 +47,11 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
     [Header("Atualização")]
     [Min(0.2f)] public float cameraRefreshInterval = 1f;
 
-    private readonly Dictionary<int, float> originalFarClipByCamera =
-        new Dictionary<int, float>();
+    // A própria referência Camera é uma chave estável durante a vida do objeto.
+    // Isso evita GetInstanceID(), removido no Unity 6.7 alpha, e não depende de EntityId.
+    private readonly Dictionary<Camera, float> originalFarClipByCamera =
+        new Dictionary<Camera, float>();
+    private readonly List<Camera> camerasToRemove = new List<Camera>();
 
     private RuntimeDiagnosticsPanel diagnosticsPanel;
     private FieldInfo diagnosticsVisibleField;
@@ -109,6 +112,7 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
 
     private void OnDestroy()
     {
+        RestoreOriginalCameraDistances();
         DestroyTexture(ref panelTexture);
         DestroyTexture(ref activeTexture);
         DestroyTexture(ref buttonTexture);
@@ -163,6 +167,8 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
         RenderSettings.fogColor = fogColor;
         RenderSettings.fogDensity = CurrentDensity;
 
+        PruneDestroyedCameraReferences();
+
         Camera[] cameras = Object.FindObjectsByType<Camera>(
             FindObjectsInactive.Exclude,
             FindObjectsSortMode.None
@@ -175,16 +181,48 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
             if (!ShouldControlCamera(cameraTarget))
                 continue;
 
-            int id = cameraTarget.GetInstanceID();
-            if (!originalFarClipByCamera.ContainsKey(id))
-                originalFarClipByCamera[id] = cameraTarget.farClipPlane;
+            if (!originalFarClipByCamera.TryGetValue(cameraTarget, out float original))
+            {
+                original = cameraTarget.farClipPlane;
+                originalFarClipByCamera.Add(cameraTarget, original);
+            }
 
-            float original = originalFarClipByCamera[id];
             cameraTarget.farClipPlane = Mathf.Max(
                 cameraTarget.nearClipPlane + 10f,
                 Mathf.Min(original, requestedFarClip)
             );
         }
+    }
+
+    private void PruneDestroyedCameraReferences()
+    {
+        if (originalFarClipByCamera.Count == 0)
+            return;
+
+        camerasToRemove.Clear();
+        foreach (KeyValuePair<Camera, float> pair in originalFarClipByCamera)
+        {
+            if (pair.Key == null)
+                camerasToRemove.Add(pair.Key);
+        }
+
+        for (int i = 0; i < camerasToRemove.Count; i++)
+            originalFarClipByCamera.Remove(camerasToRemove[i]);
+
+        camerasToRemove.Clear();
+    }
+
+    private void RestoreOriginalCameraDistances()
+    {
+        foreach (KeyValuePair<Camera, float> pair in originalFarClipByCamera)
+        {
+            Camera cameraTarget = pair.Key;
+            if (cameraTarget != null)
+                cameraTarget.farClipPlane = pair.Value;
+        }
+
+        originalFarClipByCamera.Clear();
+        camerasToRemove.Clear();
     }
 
     private static bool ShouldControlCamera(Camera cameraTarget)
@@ -287,7 +325,6 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
         float x = diagnosticsMargin + diagnosticsWidth + 12f;
         float y = diagnosticsMargin;
 
-        // Em resoluções menores, encaixa o módulo dentro do canto inferior direito do F10.
         if (x + panelWidth > Screen.width - diagnosticsMargin)
         {
             x = Mathf.Max(
