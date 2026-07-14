@@ -20,8 +20,8 @@ internal static class PlayerDatabaseEditorLifecycleGuard
     private static readonly FieldInfo ClosingField =
         typeof(PlayerDatabase).GetField("encerrandoAplicacao", StaticPrivate);
 
-    private static readonly Dictionary<int, bool> TriggerDatabaseSync =
-        new Dictionary<int, bool>();
+    private static readonly Dictionary<string, bool> TriggerDatabaseSync =
+        new Dictionary<string, bool>(StringComparer.Ordinal);
 
     static PlayerDatabaseEditorLifecycleGuard()
     {
@@ -101,8 +101,8 @@ internal static class PlayerDatabaseEditorLifecycleGuard
             if (trigger == null || !trigger.gameObject.scene.IsValid())
                 continue;
 
-            int id = trigger.GetInstanceID();
-            TriggerDatabaseSync[id] = trigger.sincronizarMarcacaoComStatusDosTerrenos;
+            TriggerDatabaseSync[BuildStableObjectKey(trigger.transform)] =
+                trigger.sincronizarMarcacaoComStatusDosTerrenos;
 
             // Atribuição apenas em memória. Não usa SetDirty e não altera o arquivo da cena.
             trigger.sincronizarMarcacaoComStatusDosTerrenos = false;
@@ -123,11 +123,32 @@ internal static class PlayerDatabaseEditorLifecycleGuard
             if (trigger == null)
                 continue;
 
-            if (TriggerDatabaseSync.TryGetValue(trigger.GetInstanceID(), out bool previous))
+            string key = BuildStableObjectKey(trigger.transform);
+            if (TriggerDatabaseSync.TryGetValue(key, out bool previous))
                 trigger.sincronizarMarcacaoComStatusDosTerrenos = previous;
         }
 
         TriggerDatabaseSync.Clear();
+    }
+
+    private static string BuildStableObjectKey(Transform target)
+    {
+        if (target == null)
+            return string.Empty;
+
+        string hierarchy = target.name;
+        Transform current = target.parent;
+        while (current != null)
+        {
+            hierarchy = current.name + "/" + hierarchy;
+            current = current.parent;
+        }
+
+        string scenePath = target.gameObject.scene.IsValid()
+            ? target.gameObject.scene.path
+            : string.Empty;
+
+        return scenePath + "|" + hierarchy;
     }
 
     private static void ClearRuntimeDatabaseReferencesFromOpenScenes()
