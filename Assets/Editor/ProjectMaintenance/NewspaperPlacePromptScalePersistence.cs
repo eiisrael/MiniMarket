@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -15,24 +16,23 @@ using UnityEngine.SceneManagement;
 /// objetos já existentes da estrutura do jornal. Alterações automáticas do gameplay
 /// não são copiadas, porque não passam pelo Undo do Editor.
 ///
-/// Abrange Transform/RectTransform e propriedades serializadas de todos os componentes
-/// existentes sob Newspaper_Stand, Jornal_Place, Put_Area, prompts e jornal colocado.
-/// A cena é marcada como modificada, mas não é salva automaticamente.
+/// Compatível com Unity 6.7: não usa GetInstanceID nem PropertyModification.Apply.
+/// As propriedades são capturadas com tipo forte e reaplicadas por SerializedObject.
 /// </summary>
 [InitializeOnLoad]
 internal static class NewspaperPlayModeHierarchyPersistence
 {
     private const string ModificationSessionKey =
-        "MiniMarket.Newspaper.PlayModeInspectorModifications.v2";
+        "MiniMarket.Newspaper.PlayModeInspectorModifications.v3";
 
     private const string BaselineScaleSessionKey =
-        "MiniMarket.Newspaper.PlacePromptScaleBeforePlay.v2";
+        "MiniMarket.Newspaper.PlacePromptScaleBeforePlay.v3";
 
     private static readonly Dictionary<string, RecordedModification> PendingModifications =
         new Dictionary<string, RecordedModification>(StringComparer.Ordinal);
 
-    private static readonly Dictionary<int, TargetLocator> OriginalTargetLocators =
-        new Dictionary<int, TargetLocator>();
+    private static readonly Dictionary<UnityEngine.Object, TargetLocator> OriginalTargetLocators =
+        new Dictionary<UnityEngine.Object, TargetLocator>(ObjectReferenceComparer.Instance);
 
     private static readonly FieldInfo LegacyRepairAppliedField =
         typeof(NewspaperWorldPromptVisual).GetField(
@@ -59,11 +59,35 @@ internal static class NewspaperPlayModeHierarchyPersistence
     {
         public TargetLocator target;
         public string propertyPath;
-        public string value;
+        public int propertyType;
+
+        public long longValue;
+        public double doubleValue;
+        public bool boolValue;
+        public string stringValue;
+        public Color colorValue;
+        public Vector2 vector2Value;
+        public Vector3 vector3Value;
+        public Vector4 vector4Value;
+        public Rect rectValue;
+        public Bounds boundsValue;
+        public Quaternion quaternionValue;
+        public Vector2Int vector2IntValue;
+        public Vector3Int vector3IntValue;
+        public RectInt rectIntValue;
+        public BoundsInt boundsIntValue;
+        public string animationCurveJson;
+
         public bool isObjectReference;
         public bool objectReferenceIsNull;
         public AssetReference assetReference;
         public TargetLocator sceneObjectReference;
+    }
+
+    [Serializable]
+    private sealed class AnimationCurveContainer
+    {
+        public AnimationCurve value;
     }
 
     [Serializable]
@@ -89,6 +113,22 @@ internal static class NewspaperPlayModeHierarchyPersistence
     {
         public string guid;
         public long localFileId;
+    }
+
+    private sealed class ObjectReferenceComparer : IEqualityComparer<UnityEngine.Object>
+    {
+        public static readonly ObjectReferenceComparer Instance =
+            new ObjectReferenceComparer();
+
+        public bool Equals(UnityEngine.Object x, UnityEngine.Object y)
+        {
+            return ReferenceEquals(x, y);
+        }
+
+        public int GetHashCode(UnityEngine.Object value)
+        {
+            return value == null ? 0 : RuntimeHelpers.GetHashCode(value);
+        }
     }
 
     static NewspaperPlayModeHierarchyPersistence()
@@ -134,15 +174,15 @@ internal static class NewspaperPlayModeHierarchyPersistence
             if (targetLocator == null)
                 continue;
 
-            RecordedModification record = new RecordedModification
+            if (!TryCaptureSerializedProperty(
+                    current.target,
+                    current.propertyPath,
+                    targetLocator,
+                    out RecordedModification record
+                ))
             {
-                target = targetLocator,
-                propertyPath = current.propertyPath,
-                value = current.value ?? string.Empty
-            };
-
-            if (!CaptureObjectReferenceIfNeeded(current, record))
                 continue;
+            }
 
             PendingModifications[BuildModificationKey(record)] = record;
         }
@@ -209,13 +249,13 @@ internal static class NewspaperPlayModeHierarchyPersistence
 
         for (int i = 0; i < transforms.Length; i++)
         {
-            Transform transform = transforms[i];
-            if (transform == null || !IsInsidePersistentNewspaperHierarchy(transform))
+            Transform current = transforms[i];
+            if (current == null || !IsInsidePersistentNewspaperHierarchy(current))
                 continue;
 
-            CacheLocator(transform.gameObject);
+            CacheLocator(current.gameObject);
 
-            Component[] components = transform.GetComponents<Component>();
+            Component[] components = current.GetComponents<Component>();
             for (int componentIndex = 0; componentIndex < components.Length; componentIndex++)
                 CacheLocator(components[componentIndex]);
         }
@@ -223,24 +263,185 @@ internal static class NewspaperPlayModeHierarchyPersistence
 
     private static void CacheLocator(UnityEngine.Object target)
     {
-        if (target == null || OriginalTargetLocators.ContainsKey(target.GetInstanceID()))
+        if (ReferenceEquals(target, null) || OriginalTargetLocators.ContainsKey(target))
             return;
 
         if (TryCreateTargetLocator(target, out TargetLocator locator))
-            OriginalTargetLocators[target.GetInstanceID()] = locator;
+            OriginalTargetLocators[target] = locator;
     }
 
     private static TargetLocator GetOriginalOrCurrentLocator(UnityEngine.Object target)
     {
-        if (target == null)
+        if (ReferenceEquals(target, null))
             return null;
 
-        if (OriginalTargetLocators.TryGetValue(target.GetInstanceID(), out TargetLocator cached))
+        if (OriginalTargetLocators.TryGetValue(target, out TargetLocator cached))
             return CloneLocator(cached);
 
         return TryCreateTargetLocator(target, out TargetLocator current)
             ? current
             : null;
+    }
+
+    private static bool TryCaptureSerializedProperty(
+        UnityEngine.Object target,
+        string propertyPath,
+        TargetLocator targetLocator,
+        out RecordedModification record)
+    {
+        record = null;
+
+        SerializedObject serializedObject;
+        SerializedProperty property;
+
+        try
+        {
+            serializedObject = new SerializedObject(target);
+            serializedObject.UpdateIfRequiredOrScript();
+            property = serializedObject.FindProperty(propertyPath);
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (property == null)
+            return false;
+
+        record = new RecordedModification
+        {
+            target = CloneLocator(targetLocator),
+            propertyPath = propertyPath,
+            propertyType = (int)property.propertyType
+        };
+
+        try
+        {
+            switch (property.propertyType)
+            {
+                case SerializedPropertyType.Integer:
+                case SerializedPropertyType.LayerMask:
+                case SerializedPropertyType.ArraySize:
+                case SerializedPropertyType.Character:
+                    record.longValue = property.longValue;
+                    return true;
+
+                case SerializedPropertyType.Boolean:
+                    record.boolValue = property.boolValue;
+                    return true;
+
+                case SerializedPropertyType.Float:
+                    record.doubleValue = property.doubleValue;
+                    return true;
+
+                case SerializedPropertyType.String:
+                    record.stringValue = property.stringValue ?? string.Empty;
+                    return true;
+
+                case SerializedPropertyType.Color:
+                    record.colorValue = property.colorValue;
+                    return true;
+
+                case SerializedPropertyType.ObjectReference:
+                    return CaptureObjectReference(property.objectReferenceValue, record);
+
+                case SerializedPropertyType.Enum:
+                    record.longValue = property.enumValueIndex;
+                    return true;
+
+                case SerializedPropertyType.Vector2:
+                    record.vector2Value = property.vector2Value;
+                    return true;
+
+                case SerializedPropertyType.Vector3:
+                    record.vector3Value = property.vector3Value;
+                    return true;
+
+                case SerializedPropertyType.Vector4:
+                    record.vector4Value = property.vector4Value;
+                    return true;
+
+                case SerializedPropertyType.Rect:
+                    record.rectValue = property.rectValue;
+                    return true;
+
+                case SerializedPropertyType.AnimationCurve:
+                    record.animationCurveJson = JsonUtility.ToJson(
+                        new AnimationCurveContainer { value = property.animationCurveValue }
+                    );
+                    return true;
+
+                case SerializedPropertyType.Bounds:
+                    record.boundsValue = property.boundsValue;
+                    return true;
+
+                case SerializedPropertyType.Quaternion:
+                    record.quaternionValue = property.quaternionValue;
+                    return true;
+
+                case SerializedPropertyType.ExposedReference:
+                    return CaptureObjectReference(property.exposedReferenceValue, record);
+
+                case SerializedPropertyType.Vector2Int:
+                    record.vector2IntValue = property.vector2IntValue;
+                    return true;
+
+                case SerializedPropertyType.Vector3Int:
+                    record.vector3IntValue = property.vector3IntValue;
+                    return true;
+
+                case SerializedPropertyType.RectInt:
+                    record.rectIntValue = property.rectIntValue;
+                    return true;
+
+                case SerializedPropertyType.BoundsInt:
+                    record.boundsIntValue = property.boundsIntValue;
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+        catch
+        {
+            record = null;
+            return false;
+        }
+    }
+
+    private static bool CaptureObjectReference(
+        UnityEngine.Object reference,
+        RecordedModification record)
+    {
+        record.isObjectReference = true;
+
+        if (reference == null)
+        {
+            record.objectReferenceIsNull = true;
+            return true;
+        }
+
+        if (AssetDatabase.Contains(reference) &&
+            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(
+                reference,
+                out string guid,
+                out long localFileId
+            ))
+        {
+            record.assetReference = new AssetReference
+            {
+                guid = guid,
+                localFileId = localFileId
+            };
+            return true;
+        }
+
+        TargetLocator sceneLocator = GetOriginalOrCurrentLocator(reference);
+        if (sceneLocator == null)
+            return false;
+
+        record.sceneObjectReference = sceneLocator;
+        return true;
     }
 
     private static void StorePendingModifications()
@@ -292,15 +493,18 @@ internal static class NewspaperPlayModeHierarchyPersistence
         Undo.SetCurrentGroupName("Aplicar edições do jornal feitas em Play Mode");
 
         int appliedCount = 0;
-        HashSet<int> recordedTargets = new HashSet<int>();
+        HashSet<UnityEngine.Object> recordedTargets =
+            new HashSet<UnityEngine.Object>(ObjectReferenceComparer.Instance);
         HashSet<string> dirtyScenePaths = new HashSet<string>(StringComparer.Ordinal);
 
         for (int i = 0; i < collection.items.Count; i++)
         {
             RecordedModification record = collection.items[i];
-            UnityEngine.Object target = ResolveTarget(record != null ? record.target : null);
+            if (record == null || string.IsNullOrEmpty(record.propertyPath))
+                continue;
 
-            if (target == null || record == null || string.IsNullOrEmpty(record.propertyPath))
+            UnityEngine.Object target = ResolveTarget(record.target);
+            if (target == null)
                 continue;
 
             if (!TryGetTargetGameObject(target, out GameObject targetObject) ||
@@ -309,37 +513,14 @@ internal static class NewspaperPlayModeHierarchyPersistence
                 continue;
             }
 
-            PropertyModification modification = new PropertyModification
-            {
-                target = target,
-                propertyPath = record.propertyPath,
-                value = record.value ?? string.Empty
-            };
-
-            if (record.isObjectReference)
-            {
-                modification.objectReference = record.objectReferenceIsNull
-                    ? null
-                    : ResolveRecordedObjectReference(record);
-
-                if (!record.objectReferenceIsNull && modification.objectReference == null)
-                    continue;
-            }
-
-            int instanceId = target.GetInstanceID();
-            if (recordedTargets.Add(instanceId))
+            if (recordedTargets.Add(target))
                 Undo.RecordObject(target, "Aplicar edição do jornal feita em Play Mode");
 
-            try
-            {
-                modification.Apply();
-            }
-            catch (Exception exception)
+            if (!TryApplySerializedProperty(target, record, out string error))
             {
                 Debug.LogWarning(
                     "[NewspaperPlayEdit] Não foi possível aplicar '" +
-                    record.propertyPath + "' em '" + targetObject.name + "': " +
-                    exception.GetBaseException().Message,
+                    record.propertyPath + "' em '" + targetObject.name + "': " + error,
                     targetObject
                 );
                 continue;
@@ -373,77 +554,147 @@ internal static class NewspaperPlayModeHierarchyPersistence
         }
     }
 
-    private static bool CaptureObjectReferenceIfNeeded(
-        PropertyModification modification,
-        RecordedModification record)
-    {
-        SerializedProperty property = FindSerializedProperty(
-            modification.target,
-            modification.propertyPath
-        );
-
-        bool isObjectReference = property != null &&
-                                 property.propertyType == SerializedPropertyType.ObjectReference;
-
-        if (!isObjectReference)
-            return true;
-
-        record.isObjectReference = true;
-        UnityEngine.Object reference = modification.objectReference;
-
-        if (reference == null)
-        {
-            record.objectReferenceIsNull = true;
-            return true;
-        }
-
-        if (AssetDatabase.Contains(reference) &&
-            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(
-                reference,
-                out string guid,
-                out long localFileId
-            ))
-        {
-            record.assetReference = new AssetReference
-            {
-                guid = guid,
-                localFileId = localFileId
-            };
-            return true;
-        }
-
-        TargetLocator sceneLocator = GetOriginalOrCurrentLocator(reference);
-        if (sceneLocator != null)
-        {
-            record.sceneObjectReference = sceneLocator;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static SerializedProperty FindSerializedProperty(
+    private static bool TryApplySerializedProperty(
         UnityEngine.Object target,
-        string propertyPath)
+        RecordedModification record,
+        out string error)
     {
-        if (target == null || string.IsNullOrEmpty(propertyPath))
-            return null;
+        error = string.Empty;
 
         try
         {
             SerializedObject serializedObject = new SerializedObject(target);
-            return serializedObject.FindProperty(propertyPath);
+            serializedObject.UpdateIfRequiredOrScript();
+            SerializedProperty property = serializedObject.FindProperty(record.propertyPath);
+
+            if (property == null)
+            {
+                error = "propriedade serializada não encontrada";
+                return false;
+            }
+
+            SerializedPropertyType recordedType = (SerializedPropertyType)record.propertyType;
+            if (property.propertyType != recordedType)
+            {
+                error = "tipo serializado mudou de " + recordedType +
+                        " para " + property.propertyType;
+                return false;
+            }
+
+            switch (recordedType)
+            {
+                case SerializedPropertyType.Integer:
+                case SerializedPropertyType.LayerMask:
+                case SerializedPropertyType.ArraySize:
+                case SerializedPropertyType.Character:
+                    property.longValue = record.longValue;
+                    break;
+
+                case SerializedPropertyType.Boolean:
+                    property.boolValue = record.boolValue;
+                    break;
+
+                case SerializedPropertyType.Float:
+                    property.doubleValue = record.doubleValue;
+                    break;
+
+                case SerializedPropertyType.String:
+                    property.stringValue = record.stringValue ?? string.Empty;
+                    break;
+
+                case SerializedPropertyType.Color:
+                    property.colorValue = record.colorValue;
+                    break;
+
+                case SerializedPropertyType.ObjectReference:
+                    property.objectReferenceValue = ResolveRecordedObjectReference(record);
+                    if (!record.objectReferenceIsNull && property.objectReferenceValue == null)
+                    {
+                        error = "referência de objeto não pôde ser resolvida";
+                        return false;
+                    }
+                    break;
+
+                case SerializedPropertyType.Enum:
+                    property.enumValueIndex = (int)record.longValue;
+                    break;
+
+                case SerializedPropertyType.Vector2:
+                    property.vector2Value = record.vector2Value;
+                    break;
+
+                case SerializedPropertyType.Vector3:
+                    property.vector3Value = record.vector3Value;
+                    break;
+
+                case SerializedPropertyType.Vector4:
+                    property.vector4Value = record.vector4Value;
+                    break;
+
+                case SerializedPropertyType.Rect:
+                    property.rectValue = record.rectValue;
+                    break;
+
+                case SerializedPropertyType.AnimationCurve:
+                    AnimationCurveContainer curveContainer =
+                        JsonUtility.FromJson<AnimationCurveContainer>(record.animationCurveJson);
+                    property.animationCurveValue = curveContainer != null
+                        ? curveContainer.value
+                        : new AnimationCurve();
+                    break;
+
+                case SerializedPropertyType.Bounds:
+                    property.boundsValue = record.boundsValue;
+                    break;
+
+                case SerializedPropertyType.Quaternion:
+                    property.quaternionValue = record.quaternionValue;
+                    break;
+
+                case SerializedPropertyType.ExposedReference:
+                    property.exposedReferenceValue = ResolveRecordedObjectReference(record);
+                    if (!record.objectReferenceIsNull && property.exposedReferenceValue == null)
+                    {
+                        error = "referência exposta não pôde ser resolvida";
+                        return false;
+                    }
+                    break;
+
+                case SerializedPropertyType.Vector2Int:
+                    property.vector2IntValue = record.vector2IntValue;
+                    break;
+
+                case SerializedPropertyType.Vector3Int:
+                    property.vector3IntValue = record.vector3IntValue;
+                    break;
+
+                case SerializedPropertyType.RectInt:
+                    property.rectIntValue = record.rectIntValue;
+                    break;
+
+                case SerializedPropertyType.BoundsInt:
+                    property.boundsIntValue = record.boundsIntValue;
+                    break;
+
+                default:
+                    error = "tipo de propriedade não suportado: " + recordedType;
+                    return false;
+            }
+
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+            return true;
         }
-        catch
+        catch (Exception exception)
         {
-            return null;
+            error = exception.GetBaseException().Message;
+            return false;
         }
     }
 
     private static UnityEngine.Object ResolveRecordedObjectReference(
         RecordedModification record)
     {
-        if (record == null)
+        if (record == null || record.objectReferenceIsNull)
             return null;
 
         if (record.assetReference != null &&
@@ -592,9 +843,7 @@ internal static class NewspaperPlayModeHierarchyPersistence
                 return true;
             }
 
-            string objectName = current.name;
-
-            if (NameMatchesNewspaperHierarchy(objectName))
+            if (NameMatchesNewspaperHierarchy(current.name))
                 return true;
 
             current = current.parent;
@@ -608,7 +857,8 @@ internal static class NewspaperPlayModeHierarchyPersistence
         if (string.IsNullOrEmpty(objectName))
             return false;
 
-        return objectName.IndexOf("Newspaper_Stand", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        return string.Equals(objectName, "Put_Area", StringComparison.OrdinalIgnoreCase) ||
+               objectName.IndexOf("Newspaper_Stand", StringComparison.OrdinalIgnoreCase) >= 0 ||
                objectName.IndexOf("Newspaper_InteractionPrompt", StringComparison.OrdinalIgnoreCase) >= 0 ||
                objectName.IndexOf("Newspaper_PlacePrompt", StringComparison.OrdinalIgnoreCase) >= 0 ||
                objectName.IndexOf("Placed_Newspaper_Runtime", StringComparison.OrdinalIgnoreCase) >= 0 ||
