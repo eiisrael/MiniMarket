@@ -4,7 +4,8 @@ using Object = UnityEngine.Object;
 
 /// <summary>
 /// Controla seleção e compra dos terrenos durante o modo de compra.
-/// Preserva a API pública do sistema antigo e usa o banco atual para gold e empresas.
+/// Quando está dentro de BronzeMarketPurchaseLot, nunca substitui o controlador local por
+/// outro encontrado globalmente e nunca permite selecionar terreno de outra loja.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class BuySceneLandPurchaseController : MonoBehaviour
@@ -41,6 +42,7 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
 
     private BuyableLandAreaMarker terrenoHover;
     private BuyableLandAreaMarker terrenoSelecionado;
+    private BronzeMarketPurchaseLot loteLocal;
 
     private void Awake()
     {
@@ -78,6 +80,18 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
 
     public void AtualizarListaTerrenosSeNecessario()
     {
+        ResolverLoteLocal();
+
+        // Escopo de hierarquia tem prioridade absoluta. Uma Bronze_Market corresponde a um lote.
+        if (loteLocal != null)
+        {
+            terrenos = loteLocal.terrenoPrincipal != null
+                ? new[] { loteLocal.terrenoPrincipal }
+                : System.Array.Empty<BuyableLandAreaMarker>();
+            procurarTerrenosAutomaticamente = false;
+            return;
+        }
+
         if (!procurarTerrenosAutomaticamente)
             return;
 
@@ -99,20 +113,58 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
 
         for (int i = 0; i < terrenos.Length; i++)
         {
-            if (terrenos[i] != null)
+            if (terrenos[i] != null && TerrenoPertenceAoEscopoAtual(terrenos[i]))
                 terrenos[i].SincronizarEstadoComBanco();
         }
     }
 
+    private void ResolverLoteLocal()
+    {
+        if (loteLocal == null)
+            loteLocal = GetComponentInParent<BronzeMarketPurchaseLot>();
+    }
+
     private void ResolverReferencias(bool force)
     {
-        if (force || controladorBuyScene == null)
-            controladorBuyScene = Object.FindAnyObjectByType<BuySceneCameraModeController>(FindObjectsInactive.Include);
+        ResolverLoteLocal();
 
-        if (force || painelConfirmacao == null)
-            painelConfirmacao = Object.FindAnyObjectByType<BuyScenePurchaseConfirmationPanel>(FindObjectsInactive.Include);
+        // Nunca sobrescrever uma referência serializada/local válida usando FindAnyObjectByType.
+        if (controladorBuyScene == null)
+        {
+            if (loteLocal != null && loteLocal.controladorCamera != null)
+                controladorBuyScene = loteLocal.controladorCamera;
 
-        if (force || cameraCompra == null)
+            if (controladorBuyScene == null)
+                controladorBuyScene = GetComponent<BuySceneCameraModeController>();
+
+            if (controladorBuyScene == null)
+                controladorBuyScene = GetComponentInParent<BuySceneCameraModeController>();
+
+            if (controladorBuyScene == null)
+            {
+                controladorBuyScene = Object.FindAnyObjectByType<BuySceneCameraModeController>(
+                    FindObjectsInactive.Include
+                );
+            }
+        }
+
+        if (painelConfirmacao == null)
+        {
+            if (loteLocal != null && loteLocal.painelConfirmacao != null)
+                painelConfirmacao = loteLocal.painelConfirmacao;
+
+            if (painelConfirmacao == null && loteLocal != null)
+                painelConfirmacao = loteLocal.GetComponentInChildren<BuyScenePurchaseConfirmationPanel>(true);
+
+            if (painelConfirmacao == null)
+            {
+                painelConfirmacao = Object.FindAnyObjectByType<BuyScenePurchaseConfirmationPanel>(
+                    FindObjectsInactive.Include
+                );
+            }
+        }
+
+        if (cameraCompra == null)
         {
             if (controladorBuyScene != null && controladorBuyScene.cameraPrincipal != null)
                 cameraCompra = controladorBuyScene.cameraPrincipal;
@@ -120,13 +172,24 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
                 cameraCompra = Camera.main;
         }
 
-        if (force || playerGold == null)
+        if (playerGold == null)
+        {
             playerGold = PlayerGold.Instance != null
                 ? PlayerGold.Instance
                 : Object.FindAnyObjectByType<PlayerGold>(FindObjectsInactive.Include);
+        }
 
-        if (terrenos == null || terrenos.Length == 0)
+        if (loteLocal != null)
+        {
+            terrenos = loteLocal.terrenoPrincipal != null
+                ? new[] { loteLocal.terrenoPrincipal }
+                : System.Array.Empty<BuyableLandAreaMarker>();
+            procurarTerrenosAutomaticamente = false;
+        }
+        else if (terrenos == null || terrenos.Length == 0)
+        {
             AtualizarListaTerrenosSeNecessario();
+        }
     }
 
     private void AtualizarHoverDoMouse()
@@ -166,7 +229,7 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
         for (int i = 0; i < terrenos.Length; i++)
         {
             BuyableLandAreaMarker terreno = terrenos[i];
-            if (terreno == null)
+            if (terreno == null || !TerrenoPertenceAoEscopoAtual(terreno))
                 continue;
 
             terreno.SincronizarEstadoComBanco();
@@ -195,9 +258,18 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
         return melhorTerreno;
     }
 
+    private bool TerrenoPertenceAoEscopoAtual(BuyableLandAreaMarker terreno)
+    {
+        if (terreno == null)
+            return false;
+
+        ResolverLoteLocal();
+        return loteLocal == null || loteLocal.ContemTerreno(terreno);
+    }
+
     private void TentarSelecionarTerrenoHover()
     {
-        if (terrenoHover == null)
+        if (terrenoHover == null || !TerrenoPertenceAoEscopoAtual(terrenoHover))
             return;
 
         terrenoHover.SincronizarEstadoComBanco();
@@ -226,7 +298,7 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
 
     private void ConfirmarCompraDoTerreno(BuyableLandAreaMarker terreno)
     {
-        if (terreno == null)
+        if (terreno == null || !TerrenoPertenceAoEscopoAtual(terreno))
             return;
 
         terreno.SincronizarEstadoComBanco();
@@ -319,5 +391,14 @@ public sealed class BuySceneLandPurchaseController : MonoBehaviour
     private void OnValidate()
     {
         margemSelecao = Mathf.Max(0f, margemSelecao);
+        ResolverLoteLocal();
+
+        if (loteLocal != null)
+        {
+            terrenos = loteLocal.terrenoPrincipal != null
+                ? new[] { loteLocal.terrenoPrincipal }
+                : System.Array.Empty<BuyableLandAreaMarker>();
+            procurarTerrenosAutomaticamente = false;
+        }
     }
 }
