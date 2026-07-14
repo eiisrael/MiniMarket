@@ -15,6 +15,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 
 ## Relatório mais recente
 
+- `JORNAL_PROMPT_VISUAL_PREMIUM.md`: substitui o painel quadrado da tecla E por círculos procedurais, anéis, halo e partículas editáveis nos prompts de pegar e colocar jornal.
 - `CORRECAO_DUPLICACAO_BRONZE_MARKET.md`: preserva integralmente o layout de `PurchaseLotStatus` ao duplicar a loja, elimina `SendMessage` no Edit Mode e exibe o ID do lote.
 - `BRONZE_MARKET_LOTES_INDEPENDENTES.md`: transforma cada cópia de `Bronze_Market` em uma loja comprável independente, com ID, calçada, terreno, status, hover e controladores próprios.
 - `ENERGIA_PERCENTUAL_CORES.md`: troca `5/5` por porcentagem e alterna ícone/cor verde, amarelo e vermelho pela energia total.
@@ -32,6 +33,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `AJUSTES_HUD_INTERACAO_COMPRA_MINIMAP_MOBILE.md`: melhorias de 2026-07-12.
 - `CORRECAO_BARRA_ENERGIA_PROGRESSIVA.md`: barra interna, cálculo total e ferramenta de criação/reparo.
 - `OBJETOS_RUNTIME_PERSISTENTES.md`: hierarquia persistente e editável para energia, minimapa, mobile, mira, compra e serviços.
+- `JORNAL_PROMPT_VISUAL_PREMIUM.md`: visual circular premium e editável da tecla E nos dois prompts do jornal.
 - `ENERGIA_PERCENTUAL_CORES.md`: texto percentual, sprites, degradê e pulsação do ícone de energia.
 - `BRONZE_MARKET_LOTES_INDEPENDENTES.md`: cópia segura de lojas Bronze e isolamento de seleção/compra por hierarquia.
 - `CORRECAO_DUPLICACAO_BRONZE_MARKET.md`: cópia fiel do layout, ID visual e reconciliação segura fora do Play Mode.
@@ -46,6 +48,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - Objetos interativos: `InteractionFocusController.cs`, `InteractiveObject.cs` e `InteractionHighlight.cs`.
 - Banco: `Assets/Scripts/Database/MiniMarketPlayerDatabase.cs`.
 - HUD de energia: `MiniMarketEnergySegmentHUD`, `MiniMarketEnergyProgressBar` e efeitos visuais associados.
+- Jornal: `NewspaperWorldPromptVisual`, `NewspaperStandController`, `NewspaperPlacementAreaController`, `NewspaperPromptPremiumKeyVisual` e `NewspaperPromptShapeGraphic`.
 - Compra de loja Bronze: `BronzeMarketPurchaseLot`, `BronzeMarketLotStatusView`, `BuySceneEntryTrigger`, `BuySceneCameraModeController` e `BuySceneLandPurchaseController`.
 - Configuração de lojas Bronze: `Assets/Editor/ProjectMaintenance/BronzeMarketPurchaseLotSetup.cs` e `BronzeMarketLocalControllerReconciler.cs`.
 - Minimapa: `Assets/Scripts/UI/RuntimeMiniMap.cs` com `RuntimeMiniMapHierarchyBinding.cs`.
