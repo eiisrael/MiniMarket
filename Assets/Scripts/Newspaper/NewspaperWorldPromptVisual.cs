@@ -5,9 +5,9 @@ using UnityEngine.UI;
 /// <summary>
 /// Prompt circular persistente do sistema de jornal.
 ///
-/// O objeto pode existir e ser editado diretamente na cena. O script somente cria
-/// a hierarquia visual quando solicitado pelo configurador do Editor ou quando
-/// precisa atuar como fallback durante o jogo.
+/// O RectTransform raiz pertence ao usuário: posição, rotação, escala, largura e
+/// altura podem ser alteradas diretamente no Inspector sem serem sobrescritas.
+/// As animações acontecem somente dentro do filho CircularPrompt.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -20,9 +20,17 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     public bool showInstructionText = true;
     public int sortingOrder = 260;
 
-    [Header("Posição e Escala")]
+    [Header("Controle do Transform")]
+    [Tooltip("Marcado: o RectTransform raiz é a fonte oficial de posição e escala. Assim ele pode ser editado livremente no Inspector.")]
+    public bool useRootTransformAsSource = true;
+
+    [Tooltip("Espelho da escala do Transform. Mantido para compatibilidade com os controladores existentes.")]
     [Min(0.0001f)] public float worldScale = 0.0023f;
+
+    [Tooltip("Espelho da posição local do Transform. Mantido para compatibilidade com os controladores existentes.")]
     public Vector3 localOffset = new Vector3(0f, 0.72f, 0f);
+
+    [Header("Círculo")]
     [Min(48f)] public float circleDiameter = 86f;
     [Min(1f)] public float progressThickness = 10f;
     [Min(1f)] public float innerAccentThickness = 6f;
@@ -38,7 +46,10 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
     [Header("Animação")]
     [Min(0f)] public float rotationDegreesPerSecond = 38f;
+
+    [Tooltip("Amplitude em unidades do mundo. A raiz não é movimentada; o deslocamento é aplicado apenas ao círculo interno.")]
     [Min(0f)] public float floatingAmplitude = 0.015f;
+
     [Min(0f)] public float floatingSpeed = 2.1f;
     [Range(0f, 0.25f)] public float pulseAmount = 0.035f;
     [Min(0f)] public float pulseSpeed = 3f;
@@ -78,8 +89,8 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [HideInInspector] public TextMeshProUGUI instructionText;
 
     private Camera cachedCamera;
-    private Vector3 baseLocalPosition;
     private bool built;
+    private bool transformBindingInitialized;
 
     private static Sprite discSprite;
     private static Sprite ringSprite;
@@ -113,6 +124,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         visual.localOffset = requestedLocalOffset;
         visual.worldScale = NormalizeLegacyScale(requestedWorldScale);
         visual.sortingOrder = requestedSortingOrder;
+        visual.ApplyCompatibilityTransform();
         visual.EnsurePersistentVisual();
         visual.SetVisible(false);
         return visual;
@@ -121,6 +133,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private void Awake()
     {
         ResolveExistingReferences();
+        InitializeTransformBinding();
 
         if (Application.isPlaying)
             EnsurePersistentVisual();
@@ -131,6 +144,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private void OnEnable()
     {
         ResolveExistingReferences();
+        InitializeTransformBinding();
 
         if (Application.isPlaying)
             EnsurePersistentVisual();
@@ -145,9 +159,8 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     {
         ClampInspectorValues();
         ResolveExistingReferences();
+        InitializeTransformBinding();
 
-        // Não adiciona componentes durante OnValidate. O configurador do Editor
-        // cria/repara a hierarquia fora do ciclo de validação do Unity.
         if (built)
             ApplyInspectorSettings();
     }
@@ -157,11 +170,14 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (!built)
             return;
 
+        SyncCompatibilityFieldsFromTransform();
         ApplyInspectorSettings();
 
         bool shouldAnimate = Application.isPlaying || animateInEditMode;
         if (shouldAnimate)
             AnimatePrompt();
+        else
+            ResetInnerAnimation();
 
         if (Application.isPlaying)
             FaceActiveCamera();
@@ -171,9 +187,10 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     public void EnsurePersistentVisual()
     {
         ResolveExistingReferences();
+        InitializeTransformBinding();
 
         if (!built)
-            Build(sortOrderOverride: sortingOrder);
+            Build(sortingOrder);
 
         ApplyInspectorSettings();
 
@@ -186,11 +203,62 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     {
         ClearGeneratedChildren();
         ResetGeneratedReferences();
-        Build(sortOrderOverride: sortingOrder);
+        Build(sortingOrder);
         ApplyInspectorSettings();
 
         if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
             canvasGroup.alpha = 1f;
+    }
+
+    private void InitializeTransformBinding()
+    {
+        if (transformBindingInitialized)
+            return;
+
+        if (useRootTransformAsSource)
+        {
+            Vector3 currentScale = transform.localScale;
+            bool looksUninitialized =
+                Mathf.Abs(currentScale.x) > 0.05f ||
+                Mathf.Abs(currentScale.y) > 0.05f ||
+                Mathf.Abs(currentScale.z) > 0.05f;
+
+            if (looksUninitialized)
+                ApplyCompatibilityTransform();
+            else
+                SyncCompatibilityFieldsFromTransform();
+        }
+        else
+        {
+            ApplyCompatibilityTransform();
+        }
+
+        transformBindingInitialized = true;
+    }
+
+    private void ApplyCompatibilityTransform()
+    {
+        transform.localPosition = localOffset;
+        float normalizedScale = NormalizeLegacyScale(worldScale);
+        worldScale = normalizedScale;
+        transform.localScale = Vector3.one * normalizedScale;
+    }
+
+    private void SyncCompatibilityFieldsFromTransform()
+    {
+        if (!useRootTransformAsSource)
+            return;
+
+        localOffset = transform.localPosition;
+
+        Vector3 scale = transform.localScale;
+        float averageScale = (
+            Mathf.Abs(scale.x) +
+            Mathf.Abs(scale.y) +
+            Mathf.Abs(scale.z)
+        ) / 3f;
+
+        worldScale = Mathf.Clamp(averageScale, 0.0001f, 0.02f);
     }
 
     private void ResolveExistingReferences()
@@ -237,9 +305,6 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 centerDisc != null &&
                 centerText != null &&
                 instructionText != null;
-
-        if (built)
-            baseLocalPosition = localOffset;
     }
 
     private void Build(int sortOrderOverride)
@@ -275,7 +340,9 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
 
-        rootRect.sizeDelta = new Vector2(220f, 125f);
+        // Somente um valor inicial. Depois disso o usuário pode editar livremente.
+        if (rootRect.sizeDelta.sqrMagnitude < 1f)
+            rootRect.sizeDelta = new Vector2(220f, 125f);
 
         visualRoot = CreateRect("CircularPrompt", rootRect);
         visualRoot.anchorMin = new Vector2(0.5f, 0.5f);
@@ -313,7 +380,6 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         instructionText.alignment = TextAlignmentOptions.Center;
 
         built = true;
-        baseLocalPosition = localOffset;
     }
 
     private void ApplyInspectorSettings()
@@ -322,22 +388,16 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
             return;
 
         ClampInspectorValues();
-        baseLocalPosition = localOffset;
 
-        transform.localScale = Vector3.one * worldScale;
-        transform.localPosition = localOffset;
+        // A raiz não é alterada aqui. O RectTransform fica totalmente livre.
+        if (!useRootTransformAsSource)
+            ApplyCompatibilityTransform();
 
         if (worldCanvas != null)
             worldCanvas.sortingOrder = sortingOrder;
 
-        if (rootRect != null)
-            rootRect.sizeDelta = new Vector2(220f, 125f);
-
         if (visualRoot != null)
-        {
             visualRoot.sizeDelta = new Vector2(circleDiameter, circleDiameter);
-            visualRoot.anchoredPosition = Vector2.zero;
-        }
 
         ConfigureCenteredCircle(glowImage != null ? glowImage.rectTransform : null, circleDiameter * 1.28f);
         ConfigureCenteredCircle(outerRingImage != null ? outerRingImage.rectTransform : null, circleDiameter);
@@ -416,17 +476,18 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     {
         float time = Time.realtimeSinceStartup;
 
-        transform.localPosition = baseLocalPosition +
-                                  Vector3.up * (Mathf.Sin(time * floatingSpeed) * floatingAmplitude);
-
-        if (rotatingRing != null)
-            rotatingRing.localRotation = Quaternion.Euler(0f, 0f, -time * rotationDegreesPerSecond);
-
         if (visualRoot != null)
         {
+            float scaleY = Mathf.Max(0.0001f, Mathf.Abs(transform.localScale.y));
+            float uiAmplitude = floatingAmplitude / scaleY;
+            visualRoot.anchoredPosition = Vector2.up * (Mathf.Sin(time * floatingSpeed) * uiAmplitude);
+
             float pulse = 1f + Mathf.Sin(time * pulseSpeed) * pulseAmount;
             visualRoot.localScale = Vector3.one * pulse;
         }
+
+        if (rotatingRing != null)
+            rotatingRing.localRotation = Quaternion.Euler(0f, 0f, -time * rotationDegreesPerSecond);
 
         if (glowImage != null)
         {
@@ -434,6 +495,15 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
             float pulse = 1f + Mathf.Sin(time * glowPulseSpeed) * glowPulseAmount;
             animatedGlow.a = Mathf.Clamp01(glowColor.a * pulse);
             glowImage.color = animatedGlow;
+        }
+    }
+
+    private void ResetInnerAnimation()
+    {
+        if (visualRoot != null)
+        {
+            visualRoot.anchoredPosition = Vector2.zero;
+            visualRoot.localScale = Vector3.one;
         }
     }
 
@@ -497,7 +567,6 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     public void SetLocalOffset(Vector3 offset)
     {
         localOffset = offset;
-        baseLocalPosition = offset;
         transform.localPosition = offset;
     }
 
