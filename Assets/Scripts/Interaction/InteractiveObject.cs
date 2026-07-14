@@ -4,12 +4,13 @@ using UnityEngine;
 using UnityEngine.Events;
 
 /// <summary>
-/// Marca portas, caixas, interruptores e outros objetos como interativos.
+/// Marca portas, interruptores e outros objetos como interativos.
 ///
-/// A ação pode ser ligada pelo UnityEvent. Para objetos antigos, o componente também
-/// procura uma função pública comum no próprio objeto, nos pais e nos filhos.
-/// Isso permite que o collider, o InteractiveObject e o script real da porta fiquem
-/// em pontos diferentes da mesma hierarquia.
+/// A ação principal pode ser ligada pelo UnityEvent. Para componentes legados,
+/// a compatibilidade é resolvida uma única vez e fica em cache: primeiro procura
+/// um método público conhecido; quando não existe, alterna um campo/propriedade
+/// booleana comum, como o campo Open usado pelas portas antigas do projeto.
+/// Nenhuma reflexão acontece no Update.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class InteractiveObject : MonoBehaviour
@@ -26,6 +27,7 @@ public sealed class InteractiveObject : MonoBehaviour
     public bool autoInvokeCommonMethod = true;
     public bool searchMethodInParents = true;
     public bool searchMethodInChildren = true;
+
     public string[] commonMethodNames =
     {
         "Interact",
@@ -45,6 +47,34 @@ public sealed class InteractiveObject : MonoBehaviour
         "Ativar"
     };
 
+    [Tooltip("Quando nenhum método compatível existe, alterna um campo ou propriedade bool conhecido no script legado.")]
+    public bool toggleCommonBooleanWhenNoMethod = true;
+
+    public string[] commonBooleanNames =
+    {
+        "Open",
+        "open",
+        "IsOpen",
+        "isOpen",
+        "Opened",
+        "opened",
+        "Aberta",
+        "aberta",
+        "EstaAberta",
+        "estaAberta"
+    };
+
+    [Tooltip("Último fallback: alterna um parâmetro bool conhecido no Animator da mesma hierarquia.")]
+    public bool toggleAnimatorBooleanWhenNoMember = true;
+
+    public string[] commonAnimatorBooleanNames =
+    {
+        "Open",
+        "open",
+        "IsOpen",
+        "Aberta"
+    };
+
     [Header("Eventos")]
     public UnityEvent onFocused;
     public UnityEvent onUnfocused;
@@ -53,16 +83,21 @@ public sealed class InteractiveObject : MonoBehaviour
     [Header("Debug")]
     public bool logInvokedMethod;
 
-    private MonoBehaviour cachedMethodTarget;
+    private MonoBehaviour cachedActionTarget;
     private MethodInfo cachedMethod;
-    private bool methodResolved;
+    private FieldInfo cachedBooleanField;
+    private PropertyInfo cachedBooleanProperty;
+    private Animator cachedAnimator;
+    private int cachedAnimatorBoolHash;
+    private string cachedActionDescription;
+    private bool actionResolved;
 
     public bool IsFocused { get; private set; }
 
     private void Awake()
     {
         ResolveHighlight();
-        ResolveCommonMethod();
+        ResolveCommonAction();
     }
 
     private void OnEnable()
@@ -101,7 +136,7 @@ public sealed class InteractiveObject : MonoBehaviour
         onInteract?.Invoke();
 
         if (autoInvokeCommonMethod)
-            InvokeCommonMethod();
+            InvokeCommonAction();
 
         return true;
     }
@@ -117,45 +152,64 @@ public sealed class InteractiveObject : MonoBehaviour
             highlight = gameObject.AddComponent<InteractionHighlight>();
     }
 
-    private void ResolveCommonMethod()
+    private void ResolveCommonAction()
     {
-        if (methodResolved)
+        if (actionResolved)
             return;
 
-        methodResolved = true;
-        cachedMethodTarget = null;
-        cachedMethod = null;
+        actionResolved = true;
+        ClearCachedAction();
 
-        if (!autoInvokeCommonMethod || commonMethodNames == null || commonMethodNames.Length == 0)
+        if (!autoInvokeCommonMethod)
             return;
 
-        if (TryResolveFromBehaviours(GetComponents<MonoBehaviour>()))
-            return;
+        MonoBehaviour[] ownBehaviours = GetComponents<MonoBehaviour>();
+        MonoBehaviour[] parentBehaviours = searchMethodInParents
+            ? GetComponentsInParent<MonoBehaviour>(true)
+            : null;
+        MonoBehaviour[] childBehaviours = searchMethodInChildren
+            ? GetComponentsInChildren<MonoBehaviour>(true)
+            : null;
 
-        if (searchMethodInParents && TryResolveFromBehaviours(GetComponentsInParent<MonoBehaviour>(true)))
+        if (TryResolveMethodFromBehaviours(ownBehaviours) ||
+            TryResolveMethodFromBehaviours(parentBehaviours) ||
+            TryResolveMethodFromBehaviours(childBehaviours))
+        {
             return;
+        }
 
-        if (searchMethodInChildren)
-            TryResolveFromBehaviours(GetComponentsInChildren<MonoBehaviour>(true));
+        if (toggleCommonBooleanWhenNoMethod &&
+            (TryResolveBooleanFromBehaviours(ownBehaviours) ||
+             TryResolveBooleanFromBehaviours(parentBehaviours) ||
+             TryResolveBooleanFromBehaviours(childBehaviours)))
+        {
+            return;
+        }
+
+        if (toggleAnimatorBooleanWhenNoMember)
+            TryResolveAnimatorBoolean();
     }
 
-    private bool TryResolveFromBehaviours(MonoBehaviour[] behaviours)
+    private bool TryResolveMethodFromBehaviours(MonoBehaviour[] behaviours)
     {
-        if (behaviours == null || behaviours.Length == 0)
+        if (behaviours == null || behaviours.Length == 0 ||
+            commonMethodNames == null || commonMethodNames.Length == 0)
+        {
             return false;
+        }
 
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
 
-        for (int i = 0; i < commonMethodNames.Length; i++)
+        for (int nameIndex = 0; nameIndex < commonMethodNames.Length; nameIndex++)
         {
-            string methodName = commonMethodNames[i];
+            string methodName = commonMethodNames[nameIndex];
             if (string.IsNullOrWhiteSpace(methodName))
                 continue;
 
-            for (int b = 0; b < behaviours.Length; b++)
+            for (int behaviourIndex = 0; behaviourIndex < behaviours.Length; behaviourIndex++)
             {
-                MonoBehaviour behaviour = behaviours[b];
-                if (behaviour == null || behaviour == this || behaviour is InteractionHighlight)
+                MonoBehaviour behaviour = behaviours[behaviourIndex];
+                if (!IsValidLegacyTarget(behaviour))
                     continue;
 
                 MethodInfo method = behaviour.GetType().GetMethod(
@@ -169,8 +223,9 @@ public sealed class InteractiveObject : MonoBehaviour
                 if (method == null || method.ReturnType != typeof(void))
                     continue;
 
-                cachedMethodTarget = behaviour;
+                cachedActionTarget = behaviour;
                 cachedMethod = method;
+                cachedActionDescription = behaviour.GetType().Name + "." + method.Name + "()";
                 return true;
             }
         }
@@ -178,46 +233,204 @@ public sealed class InteractiveObject : MonoBehaviour
         return false;
     }
 
-    private void InvokeCommonMethod()
+    private bool TryResolveBooleanFromBehaviours(MonoBehaviour[] behaviours)
     {
-        ResolveCommonMethod();
+        if (behaviours == null || behaviours.Length == 0 ||
+            commonBooleanNames == null || commonBooleanNames.Length == 0)
+        {
+            return false;
+        }
 
-        if (cachedMethodTarget == null || cachedMethod == null)
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+
+        for (int behaviourIndex = 0; behaviourIndex < behaviours.Length; behaviourIndex++)
+        {
+            MonoBehaviour behaviour = behaviours[behaviourIndex];
+            if (!IsValidLegacyTarget(behaviour))
+                continue;
+
+            Type type = behaviour.GetType();
+
+            for (int nameIndex = 0; nameIndex < commonBooleanNames.Length; nameIndex++)
+            {
+                string memberName = commonBooleanNames[nameIndex];
+                if (string.IsNullOrWhiteSpace(memberName))
+                    continue;
+
+                FieldInfo field = type.GetField(memberName, flags);
+                if (field != null && field.FieldType == typeof(bool) && !field.IsInitOnly)
+                {
+                    cachedActionTarget = behaviour;
+                    cachedBooleanField = field;
+                    cachedActionDescription = type.Name + "." + field.Name;
+                    return true;
+                }
+
+                PropertyInfo property = type.GetProperty(memberName, flags);
+                if (property != null &&
+                    property.PropertyType == typeof(bool) &&
+                    property.CanRead &&
+                    property.CanWrite &&
+                    property.GetIndexParameters().Length == 0)
+                {
+                    cachedActionTarget = behaviour;
+                    cachedBooleanProperty = property;
+                    cachedActionDescription = type.Name + "." + property.Name;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private void TryResolveAnimatorBoolean()
+    {
+        Animator[] animators;
+
+        if (searchMethodInChildren)
+            animators = GetComponentsInChildren<Animator>(true);
+        else
+        {
+            Animator animator = GetComponent<Animator>();
+            animators = animator != null ? new[] { animator } : Array.Empty<Animator>();
+        }
+
+        if ((animators == null || animators.Length == 0) && searchMethodInParents)
+        {
+            Animator parentAnimator = GetComponentInParent<Animator>(true);
+            if (parentAnimator != null)
+                animators = new[] { parentAnimator };
+        }
+
+        if (animators == null || commonAnimatorBooleanNames == null)
             return;
+
+        for (int animatorIndex = 0; animatorIndex < animators.Length; animatorIndex++)
+        {
+            Animator animator = animators[animatorIndex];
+            if (animator == null)
+                continue;
+
+            AnimatorControllerParameter[] parameters = animator.parameters;
+            for (int nameIndex = 0; nameIndex < commonAnimatorBooleanNames.Length; nameIndex++)
+            {
+                string parameterName = commonAnimatorBooleanNames[nameIndex];
+                if (string.IsNullOrWhiteSpace(parameterName))
+                    continue;
+
+                int hash = Animator.StringToHash(parameterName);
+                for (int parameterIndex = 0; parameterIndex < parameters.Length; parameterIndex++)
+                {
+                    AnimatorControllerParameter parameter = parameters[parameterIndex];
+                    if (parameter.type != AnimatorControllerParameterType.Bool ||
+                        parameter.nameHash != hash)
+                    {
+                        continue;
+                    }
+
+                    cachedAnimator = animator;
+                    cachedAnimatorBoolHash = hash;
+                    cachedActionDescription = animator.name + ".Animator[" + parameterName + "]";
+                    return;
+                }
+            }
+        }
+    }
+
+    private bool IsValidLegacyTarget(MonoBehaviour behaviour)
+    {
+        return behaviour != null &&
+               behaviour != this &&
+               !(behaviour is InteractionHighlight) &&
+               !(behaviour is InteractionFocusController) &&
+               behaviour.isActiveAndEnabled;
+    }
+
+    private void InvokeCommonAction()
+    {
+        ResolveCommonAction();
 
         try
         {
-            cachedMethod.Invoke(cachedMethodTarget, null);
-
-            if (logInvokedMethod)
+            if (cachedActionTarget != null && cachedMethod != null)
             {
-                Debug.Log(
-                    "[InteractiveObject] Chamou " + cachedMethodTarget.GetType().Name +
-                    "." + cachedMethod.Name + " em " + name + ".",
-                    this
-                );
+                cachedMethod.Invoke(cachedActionTarget, null);
+                LogResolvedAction();
+                return;
+            }
+
+            if (cachedActionTarget != null && cachedBooleanField != null)
+            {
+                bool current = (bool)cachedBooleanField.GetValue(cachedActionTarget);
+                cachedBooleanField.SetValue(cachedActionTarget, !current);
+                LogResolvedAction();
+                return;
+            }
+
+            if (cachedActionTarget != null && cachedBooleanProperty != null)
+            {
+                bool current = (bool)cachedBooleanProperty.GetValue(cachedActionTarget, null);
+                cachedBooleanProperty.SetValue(cachedActionTarget, !current, null);
+                LogResolvedAction();
+                return;
+            }
+
+            if (cachedAnimator != null && cachedAnimatorBoolHash != 0)
+            {
+                bool current = cachedAnimator.GetBool(cachedAnimatorBoolHash);
+                cachedAnimator.SetBool(cachedAnimatorBoolHash, !current);
+                LogResolvedAction();
             }
         }
         catch (Exception exception)
         {
             Debug.LogWarning(
-                "[InteractiveObject] Falha ao executar " + cachedMethod.Name +
+                "[InteractiveObject] Falha ao executar " +
+                (string.IsNullOrEmpty(cachedActionDescription)
+                    ? "ação compatível"
+                    : cachedActionDescription) +
                 " em " + name + ": " + exception.GetBaseException().Message,
                 this
             );
+
+            RefreshCommonMethod();
         }
     }
 
-    [ContextMenu("Interação/Rebuscar método compatível")]
+    private void LogResolvedAction()
+    {
+        if (!logInvokedMethod)
+            return;
+
+        Debug.Log(
+            "[InteractiveObject] Executou " + cachedActionDescription + " em " + name + ".",
+            this
+        );
+    }
+
+    private void ClearCachedAction()
+    {
+        cachedActionTarget = null;
+        cachedMethod = null;
+        cachedBooleanField = null;
+        cachedBooleanProperty = null;
+        cachedAnimator = null;
+        cachedAnimatorBoolHash = 0;
+        cachedActionDescription = string.Empty;
+    }
+
+    [ContextMenu("Interação/Rebuscar ação compatível")]
     public void RefreshCommonMethod()
     {
-        methodResolved = false;
-        ResolveCommonMethod();
+        actionResolved = false;
+        ResolveCommonAction();
     }
 
     private void OnValidate()
     {
-        methodResolved = false;
+        actionResolved = false;
+        ClearCachedAction();
 
         if (highlight == null)
             highlight = GetComponent<InteractionHighlight>();
