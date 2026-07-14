@@ -8,7 +8,7 @@ using UnityEngine.UI;
 /// Funciona sobre o NewspaperWorldPromptVisual existente, sem alterar a lógica de pegar
 /// ou colocar. A hierarquia criada é persistente, selecionável e editável no Inspector.
 /// As animações atuam somente em wrappers próprios, preservando os transforms dos
-/// elementos visuais que o usuário edita.
+/// elementos gráficos editáveis.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -114,7 +114,7 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
         if (Application.isPlaying && premiumRoot == null)
             EnsureEditableHierarchy(false);
 
-        ApplyStaticSettings();
+        ApplyNonDestructiveState();
         CaptureAnimationBase();
     }
 
@@ -125,7 +125,7 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
         if (Application.isPlaying && premiumRoot == null)
             EnsureEditableHierarchy(false);
 
-        ApplyStaticSettings();
+        ApplyNonDestructiveState();
         CaptureAnimationBase();
         ApplyVisibility();
     }
@@ -141,11 +141,22 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
         ClampValues();
         ResolveReferences();
 
-        if (premiumRoot != null)
-        {
-            ApplyStaticSettings();
+        if (premiumRoot == null)
+            return;
+
+        if (!useChildTransformsAsSource)
+            ApplyDefaultLayout();
+
+        if (!useChildColorsAsSource)
+            ApplyDefaultColors();
+
+        if (!useCenterTextStyleAsSource)
+            ApplyDefaultTextStyle();
+
+        ApplyNonDestructiveState();
+
+        if (!animationWasRunning)
             CaptureAnimationBase();
-        }
     }
 
     private void LateUpdate()
@@ -167,19 +178,20 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
             }
 
             AnimateVisual();
+            return;
         }
-        else if (animationWasRunning)
-        {
-            ResetAnimation();
-            animationWasRunning = false;
-            CaptureAnimationBase();
-        }
+
+        if (!animationWasRunning)
+            return;
+
+        ResetAnimation();
+        animationWasRunning = false;
+        CaptureAnimationBase();
     }
 
     /// <summary>
     /// Cria ou repara a hierarquia persistente. Retorna true apenas quando algo
-    /// serializável foi criado ou atualizado, permitindo ao instalador marcar a cena
-    /// como modificada somente uma vez.
+    /// serializável foi criado ou atualizado.
     /// </summary>
     public bool EnsureEditableHierarchy(bool forceApplyDefaults)
     {
@@ -272,7 +284,7 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
             changed = true;
         }
 
-        ApplyStaticSettings();
+        ApplyNonDestructiveState();
         CaptureAnimationBase();
         return changed;
     }
@@ -287,7 +299,7 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
     public void RepairReferences()
     {
         ResolveReferences();
-        ApplyStaticSettings();
+        ApplyNonDestructiveState();
         CaptureAnimationBase();
     }
 
@@ -331,38 +343,34 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
             : null;
     }
 
-    private void ApplyStaticSettings()
+    private void ApplyNonDestructiveState()
     {
-        ClampValues();
-
         if (premiumRoot == null)
             return;
 
-        if (!useChildTransformsAsSource)
-            ApplyDefaultLayout();
-
-        if (!useChildColorsAsSource)
-            ApplyDefaultColors();
-
-        if (!useCenterTextStyleAsSource)
-            ApplyDefaultTextStyle();
-
         if (legacyCenterDisc != null)
-            legacyCenterDisc.enabled = !disableLegacyCenterDisc;
+        {
+            bool legacyShouldBeEnabled = !disableLegacyCenterDisc;
+            if (legacyCenterDisc.enabled != legacyShouldBeEnabled)
+                legacyCenterDisc.enabled = legacyShouldBeEnabled;
+        }
 
-        SetRaycastDisabled(glowBack);
-        SetRaycastDisabled(outerRing);
-        SetRaycastDisabled(accentRing);
-        SetRaycastDisabled(premiumCenterDisc);
-        SetRaycastDisabled(centerHighlight);
-        SetRaycastDisabled(sparkleTop);
-        SetRaycastDisabled(sparkleLeft);
-        SetRaycastDisabled(sparkleRight);
+        DisableRaycastIfNeeded(glowBack);
+        DisableRaycastIfNeeded(outerRing);
+        DisableRaycastIfNeeded(accentRing);
+        DisableRaycastIfNeeded(premiumCenterDisc);
+        DisableRaycastIfNeeded(centerHighlight);
+        DisableRaycastIfNeeded(sparkleTop);
+        DisableRaycastIfNeeded(sparkleLeft);
+        DisableRaycastIfNeeded(sparkleRight);
 
         if (centerText != null)
         {
-            centerText.raycastTarget = false;
-            centerText.textWrappingMode = TextWrappingModes.NoWrap;
+            if (centerText.raycastTarget)
+                centerText.raycastTarget = false;
+
+            if (centerText.textWrappingMode != TextWrappingModes.NoWrap)
+                centerText.textWrappingMode = TextWrappingModes.NoWrap;
         }
 
         KeepTextAbovePremiumVisual();
@@ -420,16 +428,20 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
         if (outerRing != null)
         {
             outerRing.shape = NewspaperPromptShapeGraphic.ShapeMode.Ring;
-            outerRing.ringThickness = Mathf.Clamp01(
-                outerRingThickness / Mathf.Max(1f, (keyDiameter + 16f) * 0.5f)
+            outerRing.ringThickness = Mathf.Clamp(
+                outerRingThickness / Mathf.Max(1f, (keyDiameter + 16f) * 0.5f),
+                0.02f,
+                0.48f
             );
         }
 
         if (accentRing != null)
         {
             accentRing.shape = NewspaperPromptShapeGraphic.ShapeMode.Ring;
-            accentRing.ringThickness = Mathf.Clamp01(
-                accentRingThickness / Mathf.Max(1f, (keyDiameter + 7f) * 0.5f)
+            accentRing.ringThickness = Mathf.Clamp(
+                accentRingThickness / Mathf.Max(1f, (keyDiameter + 7f) * 0.5f),
+                0.02f,
+                0.48f
             );
         }
 
@@ -459,19 +471,21 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
         centerText.outlineWidth = centerOutlineWidth;
         centerText.alignment = TextAlignmentOptions.Center;
         centerText.fontStyle = FontStyles.Bold;
-
-        RectTransform textRect = centerText.rectTransform;
-        ConfigureCenteredRect(textRect, keyDiameter * 0.72f);
+        ConfigureCenteredRect(centerText.rectTransform, keyDiameter * 0.72f);
     }
 
     private void KeepTextAbovePremiumVisual()
     {
-        if (premiumRoot == null || centerText == null)
+        if (premiumRoot == null || centerText == null || circularPrompt == null)
             return;
 
-        int textIndex = centerText.transform.GetSiblingIndex();
-        premiumRoot.SetSiblingIndex(Mathf.Max(0, textIndex));
-        centerText.transform.SetAsLastSibling();
+        int lastSiblingIndex = circularPrompt.childCount - 1;
+        if (centerText.transform.GetSiblingIndex() != lastSiblingIndex)
+            centerText.transform.SetAsLastSibling();
+
+        int desiredPremiumIndex = Mathf.Max(0, centerText.transform.GetSiblingIndex() - 1);
+        if (premiumRoot.GetSiblingIndex() != desiredPremiumIndex)
+            premiumRoot.SetSiblingIndex(desiredPremiumIndex);
     }
 
     private void ApplyVisibility()
@@ -531,12 +545,12 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
             accentRing.color = WithAlphaMultiplier(accentBaseColor, multiplier);
         }
 
-        if (animateSparkles)
-        {
-            AnimateSparkle(sparkleTop, sparkleTopBaseColor, time, 0f);
-            AnimateSparkle(sparkleLeft, sparkleLeftBaseColor, time, 2.0943952f);
-            AnimateSparkle(sparkleRight, sparkleRightBaseColor, time, 4.1887903f);
-        }
+        if (!animateSparkles)
+            return;
+
+        AnimateSparkle(sparkleTop, sparkleTopBaseColor, time, 0f);
+        AnimateSparkle(sparkleLeft, sparkleLeftBaseColor, time, 2.0943952f);
+        AnimateSparkle(sparkleRight, sparkleRightBaseColor, time, 4.1887903f);
     }
 
     private void AnimateSparkle(
@@ -549,8 +563,10 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
             return;
 
         float wave = Mathf.Sin(time * sparklePulseSpeed + phase);
-        float multiplier = 1f + wave * sparkleAlphaPulse;
-        sparkle.color = WithAlphaMultiplier(baseColor, multiplier);
+        sparkle.color = WithAlphaMultiplier(
+            baseColor,
+            1f + wave * sparkleAlphaPulse
+        );
     }
 
     private void ResetAnimation()
@@ -621,8 +637,12 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
             changed = true;
         }
 
-        graphic.shape = shape;
-        graphic.raycastTarget = false;
+        if (graphic.shape != shape)
+            graphic.shape = shape;
+
+        if (graphic.raycastTarget)
+            graphic.raycastTarget = false;
+
         return graphic;
     }
 
@@ -668,9 +688,9 @@ public sealed class NewspaperPromptPremiumKeyVisual : MonoBehaviour
         rect.localScale = Vector3.one;
     }
 
-    private static void SetRaycastDisabled(Graphic graphic)
+    private static void DisableRaycastIfNeeded(Graphic graphic)
     {
-        if (graphic != null)
+        if (graphic != null && graphic.raycastTarget)
             graphic.raycastTarget = false;
     }
 
