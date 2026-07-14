@@ -2,6 +2,44 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-14 — Escala do Newspaper_PlacePrompt preservada no Play/Stop
+
+### Problema
+
+- a escala editada diretamente no `Transform` da raiz `Newspaper_PlacePrompt` podia ser normalizada novamente pelo reparo legado;
+- ao sair do Play Mode, a escala visual voltava para um valor anterior, principalmente quando estava abaixo do limite antigo de migração.
+
+### Correção
+
+Foi criado:
+
+```text
+Assets/Editor/ProjectMaintenance/NewspaperPlacePromptScalePersistence.cs
+```
+
+Comportamento:
+
+- captura os três eixos de escala imediatamente antes do Play Mode;
+- desativa em memória o reparo legado de escala para prompts da `Put_Area`;
+- restaura a escala exata depois do Stop somente quando ela foi alterada por código;
+- preserva escalas uniformes e não uniformes;
+- não usa `Update`, não realiza busca por frame e não salva a cena automaticamente;
+- não modifica posição, rotação, tamanho, filhos, cores ou transparências;
+- inclui `.meta` com GUID persistente.
+
+### Arquitetura e impacto
+
+- `NewspaperWorldPromptVisual` permanece como autoridade visual;
+- não foi criado outro controlador de prompt ou gameplay;
+- a correção é exclusiva do Editor e não altera comportamento Desktop/Mobile em build;
+- nenhum arquivo de cena, prefab ou conteúdo de `Assets/Brick Project Studio` foi alterado.
+
+### Validação
+
+- revisão estática concluída;
+- teste final deve ser feito no Unity local: editar `Transform > Scale`, salvar com `Ctrl+S`, entrar no Play e pressionar Stop;
+- a escala deve permanecer idêntica nos eixos X, Y e Z.
+
 ## 2026-07-14 — Porta em terceira pessoa e jornal sem travada de interação
 
 ### Contexto revisado
