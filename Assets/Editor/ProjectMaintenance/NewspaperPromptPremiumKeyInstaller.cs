@@ -1,22 +1,19 @@
 #if UNITY_EDITOR
-using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Mantém o visual já aprovado do Newspaper_Stand estritamente somente leitura e usa
-/// esse prompt como referência para instalar o mesmo padrão no Newspaper_PlacePrompt.
-///
-/// A sincronização da Put_Area acontece uma única vez. Depois que a hierarquia é salva,
-/// as edições manuais do Inspector não são sobrescritas em recompilações futuras.
+/// Instala uma única vez a camada visual premium nos prompts de pegar e colocar jornal.
+/// A rotina é idempotente: depois que o componente e a hierarquia existem, não altera
+/// novamente a cena ao recompilar nem faz o asterisco reaparecer após Ctrl+S.
 /// </summary>
 [InitializeOnLoad]
 internal static class NewspaperPromptPremiumKeyInstaller
 {
     private const string MenuPath =
-        "Tools/MiniMarket/Jornal/Sincronizar Put Area com Visual do Newspaper Stand";
+        "Tools/MiniMarket/Jornal/Instalar Visual Premium da Tecla E";
 
     private static bool installScheduled;
 
@@ -70,7 +67,7 @@ internal static class NewspaperPromptPremiumKeyInstaller
         InstallLoadedPrompts(false, false);
     }
 
-    private static void InstallLoadedPrompts(bool logResult, bool forcePlaceResync)
+    private static void InstallLoadedPrompts(bool logResult, bool forceDefaults)
     {
         NewspaperWorldPromptVisual[] prompts =
             Object.FindObjectsByType<NewspaperWorldPromptVisual>(
@@ -78,45 +75,30 @@ internal static class NewspaperPromptPremiumKeyInstaller
                 FindObjectsSortMode.None
             );
 
-        NewspaperPromptPremiumKeyVisual approvedStandVisual =
-            ResolveApprovedStandVisual(prompts);
-
         int installedCount = 0;
-        int synchronizedCount = 0;
+        int updatedCount = 0;
 
         for (int i = 0; i < prompts.Length; i++)
         {
             NewspaperWorldPromptVisual prompt = prompts[i];
-            if (prompt == null || prompt.name != "Newspaper_PlacePrompt")
+            if (!IsPersistentNewspaperPrompt(prompt))
                 continue;
 
             Scene scene = prompt.gameObject.scene;
             if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrEmpty(scene.path))
                 continue;
 
-            NewspaperPlacementAreaController controller =
-                prompt.GetComponentInParent<NewspaperPlacementAreaController>(true);
-
-            if (controller == null)
-                continue;
-
-            NewspaperPlacementAreaVisualGuard guard =
-                controller.GetComponent<NewspaperPlacementAreaVisualGuard>();
-
-            bool guardAdded = guard == null;
-            if (guardAdded)
-            {
-                guard = Undo.AddComponent<NewspaperPlacementAreaVisualGuard>(
-                    controller.gameObject
-                );
-                guard.controller = controller;
-                installedCount++;
-            }
-
             NewspaperPromptPremiumKeyVisual premium =
                 prompt.GetComponent<NewspaperPromptPremiumKeyVisual>();
 
             bool componentAdded = premium == null;
+            bool hierarchyMissing = prompt.transform.Find(
+                "CircularPrompt/PremiumKeyVisual"
+            ) == null;
+
+            if (!componentAdded && !hierarchyMissing && !forceDefaults)
+                continue;
+
             if (componentAdded)
             {
                 premium = Undo.AddComponent<NewspaperPromptPremiumKeyVisual>(
@@ -124,246 +106,59 @@ internal static class NewspaperPromptPremiumKeyInstaller
                 );
                 installedCount++;
             }
+            else
+            {
+                Undo.RecordObject(premium, "Atualizar visual premium da tecla E");
+            }
 
-            bool hierarchyMissing = prompt.transform.Find(
-                "CircularPrompt/PremiumKeyVisual"
-            ) == null;
+            bool changed = premium.EnsureEditableHierarchy(forceDefaults);
 
-            bool requiresSynchronization = forcePlaceResync ||
-                                           hierarchyMissing ||
-                                           componentAdded ||
-                                           guardAdded ||
-                                           !guard.premiumVisualSynchronizedFromStand;
-
-            if (!requiresSynchronization)
+            if (!changed && !componentAdded)
                 continue;
 
-            Undo.RecordObject(premium, "Sincronizar visual da Put Area");
-            Undo.RecordObject(guard, "Registrar visual da Put Area");
-
-            if (approvedStandVisual != null)
-                CopyVisualSettings(approvedStandVisual, premium);
-
-            premium.EnsureEditableHierarchy(true);
-
-            if (approvedStandVisual != null)
-                CopyActualVisualHierarchyReadOnly(approvedStandVisual, premium);
-
-            guard.controller = controller;
-            guard.premiumPrompt = premium;
-            guard.premiumVisualSynchronizedFromStand = true;
-            guard.ensurePremiumPromptAtRuntime = true;
-            guard.restorePlacedNewspaperRenderers = true;
-
-            prompt.useCircularPromptTransformAsSource = true;
-            prompt.useGeneratedChildTransformsAsSource = true;
-            prompt.useGeneratedGraphicStylesAsSource = true;
-            prompt.useInstructionTransformAsSource = true;
-            prompt.useInstructionGraphicAsSource = true;
-
             EditorUtility.SetDirty(premium);
-            EditorUtility.SetDirty(guard);
             EditorUtility.SetDirty(prompt);
-            EditorUtility.SetDirty(controller);
             EditorSceneManager.MarkSceneDirty(scene);
-            synchronizedCount++;
+            updatedCount++;
         }
 
-        if (logResult || installedCount > 0 || synchronizedCount > 0)
+        if (logResult || installedCount > 0 || updatedCount > 0)
         {
             Debug.Log(
-                "[NewspaperPremiumKey] Newspaper_Stand mantido somente leitura. " +
-                "Componentes instalados na Put_Area: " + installedCount +
-                ", prompts sincronizados: " + synchronizedCount +
-                ". Confira e use Ctrl+S para salvar a cena."
+                "[NewspaperPremiumKey] Instalados: " + installedCount +
+                ", atualizados: " + updatedCount +
+                ". O visual é editável na Hierarchy; use Ctrl+S para salvar a cena."
             );
         }
     }
 
-    private static NewspaperPromptPremiumKeyVisual ResolveApprovedStandVisual(
-        NewspaperWorldPromptVisual[] prompts)
+    private static bool IsPersistentNewspaperPrompt(NewspaperWorldPromptVisual prompt)
     {
-        for (int i = 0; i < prompts.Length; i++)
+        if (prompt == null)
+            return false;
+
+        string objectName = prompt.name;
+        return objectName == "Newspaper_InteractionPrompt" ||
+               objectName == "Newspaper_PlacePrompt" ||
+               HasNewspaperOwner(prompt.transform);
+    }
+
+    private static bool HasNewspaperOwner(Transform target)
+    {
+        Transform current = target;
+
+        while (current != null)
         {
-            NewspaperWorldPromptVisual prompt = prompts[i];
-            if (prompt == null || prompt.name != "Newspaper_InteractionPrompt")
-                continue;
+            if (current.GetComponent<NewspaperStandController>() != null ||
+                current.GetComponent<NewspaperPlacementAreaController>() != null)
+            {
+                return true;
+            }
 
-            NewspaperPromptPremiumKeyVisual premium =
-                prompt.GetComponent<NewspaperPromptPremiumKeyVisual>();
-
-            if (premium == null)
-                continue;
-
-            if (prompt.transform.Find("CircularPrompt/PremiumKeyVisual") == null)
-                continue;
-
-            return premium;
+            current = current.parent;
         }
 
-        return null;
-    }
-
-    private static void CopyVisualSettings(
-        NewspaperPromptPremiumKeyVisual source,
-        NewspaperPromptPremiumKeyVisual target)
-    {
-        if (source == null || target == null)
-            return;
-
-        target.visualEnabled = source.visualEnabled;
-        target.previewInEditMode = source.previewInEditMode;
-        target.animateInPlayMode = source.animateInPlayMode;
-        target.animateInEditMode = source.animateInEditMode;
-        target.disableLegacyCenterDisc = source.disableLegacyCenterDisc;
-        target.useChildTransformsAsSource = true;
-        target.useChildColorsAsSource = true;
-        target.useCenterTextStyleAsSource = true;
-
-        target.keyDiameter = source.keyDiameter;
-        target.glowDiameter = source.glowDiameter;
-        target.outerRingThickness = source.outerRingThickness;
-        target.accentRingThickness = source.accentRingThickness;
-        target.sparkleSize = source.sparkleSize;
-        target.sparkleOrbitRadius = source.sparkleOrbitRadius;
-
-        target.glowColor = source.glowColor;
-        target.outerRingColor = source.outerRingColor;
-        target.accentRingColor = source.accentRingColor;
-        target.centerColor = source.centerColor;
-        target.highlightColor = source.highlightColor;
-        target.sparklePrimaryColor = source.sparklePrimaryColor;
-        target.sparkleSecondaryColor = source.sparkleSecondaryColor;
-        target.sparkleTertiaryColor = source.sparkleTertiaryColor;
-        target.centerTextColor = source.centerTextColor;
-        target.centerTextOutlineColor = source.centerTextOutlineColor;
-
-        target.glowScalePulse = source.glowScalePulse;
-        target.glowAlphaPulse = source.glowAlphaPulse;
-        target.glowPulseSpeed = source.glowPulseSpeed;
-        target.rotateOrbitEffects = source.rotateOrbitEffects;
-        target.orbitRotationSpeed = source.orbitRotationSpeed;
-        target.accentAlphaPulse = source.accentAlphaPulse;
-        target.accentPulseSpeed = source.accentPulseSpeed;
-        target.animateSparkles = source.animateSparkles;
-        target.sparkleAlphaPulse = source.sparkleAlphaPulse;
-        target.sparklePulseSpeed = source.sparklePulseSpeed;
-        target.centerFontSize = source.centerFontSize;
-        target.centerOutlineWidth = source.centerOutlineWidth;
-    }
-
-    private static void CopyActualVisualHierarchyReadOnly(
-        NewspaperPromptPremiumKeyVisual source,
-        NewspaperPromptPremiumKeyVisual target)
-    {
-        if (source == null || target == null)
-            return;
-
-        // Resolve somente o destino. Nenhum método, Undo, SetDirty ou alteração é
-        // executado no Newspaper_Stand aprovado.
-        target.RepairReferences();
-
-        RectTransform sourceCircular = source.transform.Find("CircularPrompt") as RectTransform;
-        RectTransform sourcePremium = sourceCircular != null
-            ? sourceCircular.Find("PremiumKeyVisual") as RectTransform
-            : null;
-
-        if (sourcePremium == null)
-            return;
-
-        RectTransform sourceGlowMotion = sourcePremium.Find("GlowMotion") as RectTransform;
-        RectTransform sourceOrbitMotion = sourcePremium.Find("OrbitMotion") as RectTransform;
-        RectTransform sourceStaticLayer = sourcePremium.Find("StaticLayer") as RectTransform;
-
-        CopyRect(sourcePremium, target.premiumRoot);
-        CopyRect(sourceGlowMotion, target.glowMotion);
-        CopyRect(sourceOrbitMotion, target.orbitMotion);
-        CopyRect(sourceStaticLayer, target.staticLayer);
-
-        CopyShape(FindShape(sourceGlowMotion, "DynamicGlow"), target.glowBack);
-        CopyShape(FindShape(sourceOrbitMotion, "OuterRing"), target.outerRing);
-        CopyShape(FindShape(sourceOrbitMotion, "AccentRing"), target.accentRing);
-        CopyShape(FindShape(sourceOrbitMotion, "SparkleTop"), target.sparkleTop);
-        CopyShape(FindShape(sourceOrbitMotion, "SparkleLeft"), target.sparkleLeft);
-        CopyShape(FindShape(sourceOrbitMotion, "SparkleRight"), target.sparkleRight);
-        CopyShape(FindShape(sourceStaticLayer, "CenterCircle"), target.premiumCenterDisc);
-        CopyShape(FindShape(sourceStaticLayer, "CenterHighlight"), target.centerHighlight);
-
-        TextMeshProUGUI sourceText = sourceCircular.Find("CenterText") != null
-            ? sourceCircular.Find("CenterText").GetComponent<TextMeshProUGUI>()
-            : null;
-        CopyTextStyle(sourceText, target.centerText);
-    }
-
-    private static NewspaperPromptShapeGraphic FindShape(
-        Transform parent,
-        string childName)
-    {
-        if (parent == null)
-            return null;
-
-        Transform child = parent.Find(childName);
-        return child != null
-            ? child.GetComponent<NewspaperPromptShapeGraphic>()
-            : null;
-    }
-
-    private static void CopyRect(RectTransform source, RectTransform target)
-    {
-        if (source == null || target == null)
-            return;
-
-        Undo.RecordObject(target, "Copiar layout premium da Put Area");
-        target.anchorMin = source.anchorMin;
-        target.anchorMax = source.anchorMax;
-        target.pivot = source.pivot;
-        target.anchoredPosition3D = source.anchoredPosition3D;
-        target.sizeDelta = source.sizeDelta;
-        target.localEulerAngles = source.localEulerAngles;
-        target.localScale = source.localScale;
-    }
-
-    private static void CopyShape(
-        NewspaperPromptShapeGraphic source,
-        NewspaperPromptShapeGraphic target)
-    {
-        if (source == null || target == null)
-            return;
-
-        CopyRect(source.rectTransform, target.rectTransform);
-        Undo.RecordObject(target, "Copiar forma premium da Put Area");
-        target.shape = source.shape;
-        target.segments = source.segments;
-        target.ringThickness = source.ringThickness;
-        target.geometryRotation = source.geometryRotation;
-        target.color = source.color;
-        target.material = source.material;
-        target.raycastTarget = false;
-        target.SetVerticesDirty();
-        target.SetMaterialDirty();
-    }
-
-    private static void CopyTextStyle(TextMeshProUGUI source, TextMeshProUGUI target)
-    {
-        if (source == null || target == null)
-            return;
-
-        CopyRect(source.rectTransform, target.rectTransform);
-        Undo.RecordObject(target, "Copiar estilo do E para Put Area");
-        target.font = source.font;
-        target.fontSharedMaterial = source.fontSharedMaterial;
-        target.fontSize = source.fontSize;
-        target.fontStyle = source.fontStyle;
-        target.color = source.color;
-        target.outlineColor = source.outlineColor;
-        target.outlineWidth = source.outlineWidth;
-        target.alignment = source.alignment;
-        target.characterSpacing = source.characterSpacing;
-        target.wordSpacing = source.wordSpacing;
-        target.lineSpacing = source.lineSpacing;
-        target.paragraphSpacing = source.paragraphSpacing;
-        target.raycastTarget = false;
-        target.textWrappingMode = TextWrappingModes.NoWrap;
+        return false;
     }
 }
 #endif
