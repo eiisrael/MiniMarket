@@ -3,6 +3,10 @@ using UnityEngine;
 /// <summary>
 /// Modo de câmera em terceira pessoa.
 /// Este componente calcula a pose; somente PlayerCameraController escreve no Transform da câmera.
+///
+/// A colisão da câmera ignora o personagem e o objeto atualmente segurado pelo GetItemController.
+/// Isso evita a oscilação de aproximação/afastamento quando uma caixa fica entre o jogador
+/// e a câmera, sem desativar a proteção normal contra paredes e cenários.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class ThirdPersonCamera : MonoBehaviour
@@ -10,6 +14,7 @@ public sealed class ThirdPersonCamera : MonoBehaviour
     [Header("Referências")]
     public Transform target;
     public Transform lookTarget;
+    public GetItemController getItemController;
 
     [Header("Órbita")]
     public Vector3 targetOffset = new Vector3(0f, 1.45f, 0f);
@@ -36,6 +41,7 @@ public sealed class ThirdPersonCamera : MonoBehaviour
     public bool ignoreTriggers = true;
     public bool ignoreHorizontalGround = true;
     [Range(0f, 1f)] public float groundNormalThreshold = 0.55f;
+    public bool ignoreCurrentlyHeldItem = true;
 
     [Header("Lente")]
     [Range(1f, 179f)] public float fieldOfView = 60f;
@@ -55,6 +61,8 @@ public sealed class ThirdPersonCamera : MonoBehaviour
 
     public void Initialize(Transform cameraTransform)
     {
+        ResolveGetItemController();
+
         if (initialized)
             return;
 
@@ -99,6 +107,8 @@ public sealed class ThirdPersonCamera : MonoBehaviour
 
     public bool TryGetPose(out Vector3 position, out Quaternion rotation, out float fov)
     {
+        ResolveGetItemController();
+
         position = transform.position;
         rotation = transform.rotation;
         fov = fieldOfView;
@@ -177,17 +187,44 @@ public sealed class ThirdPersonCamera : MonoBehaviour
         if (hitCollider == null)
             return true;
 
-        if (target != null)
+        Transform hitTransform = hitCollider.transform;
+
+        if (target != null &&
+            (hitTransform == target || hitTransform.IsChildOf(target)))
         {
-            Transform hitTransform = hitCollider.transform;
-            if (hitTransform == target || hitTransform.IsChildOf(target))
-                return true;
+            return true;
+        }
+
+        if (ignoreCurrentlyHeldItem && getItemController != null)
+        {
+            GrabbableItem heldItem = getItemController.HeldItem;
+            if (heldItem != null)
+            {
+                Transform heldTransform = heldItem.transform;
+                if (hitTransform == heldTransform || hitTransform.IsChildOf(heldTransform))
+                    return true;
+            }
         }
 
         if (ignoreHorizontalGround && hit.normal.y >= groundNormalThreshold)
             return true;
 
         return false;
+    }
+
+    private void ResolveGetItemController()
+    {
+        if (getItemController != null)
+            return;
+
+        getItemController = GetComponent<GetItemController>();
+
+        if (getItemController == null)
+        {
+            getItemController = Object.FindAnyObjectByType<GetItemController>(
+                FindObjectsInactive.Include
+            );
+        }
     }
 
     private void OnValidate()
