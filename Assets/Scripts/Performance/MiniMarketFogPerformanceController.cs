@@ -4,11 +4,11 @@ using UnityEngine;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Neblina de distância voltada ao cenário urbano do MiniMarket.
+/// Controla a distância de visão do jogo.
 ///
-/// Além do efeito visual, limita a distância máxima da câmera principal conforme o
-/// preset escolhido, reduzindo a quantidade de cenário distante renderizado.
-/// Os controles aparecem ao lado do painel F10 e são aplicados em tempo real.
+/// Não aplica neblina exponencial sobre a cidade. Em vez disso, cria um fade linear
+/// somente no fundo do campo de visão, escondendo o corte do far clip da câmera e
+/// reduzindo a renderização distante sem alterar a leitura dos objetos próximos.
 /// </summary>
 [DefaultExecutionOrder(30500)]
 [DisallowMultipleComponent]
@@ -23,32 +23,34 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
 
     public static MiniMarketFogPerformanceController Instance { get; private set; }
 
-    private const string PlayerPrefsKey = "MiniMarket.FogPreset";
+    private const string PlayerPrefsKey = "MiniMarket.ViewDistancePreset";
 
     [Header("Estado")]
     public FogPreset presetAtual = FogPreset.Media;
     public bool salvarPreferencia = true;
+    public bool usarFadeDeProfundidade = true;
 
-    [Header("Cor")]
-    public Color fogColor = new Color32(139, 157, 175, 255);
+    [Header("Cor do limite de visão")]
+    public bool sincronizarCorComAmbiente = true;
+    public Color corManual = new Color32(135, 151, 168, 255);
+    [Min(0.1f)] public float velocidadeCor = 3.5f;
 
-    [Header("Suave")]
-    [Min(0f)] public float densidadeSuave = 0.0028f;
-    [Min(50f)] public float alcanceSuave = 430f;
+    [Header("Suave - maior distância")]
+    [Min(20f)] public float inicioSuave = 360f;
+    [Min(30f)] public float fimSuave = 430f;
 
     [Header("Média - recomendada")]
-    [Min(0f)] public float densidadeMedia = 0.0062f;
-    [Min(50f)] public float alcanceMedio = 270f;
+    [Min(20f)] public float inicioMedio = 215f;
+    [Min(30f)] public float fimMedio = 270f;
 
-    [Header("Forte")]
-    [Min(0f)] public float densidadeForte = 0.0125f;
-    [Min(50f)] public float alcanceForte = 175f;
+    [Header("Forte - melhor desempenho")]
+    [Min(20f)] public float inicioForte = 130f;
+    [Min(30f)] public float fimForte = 175f;
 
-    [Header("Atualização")]
-    [Min(0.2f)] public float cameraRefreshInterval = 1f;
+    [Header("Câmeras")]
+    [Min(1f)] public float margemAposFade = 8f;
+    [Min(0.1f)] public float cameraRefreshInterval = 0.5f;
 
-    // A própria referência Camera é uma chave estável durante a vida do objeto.
-    // Isso evita GetInstanceID(), removido no Unity 6.7 alpha, e não depende de EntityId.
     private readonly Dictionary<Camera, float> originalFarClipByCamera =
         new Dictionary<Camera, float>();
     private readonly List<Camera> camerasToRemove = new List<Camera>();
@@ -56,6 +58,8 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
     private RuntimeDiagnosticsPanel diagnosticsPanel;
     private FieldInfo diagnosticsVisibleField;
     private float nextCameraRefresh;
+    private Color currentFogColor;
+    private bool colorInitialized;
 
     private GUIStyle panelStyle;
     private GUIStyle titleStyle;
@@ -87,7 +91,7 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
             return;
         }
 
-        GameObject host = new GameObject("[MiniMarket] Fog Performance");
+        GameObject host = new GameObject("[MiniMarket] View Distance");
         DontDestroyOnLoad(host);
         Instance = host.AddComponent<MiniMarketFogPerformanceController>();
     }
@@ -110,6 +114,18 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
         ApplyPreset(presetAtual, false);
     }
 
+    private void LateUpdate()
+    {
+        ResolveDiagnosticsPanel();
+        ApplyLinearViewFade();
+
+        if (Time.unscaledTime >= nextCameraRefresh)
+        {
+            nextCameraRefresh = Time.unscaledTime + Mathf.Max(0.1f, cameraRefreshInterval);
+            ApplyCameraDistance();
+        }
+    }
+
     private void OnDestroy()
     {
         RestoreOriginalCameraDistances();
@@ -119,17 +135,6 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
 
         if (Instance == this)
             Instance = null;
-    }
-
-    private void Update()
-    {
-        ResolveDiagnosticsPanel();
-
-        if (Time.unscaledTime < nextCameraRefresh)
-            return;
-
-        nextCameraRefresh = Time.unscaledTime + Mathf.Max(0.2f, cameraRefreshInterval);
-        ApplyFogAndCameraDistance();
     }
 
     public void ApplySoft()
@@ -157,15 +162,60 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
             PlayerPrefs.Save();
         }
 
-        ApplyFogAndCameraDistance();
+        ApplyLinearViewFade();
+        ApplyCameraDistance();
     }
 
-    private void ApplyFogAndCameraDistance()
+    private void ApplyLinearViewFade()
     {
+        if (!usarFadeDeProfundidade)
+        {
+            RenderSettings.fog = false;
+            RestoreOriginalCameraDistances();
+            return;
+        }
+
+        float start = CurrentStartDistance;
+        float end = CurrentEndDistance;
+
         RenderSettings.fog = true;
-        RenderSettings.fogMode = FogMode.ExponentialSquared;
-        RenderSettings.fogColor = fogColor;
-        RenderSettings.fogDensity = CurrentDensity;
+        RenderSettings.fogMode = FogMode.Linear;
+        RenderSettings.fogStartDistance = start;
+        RenderSettings.fogEndDistance = end;
+        RenderSettings.fogDensity = 0f;
+
+        Color targetColor = ResolveTargetFogColor();
+        if (!colorInitialized)
+        {
+            currentFogColor = targetColor;
+            colorInitialized = true;
+        }
+        else
+        {
+            float delta = Mathf.Clamp(Time.unscaledDeltaTime, 0.0001f, 0.05f);
+            float blend = 1f - Mathf.Exp(-Mathf.Max(0.1f, velocidadeCor) * delta);
+            currentFogColor = Color.Lerp(currentFogColor, targetColor, blend);
+        }
+
+        RenderSettings.fogColor = currentFogColor;
+    }
+
+    private Color ResolveTargetFogColor()
+    {
+        if (!sincronizarCorComAmbiente)
+            return corManual;
+
+        Color sky = RenderSettings.ambientSkyColor;
+        Color equator = RenderSettings.ambientEquatorColor;
+        Color ambient = Color.Lerp(equator, sky, 0.68f);
+        ambient.a = 1f;
+        return ambient;
+    }
+
+    private void ApplyCameraDistance()
+    {
+        if (!usarFadeDeProfundidade)
+            return;
 
         PruneDestroyedCameraReferences();
 
@@ -174,7 +224,8 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
             FindObjectsSortMode.None
         );
 
-        float requestedFarClip = CurrentFarClip;
+        float requestedFarClip = CurrentEndDistance + Mathf.Max(1f, margemAposFade);
+
         for (int i = 0; i < cameras.Length; i++)
         {
             Camera cameraTarget = cameras[i];
@@ -216,9 +267,8 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
     {
         foreach (KeyValuePair<Camera, float> pair in originalFarClipByCamera)
         {
-            Camera cameraTarget = pair.Key;
-            if (cameraTarget != null)
-                cameraTarget.farClipPlane = pair.Value;
+            if (pair.Key != null)
+                pair.Key.farClipPlane = pair.Value;
         }
 
         originalFarClipByCamera.Clear();
@@ -245,34 +295,34 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
                !compactName.Contains("uicamera");
     }
 
-    private float CurrentDensity
+    private float CurrentStartDistance
     {
         get
         {
             switch (presetAtual)
             {
                 case FogPreset.Suave:
-                    return Mathf.Max(0f, densidadeSuave);
+                    return Mathf.Max(20f, Mathf.Min(inicioSuave, fimSuave - 10f));
                 case FogPreset.Forte:
-                    return Mathf.Max(0f, densidadeForte);
+                    return Mathf.Max(20f, Mathf.Min(inicioForte, fimForte - 10f));
                 default:
-                    return Mathf.Max(0f, densidadeMedia);
+                    return Mathf.Max(20f, Mathf.Min(inicioMedio, fimMedio - 10f));
             }
         }
     }
 
-    private float CurrentFarClip
+    private float CurrentEndDistance
     {
         get
         {
             switch (presetAtual)
             {
                 case FogPreset.Suave:
-                    return Mathf.Max(50f, alcanceSuave);
+                    return Mathf.Max(30f, fimSuave);
                 case FogPreset.Forte:
-                    return Mathf.Max(50f, alcanceForte);
+                    return Mathf.Max(30f, fimForte);
                 default:
-                    return Mathf.Max(50f, alcanceMedio);
+                    return Mathf.Max(30f, fimMedio);
             }
         }
     }
@@ -320,8 +370,8 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
         float diagnosticsWidth = diagnosticsPanel != null ? diagnosticsPanel.width : 820f;
         float diagnosticsHeight = diagnosticsPanel != null ? diagnosticsPanel.height : 690f;
 
-        const float panelWidth = 300f;
-        const float panelHeight = 238f;
+        const float panelWidth = 320f;
+        const float panelHeight = 252f;
         float x = diagnosticsMargin + diagnosticsWidth + 12f;
         float y = diagnosticsMargin;
 
@@ -337,33 +387,32 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
             );
         }
 
-        Rect panelRect = new Rect(x, y, panelWidth, panelHeight);
-        GUI.Box(panelRect, GUIContent.none, panelStyle);
+        GUI.Box(new Rect(x, y, panelWidth, panelHeight), GUIContent.none, panelStyle);
 
         GUI.Label(
             new Rect(x + 18f, y + 14f, panelWidth - 36f, 30f),
-            "NEBLINA E DESEMPENHO",
+            "DISTÂNCIA DE VISÃO",
             titleStyle
         );
         GUI.Label(
             new Rect(x + 18f, y + 44f, panelWidth - 36f, 40f),
-            "Ajuste em tempo real • sem reiniciar",
+            "Fade linear somente no fundo • sem neblina próxima",
             subtitleStyle
         );
 
         GUI.Label(
-            new Rect(x + 18f, y + 82f, panelWidth - 36f, 23f),
-            "Atual: " + PresetLabel +
-            "  •  Densidade " + CurrentDensity.ToString("0.0000"),
+            new Rect(x + 18f, y + 84f, panelWidth - 36f, 23f),
+            "Preset: " + PresetLabel,
             labelStyle
         );
         GUI.Label(
-            new Rect(x + 18f, y + 105f, panelWidth - 36f, 23f),
-            "Distância renderizada: até " + CurrentFarClip.ToString("0") + " m",
+            new Rect(x + 18f, y + 108f, panelWidth - 36f, 23f),
+            "Fade: " + CurrentStartDistance.ToString("0") + " m → " +
+            CurrentEndDistance.ToString("0") + " m",
             labelStyle
         );
 
-        float buttonY = y + 142f;
+        float buttonY = y + 148f;
         const float gap = 8f;
         float buttonWidth = (panelWidth - 36f - gap * 2f) / 3f;
 
@@ -392,10 +441,8 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
         }
 
         GUI.Label(
-            new Rect(x + 18f, y + 196f, panelWidth - 36f, 28f),
-            presetAtual == FogPreset.Media
-                ? "MÉDIA é o equilíbrio recomendado para a cidade."
-                : "Menor alcance pode reduzir o custo de renderização.",
+            new Rect(x + 18f, y + 204f, panelWidth - 36f, 34f),
+            "MÉDIA mantém a cidade nítida e reduz o cenário distante.",
             subtitleStyle
         );
     }
@@ -510,12 +557,14 @@ public sealed class MiniMarketFogPerformanceController : MonoBehaviour
 
     private void OnValidate()
     {
-        densidadeSuave = Mathf.Max(0f, densidadeSuave);
-        densidadeMedia = Mathf.Max(0f, densidadeMedia);
-        densidadeForte = Mathf.Max(0f, densidadeForte);
-        alcanceSuave = Mathf.Max(50f, alcanceSuave);
-        alcanceMedio = Mathf.Max(50f, alcanceMedio);
-        alcanceForte = Mathf.Max(50f, alcanceForte);
-        cameraRefreshInterval = Mathf.Max(0.2f, cameraRefreshInterval);
+        inicioSuave = Mathf.Max(20f, inicioSuave);
+        fimSuave = Mathf.Max(inicioSuave + 10f, fimSuave);
+        inicioMedio = Mathf.Max(20f, inicioMedio);
+        fimMedio = Mathf.Max(inicioMedio + 10f, fimMedio);
+        inicioForte = Mathf.Max(20f, inicioForte);
+        fimForte = Mathf.Max(inicioForte + 10f, fimForte);
+        margemAposFade = Mathf.Max(1f, margemAposFade);
+        cameraRefreshInterval = Mathf.Max(0.1f, cameraRefreshInterval);
+        velocidadeCor = Mathf.Max(0.1f, velocidadeCor);
     }
 }
