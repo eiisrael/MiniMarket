@@ -250,7 +250,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         TextMeshProUGUI text = value.AddComponent<TextMeshProUGUI>();
         text.fontSize = fontSize;
         text.fontStyle = style;
-        text.enableWordWrapping = false;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
         text.raycastTarget = false;
         return text;
     }
