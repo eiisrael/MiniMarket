@@ -75,13 +75,20 @@ public static class MiniMarketNewspaperPlacePromptPersistence
                 prompt.worldScale = scale;
                 prompt.sortingOrder = 261;
                 prompt.rotationDegreesPerSecond = controller.promptRotationSpeed;
-                prompt.previewInEditMode = true;
-                prompt.useRootTransformAsSource = true;
-                prompt.useInstructionTransformAsSource = true;
-                prompt.useInstructionGraphicAsSource = true;
-                prompt.faceCamera = false;
                 sceneChanged = true;
             }
+
+            Undo.RecordObject(prompt, "Configurar prompt vertical e editável da Put Area");
+            prompt.previewInEditMode = true;
+            prompt.useRootTransformAsSource = true;
+            prompt.useCircularPromptTransformAsSource = true;
+            prompt.useGeneratedChildTransformsAsSource = true;
+            prompt.useGeneratedGraphicStylesAsSource = true;
+            prompt.useInstructionTransformAsSource = true;
+            prompt.useInstructionGraphicAsSource = true;
+            prompt.faceCamera = true;
+            prompt.keepBillboardUpright = true;
+            prompt.worldScale = NormalizeScale(prompt.worldScale);
 
             bool visualWasMissing = prompt.transform.Find("CircularPrompt") == null ||
                                     prompt.transform.Find("Instruction") == null;
@@ -118,6 +125,13 @@ public static class MiniMarketNewspaperPlacePromptPersistence
                 sceneChanged = true;
             }
 
+            if (!controller.promptFaceCamera)
+            {
+                Undo.RecordObject(controller, "Ativar billboard do prompt da Put Area");
+                controller.promptFaceCamera = true;
+                sceneChanged = true;
+            }
+
             if (!sceneChanged)
                 continue;
 
@@ -131,7 +145,7 @@ public static class MiniMarketNewspaperPlacePromptPersistence
         {
             Debug.Log(
                 "[NewspaperPlacePrompt] Prompts reparados: " + repaired +
-                ". A manutenção automática foi desativada para preservar o Ctrl+S."
+                ". Salve a cena com Ctrl+S depois de conferir o posicionamento."
             );
         }
     }
@@ -161,10 +175,7 @@ public static class MiniMarketNewspaperPlacePromptPersistence
 
     private static float NormalizeScale(float value)
     {
-        if (value >= 0.006f)
-            return 0.0023f;
-
-        return Mathf.Clamp(value, 0.0001f, 0.02f);
+        return Mathf.Clamp(value, 0.0001f, 0.05f);
     }
 }
 #endif
