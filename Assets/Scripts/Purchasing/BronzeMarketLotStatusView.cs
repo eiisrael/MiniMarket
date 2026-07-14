@@ -4,7 +4,7 @@ using UnityEngine.UI;
 /// <summary>
 /// Painel mundial persistente de uma loja Bronze_Market.
 /// No Play aparece somente quando o controlador local desta própria loja está no modo de compra.
-/// Exibe status/preço e anima uma seta quando o mouse está sobre o terreno correto.
+/// Exibe status, ID, preço e anima uma seta quando o mouse está sobre o terreno correto.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -29,6 +29,12 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
     public string statusDisponivel = "DISPONÍVEL";
     public string statusIndisponivel = "INDISPONÍVEL";
     public string prefixoPreco = "Gold: ";
+
+    [Header("Identificação visual do lote")]
+    public bool mostrarIdDoLote = true;
+    public string prefixoId = "ID: ";
+    [Range(4, 24)] public int caracteresIdVisiveis = 8;
+    public bool mostrarIdCompleto;
 
     [Header("Cores")]
     public Color corDisponivel = new Color(0.12f, 0.95f, 0.22f, 1f);
@@ -79,9 +85,8 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
             return;
         }
 
-        // Cada Bronze_Market recebe seu próprio controlador de câmera pela ferramenta.
-        // Assim, apenas o painel da loja que abriu o modo E fica visível.
-        bool pertenceAoModoAtual = controladorCamera != null && controladorCamera.ModoCompraAtivo;
+        bool pertenceAoModoAtual =
+            controladorCamera != null && controladorCamera.ModoCompraAtivo;
 
         bool visivel = !ocultarQuandoForaDoModoCompra || pertenceAoModoAtual;
         AplicarVisibilidade(visivel);
@@ -104,6 +109,7 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
 
     private void OnValidate()
     {
+        caracteresIdVisiveis = Mathf.Clamp(caracteresIdVisiveis, 4, 24);
         distanciaHoverExtra = Mathf.Max(0f, distanciaHoverExtra);
         amplitudeSeta = Mathf.Max(0f, amplitudeSeta);
         velocidadeSeta = Mathf.Max(0.1f, velocidadeSeta);
@@ -177,7 +183,12 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
 
         if (textoStatus != null)
         {
-            textoStatus.text = disponivel ? statusDisponivel : statusIndisponivel;
+            string status = disponivel ? statusDisponivel : statusIndisponivel;
+            string idVisivel = ObterIdVisivel();
+
+            textoStatus.text = mostrarIdDoLote && !string.IsNullOrWhiteSpace(idVisivel)
+                ? status + "\n" + prefixoId + idVisivel
+                : status;
             textoStatus.color = corEstado;
         }
 
@@ -197,10 +208,28 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
             graficoSeta.color = corEstado;
     }
 
+    private string ObterIdVisivel()
+    {
+        string id = lote != null ? lote.IdLoteNormalizado : string.Empty;
+        if (string.IsNullOrWhiteSpace(id) && terreno != null)
+            id = terreno.IdPersistente;
+
+        if (string.IsNullOrWhiteSpace(id))
+            return "----";
+
+        if (mostrarIdCompleto || id.Length <= caracteresIdVisiveis)
+            return id;
+
+        return id.Substring(id.Length - caracteresIdVisiveis, caracteresIdVisiveis);
+    }
+
     private bool TerrenoEstaSobMouse()
     {
-        if (terreno == null || controladorCamera == null || controladorCamera.cameraPrincipal == null)
+        if (terreno == null || controladorCamera == null ||
+            controladorCamera.cameraPrincipal == null)
+        {
             return false;
+        }
 
         Camera camera = controladorCamera.cameraPrincipal;
         Ray ray = camera.ScreenPointToRay(Input.mousePosition);
@@ -212,7 +241,10 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
         if (!plano.Raycast(ray, out float distancia) || distancia < 0f)
             return false;
 
-        return terreno.ContemPontoMundo(ray.GetPoint(distancia), distanciaHoverExtra);
+        return terreno.ContemPontoMundo(
+            ray.GetPoint(distancia),
+            distanciaHoverExtra
+        );
     }
 
     private void AnimarSeta(bool hover)
@@ -242,7 +274,9 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
         CapturarBases();
         seta.anchoredPosition = posicaoBaseSeta;
         seta.localScale = escalaBaseSeta;
-        seta.gameObject.SetActive(!mostrarSetaSomenteNoHover && mostrarPreviewForaDoPlay);
+        seta.gameObject.SetActive(
+            !mostrarSetaSomenteNoHover && mostrarPreviewForaDoPlay
+        );
     }
 
     private void AtualizarBillboard()
@@ -259,6 +293,11 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
 
         Vector3 direcao = canvasMundial.transform.position - camera.transform.position;
         if (direcao.sqrMagnitude > 0.0001f)
-            canvasMundial.transform.rotation = Quaternion.LookRotation(direcao.normalized, Vector3.up);
+        {
+            canvasMundial.transform.rotation = Quaternion.LookRotation(
+                direcao.normalized,
+                Vector3.up
+            );
+        }
     }
 }
