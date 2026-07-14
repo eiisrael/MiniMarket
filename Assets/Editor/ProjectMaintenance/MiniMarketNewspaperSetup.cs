@@ -7,59 +7,28 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Persiste e reconcilia na cena os componentes do sistema de jornais.
-/// Também é executado uma vez após a recompilação para que o prompt do expositor
-/// exista fora do Play Mode e permaneça editável pelo Inspector.
+/// Configuração manual e idempotente do sistema de jornais.
+/// Não executa automaticamente após recompilar, não reconstrói prompts existentes
+/// e não salva a cena sozinho. Isso impede o asterisco de reaparecer após Ctrl+S.
 /// </summary>
-[InitializeOnLoad]
 public static class MiniMarketNewspaperSetup
 {
-    private const string MenuPath = "Tools/MiniMarket/Jornal/Configurar Sistema Automaticamente";
-
-    static MiniMarketNewspaperSetup()
-    {
-        EditorApplication.delayCall += AutoConfigureLoadedScene;
-    }
+    private const string MenuPath =
+        "Tools/MiniMarket/Jornal/Configurar Sistema Automaticamente";
 
     [MenuItem(MenuPath, priority = 2600)]
     public static void ConfigureScene()
     {
-        ConfigureSceneInternal(true);
-    }
-
-    [MenuItem(MenuPath, true)]
-    private static bool ValidateConfigureScene()
-    {
-        return !EditorApplication.isPlayingOrWillChangePlaymode;
-    }
-
-    private static void AutoConfigureLoadedScene()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode ||
-            EditorApplication.isCompiling ||
-            EditorApplication.isUpdating)
-        {
-            EditorApplication.delayCall += AutoConfigureLoadedScene;
-            return;
-        }
-
-        ConfigureSceneInternal(false);
-    }
-
-    private static void ConfigureSceneInternal(bool logResult)
-    {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
         {
-            if (logResult)
-                Debug.LogWarning("[NewspaperSetup] Saia do Play Mode antes de configurar.");
+            Debug.LogWarning("[NewspaperSetup] Saia do Play Mode antes de configurar.");
             return;
         }
 
         Scene scene = SceneManager.GetActiveScene();
         if (!scene.IsValid() || !scene.isLoaded)
         {
-            if (logResult)
-                Debug.LogError("[NewspaperSetup] Nenhuma cena ativa válida.");
+            Debug.LogError("[NewspaperSetup] Nenhuma cena ativa válida.");
             return;
         }
 
@@ -67,43 +36,65 @@ public static class MiniMarketNewspaperSetup
         List<Transform> stands = FindAllByExactName(all, "Newspaper_Stand", scene);
         List<Transform> putAreas = FindAllByExactName(all, "Put_Area", scene);
 
-        if (stands.Count == 0 && putAreas.Count == 0)
-            return;
-
         GameObject sourceNewspaper = null;
-        int configuredStands = 0;
-        int configuredPlaces = 0;
         bool sceneChanged = false;
 
         for (int i = 0; i < stands.Count; i++)
         {
             Transform stand = stands[i];
             Transform newspaper = FindChildRecursive(stand, "Jornal");
-
             NewspaperStandController controller =
                 GetOrAddComponent<NewspaperStandController>(stand.gameObject, ref sceneChanged);
 
-            Undo.RecordObject(controller, "Configurar sistema de jornal");
-            controller.promptAnchor = stand;
-            controller.alwaysShowPrompt = true;
-            controller.previewPromptInEditMode = true;
+            bool controllerChanged = false;
+
+            if (controller.promptAnchor != stand)
+            {
+                Undo.RecordObject(controller, "Configurar âncora do jornal");
+                controller.promptAnchor = stand;
+                controllerChanged = true;
+            }
+
+            if (!controller.alwaysShowPrompt || !controller.previewPromptInEditMode)
+            {
+                Undo.RecordObject(controller, "Configurar visualização do prompt");
+                controller.alwaysShowPrompt = true;
+                controller.previewPromptInEditMode = true;
+                controllerChanged = true;
+            }
 
             if (newspaper != null)
             {
-                controller.newspaperVisual = newspaper.gameObject;
-                controller.interactionPoint = newspaper;
+                sourceNewspaper ??= newspaper.gameObject;
 
-                if (sourceNewspaper == null)
-                    sourceNewspaper = newspaper.gameObject;
+                if (controller.newspaperVisual != newspaper.gameObject ||
+                    controller.interactionPoint != newspaper)
+                {
+                    Undo.RecordObject(controller, "Vincular jornal do expositor");
+                    controller.newspaperVisual = newspaper.gameObject;
+                    controller.interactionPoint = newspaper;
+                    controllerChanged = true;
+                }
 
                 GrabbableItem grabbable = newspaper.GetComponentInChildren<GrabbableItem>(true);
                 if (grabbable != null)
                 {
-                    Undo.RecordObject(grabbable, "Configurar jornal do expositor");
-                    grabbable.canBeGrabbed = false;
-                    grabbable.enabled = false;
-                    controller.grabbableItem = grabbable;
-                    EditorUtility.SetDirty(grabbable);
+                    bool grabbableChanged = grabbable.canBeGrabbed || grabbable.enabled;
+                    if (grabbableChanged)
+                    {
+                        Undo.RecordObject(grabbable, "Configurar jornal do expositor");
+                        grabbable.canBeGrabbed = false;
+                        grabbable.enabled = false;
+                        EditorUtility.SetDirty(grabbable);
+                        sceneChanged = true;
+                    }
+
+                    if (controller.grabbableItem != grabbable)
+                    {
+                        Undo.RecordObject(controller, "Vincular GrabbableItem do jornal");
+                        controller.grabbableItem = grabbable;
+                        controllerChanged = true;
+                    }
                 }
 
                 InteractionHighlight highlight = newspaper.GetComponent<InteractionHighlight>();
@@ -113,27 +104,61 @@ public static class MiniMarketNewspaperSetup
                     sceneChanged = true;
                 }
 
-                highlight.focusColor = new Color32(88, 210, 255, 255);
-                highlight.activeColor = new Color32(89, 244, 128, 255);
-                highlight.tintStrength = 0.55f;
-                controller.highlight = highlight;
-                EditorUtility.SetDirty(highlight);
+                if (controller.highlight != highlight)
+                {
+                    Undo.RecordObject(controller, "Vincular destaque do jornal");
+                    controller.highlight = highlight;
+                    controllerChanged = true;
+                }
             }
 
-            NewspaperWorldPromptVisual prompt =
-                EnsurePersistentStandPrompt(stand, ref sceneChanged);
-
-            controller.promptVisual = prompt;
-
-            if (prompt != null)
+            NewspaperWorldPromptVisual prompt = ResolveStandPrompt(stand, controller);
+            if (prompt == null)
             {
-                controller.promptLocalOffset = prompt.localOffset;
-                controller.promptWorldScale = prompt.worldScale;
-                controller.promptRotationSpeed = prompt.rotationDegreesPerSecond;
+                GameObject promptObject = new GameObject(
+                    "Newspaper_InteractionPrompt",
+                    typeof(RectTransform)
+                );
+                Undo.RegisterCreatedObjectUndo(promptObject, "Criar prompt persistente de jornal");
+                promptObject.transform.SetParent(stand, false);
+
+                prompt = Undo.AddComponent<NewspaperWorldPromptVisual>(promptObject);
+                prompt.worldScale = 0.0023f;
+                prompt.localOffset = new Vector3(0f, 0.72f, 0f);
+                prompt.circleDiameter = 86f;
+                prompt.previewInEditMode = true;
+                prompt.useRootTransformAsSource = true;
+                prompt.useInstructionTransformAsSource = true;
+                prompt.useInstructionGraphicAsSource = true;
+                prompt.faceCamera = false;
+                prompt.sortingOrder = 260;
+                promptObject.transform.localPosition = prompt.localOffset;
+                promptObject.transform.localScale = Vector3.one * prompt.worldScale;
+                sceneChanged = true;
             }
 
-            EditorUtility.SetDirty(controller);
-            configuredStands++;
+            bool visualMissing = prompt.transform.Find("CircularPrompt") == null ||
+                                 prompt.transform.Find("Instruction") == null;
+            if (visualMissing)
+            {
+                prompt.EnsurePersistentVisual();
+                sceneChanged = true;
+            }
+
+            prompt.SetVisible(true);
+
+            if (controller.promptVisual != prompt)
+            {
+                Undo.RecordObject(controller, "Vincular prompt persistente");
+                controller.promptVisual = prompt;
+                controllerChanged = true;
+            }
+
+            if (controllerChanged)
+            {
+                EditorUtility.SetDirty(controller);
+                sceneChanged = true;
+            }
         }
 
         for (int i = 0; i < putAreas.Count; i++)
@@ -142,148 +167,79 @@ public static class MiniMarketNewspaperSetup
             NewspaperPlacementAreaController controller =
                 GetOrAddComponent<NewspaperPlacementAreaController>(putArea.gameObject, ref sceneChanged);
 
-            Undo.RecordObject(controller, "Configurar área de jornal");
-            controller.putArea = putArea;
-            controller.promptAnchor = putArea;
-            controller.areaCollider = putArea.GetComponent<Collider>();
-            controller.placeId = BuildHierarchyId(putArea);
+            bool changed = false;
+            string expectedId = BuildHierarchyId(putArea);
+            Collider collider = putArea.GetComponent<Collider>();
 
-            if (sourceNewspaper != null)
-                controller.newspaperSourceVisual = sourceNewspaper;
-
-            if (controller.placedNewspaperVisual != null &&
-                !controller.placedNewspaperVisual.name.StartsWith("Placed_Newspaper_Runtime"))
+            if (controller.putArea != putArea ||
+                controller.promptAnchor != putArea ||
+                controller.areaCollider != collider ||
+                controller.placeId != expectedId)
             {
-                if (controller.placementGuideVisual == null)
-                    controller.placementGuideVisual = controller.placedNewspaperVisual;
-
-                controller.placedNewspaperVisual = null;
+                Undo.RecordObject(controller, "Configurar área de jornal");
+                controller.putArea = putArea;
+                controller.promptAnchor = putArea;
+                controller.areaCollider = collider;
+                controller.placeId = expectedId;
+                changed = true;
             }
 
-            if (controller.placementGuideVisual == null)
-                controller.placementGuideVisual = putArea.gameObject;
+            if (controller.newspaperSourceVisual == null && sourceNewspaper != null)
+            {
+                Undo.RecordObject(controller, "Vincular fonte do jornal colocado");
+                controller.newspaperSourceVisual = sourceNewspaper;
+                changed = true;
+            }
 
-            EditorUtility.SetDirty(controller);
-            configuredPlaces++;
+            if (changed)
+            {
+                EditorUtility.SetDirty(controller);
+                sceneChanged = true;
+            }
         }
 
-        DisableLegacyEnergyButton(scene);
+        sceneChanged |= DisableLegacyEnergyButton(scene);
 
-        if (sceneChanged || configuredStands > 0 || configuredPlaces > 0)
-        {
+        // As rotinas abaixo também são manuais e só alteram o que estiver ausente.
+        MiniMarketNewspaperPlacePromptPersistence.RepairLoadedScenes(false);
+        PersistentPlacedNewspaperSetup.ConfigureLoadedScene(false);
+        NewspaperInstructionTextInstaller.InstallFromMenu();
+
+        if (sceneChanged)
             EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
-            AssetDatabase.SaveAssets();
-        }
 
-        if (logResult)
-        {
-            Debug.Log(
-                "[NewspaperSetup] Configuração concluída. Stands=" + configuredStands +
-                " | Put_Areas=" + configuredPlaces +
-                " | Fonte=" + (sourceNewspaper != null ? sourceNewspaper.name : "não encontrada")
-            );
-
-            if (configuredStands == 0)
-                Debug.LogWarning("[NewspaperSetup] Objeto 'Newspaper_Stand' não encontrado.");
-            if (configuredPlaces == 0)
-                Debug.LogWarning("[NewspaperSetup] Objeto 'Put_Area' não encontrado.");
-        }
+        Debug.Log(
+            "[NewspaperSetup] Configuração manual concluída. Use Ctrl+S para salvar. " +
+            "Nenhuma rotina automática continuará reabrindo a cena como modificada."
+        );
     }
 
-    private static NewspaperWorldPromptVisual EnsurePersistentStandPrompt(
-        Transform stand,
-        ref bool sceneChanged)
+    [MenuItem(MenuPath, true)]
+    private static bool ValidateConfigureScene()
     {
-        NewspaperWorldPromptVisual[] promptComponents =
+        return !EditorApplication.isPlayingOrWillChangePlaymode;
+    }
+
+    private static NewspaperWorldPromptVisual ResolveStandPrompt(
+        Transform stand,
+        NewspaperStandController controller)
+    {
+        if (controller.promptVisual != null &&
+            controller.promptVisual.gameObject.scene == stand.gameObject.scene)
+        {
+            return controller.promptVisual;
+        }
+
+        NewspaperWorldPromptVisual[] prompts =
             stand.GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
 
-        NewspaperWorldPromptVisual selected = null;
-
-        for (int i = 0; i < promptComponents.Length; i++)
+        for (int i = 0; i < prompts.Length; i++)
         {
-            NewspaperWorldPromptVisual candidate = promptComponents[i];
-            if (candidate != null && candidate.name == "Newspaper_InteractionPrompt")
-            {
-                selected = candidate;
-                break;
-            }
+            if (prompts[i] != null && prompts[i].name == "Newspaper_InteractionPrompt")
+                return prompts[i];
         }
 
-        if (selected == null && promptComponents.Length > 0)
-        {
-            selected = promptComponents[0];
-            Undo.RecordObject(selected.gameObject, "Renomear prompt de jornal");
-            selected.gameObject.name = "Newspaper_InteractionPrompt";
-            sceneChanged = true;
-        }
-
-        if (selected == null)
-        {
-            Transform existingByName = FindChildRecursive(stand, "Newspaper_InteractionPrompt");
-            GameObject promptObject;
-
-            if (existingByName != null)
-            {
-                promptObject = existingByName.gameObject;
-            }
-            else
-            {
-                promptObject = new GameObject("Newspaper_InteractionPrompt", typeof(RectTransform));
-                Undo.RegisterCreatedObjectUndo(promptObject, "Criar prompt persistente de jornal");
-                promptObject.transform.SetParent(stand, false);
-                sceneChanged = true;
-            }
-
-            selected = promptObject.GetComponent<NewspaperWorldPromptVisual>();
-            if (selected == null)
-            {
-                selected = Undo.AddComponent<NewspaperWorldPromptVisual>(promptObject);
-                sceneChanged = true;
-            }
-
-            selected.worldScale = 0.0023f;
-            selected.localOffset = new Vector3(0f, 0.72f, 0f);
-            selected.circleDiameter = 86f;
-            selected.instructionOffset = new Vector2(0f, 52f);
-            selected.instructionFontSize = 15f;
-            selected.centerFontSize = 30f;
-        }
-
-        Undo.RecordObject(selected, "Migrar visual do prompt de jornal");
-        if (selected.worldScale >= 0.006f)
-            selected.worldScale = 0.0023f;
-        if (selected.localOffset.y > 1.05f)
-            selected.localOffset = new Vector3(
-                selected.localOffset.x,
-                0.72f,
-                selected.localOffset.z
-            );
-        if (selected.circleDiameter > 100f)
-            selected.circleDiameter = 86f;
-        if (selected.instructionOffset.y > 65f)
-            selected.instructionOffset = new Vector2(selected.instructionOffset.x, 52f);
-
-        selected.previewInEditMode = true;
-        selected.useRootTransformAsSource = true;
-        selected.faceCamera = false;
-        selected.sortingOrder = 260;
-
-        for (int i = 0; i < promptComponents.Length; i++)
-        {
-            NewspaperWorldPromptVisual candidate = promptComponents[i];
-            if (candidate == null || candidate == selected)
-                continue;
-
-            Undo.DestroyObjectImmediate(candidate.gameObject);
-            sceneChanged = true;
-        }
-
-        selected.RebuildVisual();
-        selected.SetVisible(true);
-        EditorUtility.SetDirty(selected);
-        sceneChanged = true;
-        return selected;
+        return null;
     }
 
     private static T GetOrAddComponent<T>(GameObject target, ref bool sceneChanged)
@@ -358,8 +314,9 @@ public static class MiniMarketNewspaperSetup
             .Replace('\\', '_');
     }
 
-    private static void DisableLegacyEnergyButton(Scene scene)
+    private static bool DisableLegacyEnergyButton(Scene scene)
     {
+        bool changed = false;
         MiniMarketMenuController[] menus =
             Object.FindObjectsByType<MiniMarketMenuController>(FindObjectsInactive.Include);
 
@@ -369,11 +326,18 @@ public static class MiniMarketNewspaperSetup
             if (menu == null || menu.gameObject.scene != scene)
                 continue;
 
+            Button button = menu.botaoGemasGratis;
+            bool needsChange = menu.gemasGratisRecarregaEnergia ||
+                               menu.usarCliqueManualDeSeguranca ||
+                               button != null;
+
+            if (!needsChange)
+                continue;
+
             Undo.RecordObject(menu, "Desativar energia grátis");
             menu.gemasGratisRecarregaEnergia = false;
             menu.usarCliqueManualDeSeguranca = false;
 
-            Button button = menu.botaoGemasGratis;
             if (button != null)
             {
                 Undo.RecordObject(button, "Desativar botão energia grátis");
@@ -384,7 +348,10 @@ public static class MiniMarketNewspaperSetup
 
             menu.botaoGemasGratis = null;
             EditorUtility.SetDirty(menu);
+            changed = true;
         }
+
+        return changed;
     }
 }
 #endif
