@@ -5,25 +5,17 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Mantém o Newspaper_PlacePrompt como objeto real da cena.
-/// Assim o prompt existe fora do Play Mode e todos os seus RectTransforms,
-/// textos, cores, transparências e animações podem ser editados pelo Inspector.
+/// Repara manualmente o Newspaper_PlacePrompt persistente.
+/// Não roda após recompilar nem ao sair do Play Mode, evitando o ciclo em que
+/// o asterisco da cena reaparece depois de Ctrl+S.
 /// </summary>
-[InitializeOnLoad]
 public static class MiniMarketNewspaperPlacePromptPersistence
 {
     private const string PromptName = "Newspaper_PlacePrompt";
     private const string MenuPath = "Tools/MiniMarket/Jornal/Reparar Prompt da Put Area";
-    private static bool repairScheduled;
-
-    static MiniMarketNewspaperPlacePromptPersistence()
-    {
-        EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-        ScheduleRepair();
-    }
 
     [MenuItem(MenuPath, priority = 2601)]
-    private static void RepairFromMenu()
+    public static void RepairFromMenu()
     {
         RepairLoadedScenes(true);
     }
@@ -34,37 +26,7 @@ public static class MiniMarketNewspaperPlacePromptPersistence
         return !EditorApplication.isPlayingOrWillChangePlaymode;
     }
 
-    private static void OnPlayModeStateChanged(PlayModeStateChange state)
-    {
-        if (state == PlayModeStateChange.EnteredEditMode)
-            ScheduleRepair();
-    }
-
-    private static void ScheduleRepair()
-    {
-        if (repairScheduled)
-            return;
-
-        repairScheduled = true;
-        EditorApplication.delayCall += RunScheduledRepair;
-    }
-
-    private static void RunScheduledRepair()
-    {
-        repairScheduled = false;
-
-        if (EditorApplication.isPlayingOrWillChangePlaymode ||
-            EditorApplication.isCompiling ||
-            EditorApplication.isUpdating)
-        {
-            ScheduleRepair();
-            return;
-        }
-
-        RepairLoadedScenes(false);
-    }
-
-    private static void RepairLoadedScenes(bool logResult)
+    public static void RepairLoadedScenes(bool logResult)
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
             return;
@@ -121,8 +83,11 @@ public static class MiniMarketNewspaperPlacePromptPersistence
                 sceneChanged = true;
             }
 
+            bool visualWasMissing = prompt.transform.Find("CircularPrompt") == null ||
+                                    prompt.transform.Find("Instruction") == null;
             prompt.EnsurePersistentVisual();
             prompt.SetVisible(true);
+            sceneChanged |= visualWasMissing;
 
             Transform instruction = prompt.transform.Find("Instruction");
             if (instruction != null)
@@ -137,8 +102,6 @@ public static class MiniMarketNewspaperPlacePromptPersistence
                     textSettings.placementText = controller.promptInstruction;
                     sceneChanged = true;
                 }
-
-                EditorUtility.SetDirty(textSettings);
             }
 
             if (controller.promptVisual != prompt)
@@ -155,22 +118,20 @@ public static class MiniMarketNewspaperPlacePromptPersistence
                 sceneChanged = true;
             }
 
+            if (!sceneChanged)
+                continue;
+
             EditorUtility.SetDirty(prompt);
             EditorUtility.SetDirty(controller);
-
-            if (sceneChanged)
-            {
-                EditorSceneManager.MarkSceneDirty(scene);
-                EditorSceneManager.SaveScene(scene);
-                repaired++;
-            }
+            EditorSceneManager.MarkSceneDirty(scene);
+            repaired++;
         }
 
         if (logResult)
         {
             Debug.Log(
-                "[NewspaperPlacePrompt] Prompts persistentes reparados: " + repaired +
-                ". O Newspaper_PlacePrompt agora permanece na cena e pode ser editado no Inspector."
+                "[NewspaperPlacePrompt] Prompts reparados: " + repaired +
+                ". A manutenção automática foi desativada para preservar o Ctrl+S."
             );
         }
     }
@@ -179,8 +140,11 @@ public static class MiniMarketNewspaperPlacePromptPersistence
         NewspaperPlacementAreaController controller,
         Transform anchor)
     {
-        if (controller.promptVisual != null)
+        if (controller.promptVisual != null &&
+            controller.promptVisual.gameObject.scene == controller.gameObject.scene)
+        {
             return controller.promptVisual;
+        }
 
         NewspaperWorldPromptVisual[] prompts =
             anchor.GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
