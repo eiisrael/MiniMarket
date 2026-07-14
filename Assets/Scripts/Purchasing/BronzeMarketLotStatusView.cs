@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Painel mundial persistente de uma loja Bronze_Market.
-/// No Play aparece somente quando o modo de compra foi aberto pela própria loja.
+/// No Play aparece somente quando o controlador local desta própria loja está no modo de compra.
 /// Exibe status/preço e anima uma seta quando o mouse está sobre o terreno correto.
 /// </summary>
 [ExecuteAlways]
@@ -79,9 +79,9 @@ public sealed class BronzeMarketLotStatusView : MonoBehaviour
             return;
         }
 
-        bool pertenceAoModoAtual = controladorCamera != null &&
-                                   controladorCamera.ModoCompraAtivo &&
-                                   controladorCamera.EstaTerrenoAtivo(terreno);
+        // Cada Bronze_Market recebe seu próprio controlador de câmera pela ferramenta.
+        // Assim, apenas o painel da loja que abriu o modo E fica visível.
+        bool pertenceAoModoAtual = controladorCamera != null && controladorCamera.ModoCompraAtivo;
 
         bool visivel = !ocultarQuandoForaDoModoCompra || pertenceAoModoAtual;
         AplicarVisibilidade(visivel);
