@@ -4,20 +4,18 @@ Atualizado em: 2026-07-13
 
 Execute este checklist depois de qualquer atualização relevante.
 
-## 1. Atualização
+## 1. Proteger alterações locais e atualizar
+
+Antes do pull:
 
 ```bash
 cd ~/Desktop/MiniMarket/MiniMarket
-git pull origin main
 git status
-git log --oneline -15
-```
-
-Se `UpgradeLog.htm` impedir o pull:
-
-```bash
-git restore UpgradeLog.htm
-git pull origin main
+git add -A
+git commit -m "chore(scene): save local Unity adjustments"
+git pull --rebase origin main
+git status
+git log --oneline -20
 ```
 
 Não usar `git reset --hard` ou `git clean -fd` sem backup e sem conferir os arquivos locais.
@@ -40,184 +38,160 @@ Tools > MiniMarket > Materializar Todos os Objetos Runtime na Hierarquia
 Tools > MiniMarket > Validar Objetos Runtime Persistentes
 ```
 
-Depois:
+Depois confirmar `Erros=0`, salvar com `Ctrl + S` e reabrir a cena.
 
-1. Confirmar `Erros=0` no validador.
-2. Salvar com `Ctrl + S`.
-3. Fechar e reabrir a `SampleScene`.
-4. Confirmar que os objetos continuam na Hierarchy sem apertar Play.
+## 4. Preparar as lojas Bronze
 
-## 4. Reparos adicionais seguros
-
-Quando necessário, fora do Play Mode:
+Executar fora do Play Mode:
 
 ```text
-Tools > Player System > Create or Repair Player System
-Tools > Player System > Repair Player Animator
-Tools > Game Systems > Apply Gameplay Polish (HUD Grab Purchase MiniMap Mobile)
-Tools > Game Systems > Validate Gameplay Polish
-Tools > MiniMarket > Criar ou Reparar Barra de Energia
-Tools > MiniMarket > Validar Barra de Energia
+Tools > MiniMarket > Bronze Market > Preparar Todas as Lojas Bronze
+Tools > MiniMarket > Bronze Market > Reconciliar Controladores e Visuais
+Tools > MiniMarket > Bronze Market > Validar Lojas Bronze
 ```
 
-Executar `Clean Cross-Scene References` apenas fora do Play Mode e somente quando o aviso realmente existir.
+O validador deve terminar com:
 
-## 5. Hierarquia mínima persistente
+```text
+erros=0
+```
 
-Confirmar fora do Play Mode:
+## 5. Hierarquia mínima da Bronze_Market
 
-- `Character 01` com `CharacterController` e `CameraRelativeMovement`;
-- Animator válido;
-- `PlayerCameraRig` com uma Camera e um AudioListener;
-- `PlayerCameraController`, `GetItemController` e `InteractionFocusController`;
-- `Canvas > StaminaHUD > Energy` com `MiniMarketEnergyProgressBar`;
-- `Energy > EnergyProgressArea > EnergyProgressFill`;
-- `Canvas > Mira` ou outra imagem de mira reconhecida;
-- objeto com `RuntimeMiniMap` e `RuntimeMiniMapHierarchyBinding`;
-- `RuntimeMiniMapCamera` e `RuntimeMiniMapCanvas`;
-- objeto com `MobileControlsHUD` e `MobileControlsHierarchyBinding`;
-- `MobileControlsRuntime > SafeArea > MoveJoystick/Actions`;
-- `PlatformRenderProfile`;
-- `RuntimeDiagnosticsPanel`;
-- `PurchaseSystemRuntimeRepair`;
-- `Buy_Area` com collider sólido;
-- `BuySceneEntryTrigger_Runtime` com BoxCollider trigger e linhas visuais persistentes;
-- nenhuma câmera antiga ativa.
+Confirmar em cada raiz:
 
-## 6. Edição fora do Play Mode
+```text
+Bronze_Market
+├── BronzeMarketPurchaseLot
+├── controlador local de câmera/compra
+├── Buy_Area
+│   └── BuySceneEntryTrigger_Runtime
+├── PurchaseLotArea ou marcador existente
+├── PurchaseCameraFocus
+└── PurchaseLotStatus
+```
+
+Verificar:
+
+- `Buy_Area` pertence à própria loja;
+- o collider sólido continua `Is Trigger = false`;
+- o BoxCollider do filho runtime está `Is Trigger = true`;
+- `Terrenos Desta Area` possui somente o marcador da própria loja;
+- `Usar Terrenos Proximos Se Lista Vazia` está desligado;
+- `Sincronizar Com Terrenos Encontrados Automaticamente` está desligado;
+- `Procurar Terrenos Automaticamente` está desligado no controlador local;
+- `Id Lote` e `Id Persistente` correspondem;
+- apenas um controlador de câmera permanece habilitado na loja.
+
+## 6. Testar duplicação da Bronze_Market
+
+1. Selecionar a raiz completa `Bronze_Market`.
+2. Duplicar com `Ctrl + D` ou copiar/colar.
+3. Aguardar a atualização da Hierarchy.
+4. Mover a cópia para outro local.
+5. Selecionar o componente `BronzeMarketPurchaseLot` da cópia.
+6. Confirmar que o `Id Lote` é diferente do original.
+7. Confirmar que referências da cópia apontam para filhos da própria cópia.
+8. Salvar com `Ctrl + S`.
+9. Executar `Validar Lojas Bronze` novamente.
+
+## 7. Testar compra isolada
+
+### Loja A
+
+- entrar apenas no quadrado/X da Loja A;
+- pressionar `E`;
+- a câmera deve manter o mesmo movimento e configuração anteriores;
+- somente `PurchaseLotStatus` da Loja A deve aparecer;
+- passar o mouse no lote A deve mostrar/mover a seta;
+- lote B não pode receber hover;
+- clicar fora do lote A não pode abrir confirmação;
+- clicar no lote A deve abrir o painel correto;
+- comprar A deve registrar somente o ID da Loja A.
+
+### Loja B
+
+Repetir o teste na cópia:
+
+- `E` da Loja B mostra apenas Loja B;
+- clique em A é ignorado durante a visualização de B;
+- compra de B usa seu próprio preço e ID;
+- comprar A não torna B indisponível;
+- é possível comprar A e B quando há Gold suficiente.
+
+### Saída
+
+- sair do modo restaura câmera, movimento e cursor;
+- nenhum controlador de outra loja permanece ativo;
+- Console não apresenta spam por frame.
+
+## 8. Visual e edição fora do Play
+
+### Compra Bronze
+
+- `PurchaseLotStatus`, textos e seta existem antes do Play;
+- cores, posição, escala e textos podem ser editados no Inspector;
+- LineRenderers da calçada e terreno aparecem na Hierarchy;
+- material persistente está em `Assets/Generated/MiniMarket/Materials/BuyAreaLine.mat`;
+- Stop não remove os objetos configuráveis.
 
 ### Energia
 
-1. Selecionar `Energy`.
-2. No `MiniMarketEnergyProgressBar`, alterar `Cor Barra`.
-3. Clicar em `Aplicar cor e área no Editor` quando necessário.
-4. Confirmar que `EnergyProgressFill` muda imediatamente.
-5. Alterar `Ancora Minima` e `Ancora Maxima`.
-6. Confirmar que somente a área verde muda; o artwork `Energy` permanece estático.
-7. Salvar, trocar de cena e retornar para confirmar persistência.
+- texto mostra `100%`, `60%`, `25%` e inclui `%`;
+- ícone alterna entre `green_energy`, `yellow_energy` e `red_energy`;
+- progress bar faz transição suave de cor;
+- ícone pulsa ao correr/pressionar Shift;
+- artwork original de `Energy` permanece estático.
 
-### Minimapa
+### Minimapa e mobile
 
-1. Alterar cor de borda, ponto, botões, tamanho e posição.
-2. Editar diretamente os filhos persistentes.
-3. Confirmar que a câmera e Canvas não desaparecem ao sair do Play.
-4. Confirmar que somente a `RenderTexture` é criada durante o Play.
+- hierarquias visuais permanecem salvas;
+- somente RenderTexture/callbacks transitórios são criados no Play;
+- HUD mobile permanece editável fora do Play.
+
+## 9. Banco
+
+1. Alterar gold e nome.
+2. Comprar duas lojas Bronze com IDs diferentes.
+3. Parar Play.
+4. Iniciar novamente.
+5. Confirmar que as duas propriedades continuam compradas.
+6. Confirmar que uma terceira cópia com ID novo continua disponível.
+7. Confirmar ausência de referência cross-scene inválida.
+
+## 10. Interação e jogador
+
+- WASD, Shift e Space funcionam;
+- troca primeira/terceira pessoa funciona;
+- objetos podem ser selecionados, pegos, soltos e arremessados;
+- portas e caixas mantêm highlight;
+- menu bloqueia input;
+- uma câmera e um AudioListener de gameplay;
+- compra assume e devolve a câmera sem disputa.
+
+## 11. Desktop e Mobile
+
+### Desktop
+
+- mouse e hover de compra corretos;
+- HUD mobile oculto durante Play;
+- FPS sem spam no Console.
 
 ### Mobile
 
-1. Com o Canvas persistente visível no Editor, ajustar joystick e botões.
-2. Alterar cores e textos no `MobileControlsHUD`.
-3. Confirmar que os GameObjects permanecem depois de Stop.
-4. Confirmar que no Desktop o Canvas pode ser ocultado somente durante o jogo.
+Validar em aparelho real:
 
-### Compra
-
-1. Alterar cores/largura nos componentes de entrada e terreno.
-2. Confirmar LineRenderers visíveis na Hierarchy fora do Play.
-3. Confirmar material persistente em `Assets/Generated/MiniMarket/Materials/BuyAreaLine.mat`.
-
-## 7. Banco
-
-1. Alterar gold.
-2. Alterar nome.
-3. Comprar/registrar empresa.
-4. Gastar energia.
-5. Parar Play.
-6. Iniciar novamente.
-7. Confirmar persistência.
-8. Confirmar ausência de referência cross-scene inválida.
-9. Confirmar ausência de objetos órfãos ao dar Stop.
-
-## 8. Stamina e HUD
-
-- iniciar em `5/5` com `EnergyProgressFill` cheio e verde;
-- confirmar que a imagem original de `Energy` não diminui;
-- confirmar que `Energy` não está como `Image.Type.Filled`;
-- confirmar que somente a largura de `EnergyProgressFill` diminui;
-- confirmar que `Background_Ene`, ícone e `Txt_Qtd` permanecem estáticos;
-- correr e observar a barra verde descarregar suavemente;
-- confirmar que o texto e a barra representam a mesma energia segmentada;
-- consumir um segmento e confirmar mudança para `4/5` sem salto incorreto;
-- aguardar recuperação e observar a barra verde carregar;
-- confirmar recuperação dos segmentos adicionais;
-- testar energia grátis e aguardar pelo menos dois segundos;
-- abrir e fechar menu durante movimento;
-- confirmar ausência de logs por frame.
-
-## 9. Interação e objetos físicos
-
-- caixa muda de cor em terceira pessoa;
-- caixa muda de cor em primeira pessoa;
-- `click_on` aparece ao selecionar;
-- `click_on` permanece ao segurar;
-- soltar normalmente faz o objeto cair sem lançamento;
-- sair da primeira pessoa enquanto segura faz queda segura;
-- THROW arremessa explicitamente;
-- proteção contra parede funciona;
-- porta muda de cor;
-- `E` executa ação uma vez;
-- materiais compartilhados não mudam juntos;
-- menu bloqueia foco e interação.
-
-## 10. Compra de terrenos
-
-- marcação de borda/X existe antes do Play;
-- personagem não atravessa a calçada;
-- entrar na área muda a cor da marcação;
-- tecla E abre a vista de compra;
-- terrenos recebem destaque;
-- painel de confirmação abre;
-- gold insuficiente é bloqueado;
-- compra válida debita gold e persiste empresa/propriedade;
-- sair restaura câmera, movimento e cursor.
-
-## 11. Minimapa
-
-- hierarquia visual existe antes do Play;
-- M abre e fecha;
-- botões + e − funcionam;
-- ponto do jogador permanece centralizado;
-- câmera do minimapa não cria AudioListener;
-- RenderTexture é ligada ao `MapImage` durante o Play;
-- RenderTexture usa resolução mobile/desktop correta;
-- Stop remove somente o recurso temporário, não os GameObjects persistentes.
-
-## 12. Desktop
-
-- WASD;
-- Shift;
-- Space;
-- mouse e troca primeira/terceira pessoa;
-- cursor correto;
-- uma câmera e um AudioListener de gameplay;
-- HUD mobile oculto durante o Play;
-- objetos do HUD mobile continuam editáveis fora do Play;
-- FPS sem spam de Console.
-
-## 13. Mobile
-
-No Editor, ligar temporariamente `forcarVisivelParaTestes`. Depois validar build Android real:
-
-- joystick move;
-- arrasto direito gira a câmera;
-- RUN funciona com toque simultâneo;
-- JUMP funciona;
-- E interage;
-- GRAB pega e solta;
-- THROW arremessa;
-- AIM entra e sai da primeira pessoa;
-- safe area correta;
-- multitouch: mover + olhar + correr;
-- a barra verde interna acompanha os mesmos dados do Desktop;
-- pause/resume limpa inputs presos;
+- joystick, olhar, RUN, JUMP, interação, GRAB, THROW e AIM;
+- safe area e multitouch;
 - dados persistem ao ir para segundo plano;
+- sistema de compra não mistura lojas;
 - temperatura, memória e FPS aceitáveis por dez minutos.
 
-## 14. Relatórios
+## 12. Relatórios
 
 Antes de encerrar:
 
 - atualizar `CHANGELOG_TECNICO.md`;
 - atualizar relatório específico;
-- corrigir divergências código/documentação;
+- corrigir divergências entre código e documentação;
 - registrar testes não executados e riscos.
