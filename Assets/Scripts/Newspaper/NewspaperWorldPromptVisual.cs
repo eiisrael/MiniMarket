@@ -5,9 +5,9 @@ using UnityEngine.UI;
 /// <summary>
 /// Prompt circular persistente do sistema de jornal.
 ///
-/// O RectTransform raiz pertence ao usuário: posição, rotação, escala, largura e
-/// altura podem ser alteradas diretamente no Inspector sem serem sobrescritas.
-/// As animações acontecem somente dentro do filho CircularPrompt.
+/// O RectTransform raiz e o objeto Instruction podem ser editados livremente
+/// no Inspector. O script não sobrescreve posição, rotação, escala ou tamanho
+/// quando os respectivos modos de edição livre estão ativados.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -16,18 +16,18 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [Header("Visualização")]
     public bool previewInEditMode = true;
     public bool animateInEditMode;
-    public bool faceCamera = true;
+    public bool faceCamera;
     public bool showInstructionText = true;
     public int sortingOrder = 260;
 
-    [Header("Controle do Transform")]
-    [Tooltip("Marcado: o RectTransform raiz é a fonte oficial de posição e escala. Assim ele pode ser editado livremente no Inspector.")]
+    [Header("Controle do Transform Raiz")]
+    [Tooltip("Marcado: posição, rotação, escala, largura e altura do objeto raiz são controladas diretamente pelo Inspector.")]
     public bool useRootTransformAsSource = true;
 
-    [Tooltip("Espelho da escala do Transform. Mantido para compatibilidade com os controladores existentes.")]
+    [Tooltip("Campo de compatibilidade. Só controla a raiz quando Use Root Transform As Source está desmarcado.")]
     [Min(0.0001f)] public float worldScale = 0.0023f;
 
-    [Tooltip("Espelho da posição local do Transform. Mantido para compatibilidade com os controladores existentes.")]
+    [Tooltip("Campo de compatibilidade. Só controla a raiz quando Use Root Transform As Source está desmarcado.")]
     public Vector3 localOffset = new Vector3(0f, 0.72f, 0f);
 
     [Header("Círculo")]
@@ -36,7 +36,13 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [Min(1f)] public float innerAccentThickness = 6f;
     [Min(4f)] public float orbitMarkerSize = 9f;
 
-    [Header("Texto")]
+    [Header("Instruction Editável")]
+    [Tooltip("Marcado: posição, rotação, escala, âncoras e tamanho do filho Instruction são controlados diretamente pelo RectTransform dele.")]
+    public bool useInstructionTransformAsSource = true;
+
+    [Tooltip("Marcado: fonte, tamanho, cor, alinhamento e contorno são controlados diretamente pelo TextMeshPro do filho Instruction.")]
+    public bool useInstructionGraphicAsSource = true;
+
     public Vector2 instructionOffset = new Vector2(0f, 52f);
     public Vector2 instructionSize = new Vector2(220f, 30f);
     [Min(8f)] public float instructionFontSize = 15f;
@@ -47,7 +53,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [Header("Animação")]
     [Min(0f)] public float rotationDegreesPerSecond = 38f;
 
-    [Tooltip("Amplitude em unidades do mundo. A raiz não é movimentada; o deslocamento é aplicado apenas ao círculo interno.")]
+    [Tooltip("Amplitude em unidades do mundo. A raiz não é movimentada; apenas o círculo interno flutua.")]
     [Min(0f)] public float floatingAmplitude = 0.015f;
 
     [Min(0f)] public float floatingSpeed = 2.1f;
@@ -90,7 +96,8 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
     private Camera cachedCamera;
     private bool built;
-    private bool transformBindingInitialized;
+    private bool rootBindingInitialized;
+    private bool instructionBindingInitialized;
 
     private static Sprite discSprite;
     private static Sprite ringSprite;
@@ -98,6 +105,24 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private static Texture2D discTexture;
     private static Texture2D ringTexture;
     private static Texture2D segmentedRingTexture;
+
+    private struct InstructionSnapshot
+    {
+        public bool valid;
+        public Vector2 anchorMin;
+        public Vector2 anchorMax;
+        public Vector2 pivot;
+        public Vector3 anchoredPosition3D;
+        public Vector2 sizeDelta;
+        public Vector3 localEulerAngles;
+        public Vector3 localScale;
+        public float fontSize;
+        public Color color;
+        public Color outlineColor;
+        public float outlineWidth;
+        public FontStyles fontStyle;
+        public TextAlignmentOptions alignment;
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatics()
@@ -124,7 +149,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         visual.localOffset = requestedLocalOffset;
         visual.worldScale = NormalizeLegacyScale(requestedWorldScale);
         visual.sortingOrder = requestedSortingOrder;
-        visual.ApplyCompatibilityTransform();
+        visual.ApplyCompatibilityRootTransform();
         visual.EnsurePersistentVisual();
         visual.SetVisible(false);
         return visual;
@@ -133,7 +158,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private void Awake()
     {
         ResolveExistingReferences();
-        InitializeTransformBinding();
+        InitializeBindings();
 
         if (Application.isPlaying)
             EnsurePersistentVisual();
@@ -144,7 +169,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private void OnEnable()
     {
         ResolveExistingReferences();
-        InitializeTransformBinding();
+        InitializeBindings();
 
         if (Application.isPlaying)
             EnsurePersistentVisual();
@@ -159,7 +184,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     {
         ClampInspectorValues();
         ResolveExistingReferences();
-        InitializeTransformBinding();
+        InitializeBindings();
 
         if (built)
             ApplyInspectorSettings();
@@ -170,7 +195,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (!built)
             return;
 
-        SyncCompatibilityFieldsFromTransform();
+        SyncEditableValuesFromScene();
         ApplyInspectorSettings();
 
         bool shouldAnimate = Application.isPlaying || animateInEditMode;
@@ -187,7 +212,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     public void EnsurePersistentVisual()
     {
         ResolveExistingReferences();
-        InitializeTransformBinding();
+        InitializeBindings();
 
         if (!built)
             Build(sortingOrder);
@@ -201,18 +226,29 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [ContextMenu("Jornal/Reconstruir visual circular")]
     public void RebuildVisual()
     {
+        InstructionSnapshot instructionSnapshot = CaptureInstructionSnapshot();
+
         ClearGeneratedChildren();
         ResetGeneratedReferences();
         Build(sortingOrder);
+
+        RestoreInstructionSnapshot(instructionSnapshot);
+        instructionBindingInitialized = instructionSnapshot.valid;
         ApplyInspectorSettings();
 
         if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
             canvasGroup.alpha = 1f;
     }
 
-    private void InitializeTransformBinding()
+    private void InitializeBindings()
     {
-        if (transformBindingInitialized)
+        InitializeRootBinding();
+        InitializeInstructionBinding();
+    }
+
+    private void InitializeRootBinding()
+    {
+        if (rootBindingInitialized)
             return;
 
         if (useRootTransformAsSource)
@@ -224,19 +260,35 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 Mathf.Abs(currentScale.z) > 0.05f;
 
             if (looksUninitialized)
-                ApplyCompatibilityTransform();
+                ApplyCompatibilityRootTransform();
             else
-                SyncCompatibilityFieldsFromTransform();
+                SyncRootFieldsFromTransform();
         }
         else
         {
-            ApplyCompatibilityTransform();
+            ApplyCompatibilityRootTransform();
         }
 
-        transformBindingInitialized = true;
+        rootBindingInitialized = true;
     }
 
-    private void ApplyCompatibilityTransform()
+    private void InitializeInstructionBinding()
+    {
+        if (instructionBindingInitialized || instructionText == null)
+            return;
+
+        RectTransform rect = instructionText.rectTransform;
+        bool looksUninitialized = rect.sizeDelta.sqrMagnitude < 1f;
+
+        if (looksUninitialized)
+            ApplyInstructionDefaults();
+        else
+            SyncInstructionFieldsFromObject();
+
+        instructionBindingInitialized = true;
+    }
+
+    private void ApplyCompatibilityRootTransform()
     {
         transform.localPosition = localOffset;
         float normalizedScale = NormalizeLegacyScale(worldScale);
@@ -244,7 +296,13 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         transform.localScale = Vector3.one * normalizedScale;
     }
 
-    private void SyncCompatibilityFieldsFromTransform()
+    private void SyncEditableValuesFromScene()
+    {
+        SyncRootFieldsFromTransform();
+        SyncInstructionFieldsFromObject();
+    }
+
+    private void SyncRootFieldsFromTransform()
     {
         if (!useRootTransformAsSource)
             return;
@@ -259,6 +317,27 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         ) / 3f;
 
         worldScale = Mathf.Clamp(averageScale, 0.0001f, 0.02f);
+    }
+
+    private void SyncInstructionFieldsFromObject()
+    {
+        if (instructionText == null)
+            return;
+
+        if (useInstructionTransformAsSource)
+        {
+            RectTransform rect = instructionText.rectTransform;
+            instructionOffset = rect.anchoredPosition;
+            instructionSize = rect.sizeDelta;
+        }
+
+        if (useInstructionGraphicAsSource)
+        {
+            instructionFontSize = Mathf.Max(8f, instructionText.fontSize);
+            instructionTextColor = instructionText.color;
+            instructionOutlineWidth = Mathf.Clamp01(instructionText.outlineWidth);
+            textOutlineColor = instructionText.outlineColor;
+        }
     }
 
     private void ResolveExistingReferences()
@@ -340,7 +419,6 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
 
-        // Somente um valor inicial. Depois disso o usuário pode editar livremente.
         if (rootRect.sizeDelta.sqrMagnitude < 1f)
             rootRect.sizeDelta = new Vector2(220f, 125f);
 
@@ -378,8 +456,10 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         instructionText = CreateText("Instruction", rootRect, instructionFontSize, FontStyles.Bold);
         instructionText.text = "Segure E para pegar";
         instructionText.alignment = TextAlignmentOptions.Center;
+        ApplyInstructionDefaults();
 
         built = true;
+        instructionBindingInitialized = true;
     }
 
     private void ApplyInspectorSettings()
@@ -389,9 +469,8 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         ClampInspectorValues();
 
-        // A raiz não é alterada aqui. O RectTransform fica totalmente livre.
         if (!useRootTransformAsSource)
-            ApplyCompatibilityTransform();
+            ApplyCompatibilityRootTransform();
 
         if (worldCanvas != null)
             worldCanvas.sortingOrder = sortingOrder;
@@ -416,23 +495,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         ConfigureOrbitMarker(orbitMarkerSecondary != null ? orbitMarkerSecondary.rectTransform : null, 120f);
         ConfigureOrbitMarker(orbitMarkerTertiary != null ? orbitMarkerTertiary.rectTransform : null, 240f);
 
-        if (instructionText != null)
-        {
-            RectTransform rect = instructionText.rectTransform;
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = instructionOffset;
-            rect.sizeDelta = instructionSize;
-
-            instructionText.gameObject.SetActive(showInstructionText);
-            instructionText.fontSize = instructionFontSize;
-            instructionText.color = instructionTextColor;
-            instructionText.outlineColor = textOutlineColor;
-            instructionText.outlineWidth = instructionOutlineWidth;
-            instructionText.textWrappingMode = TextWrappingModes.NoWrap;
-            instructionText.raycastTarget = false;
-        }
+        ApplyInstructionSettings();
 
         if (centerText != null)
         {
@@ -470,6 +533,112 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
             orbitMarkerSecondary.color = innerAccentColor;
         if (orbitMarkerTertiary != null)
             orbitMarkerTertiary.color = outerRingColor;
+    }
+
+    private void ApplyInstructionSettings()
+    {
+        if (instructionText == null)
+            return;
+
+        RectTransform rect = instructionText.rectTransform;
+
+        if (!useInstructionTransformAsSource)
+        {
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = instructionOffset;
+            rect.sizeDelta = instructionSize;
+            rect.localEulerAngles = Vector3.zero;
+            rect.localScale = Vector3.one;
+        }
+
+        instructionText.gameObject.SetActive(showInstructionText);
+
+        if (!useInstructionGraphicAsSource)
+        {
+            instructionText.fontSize = instructionFontSize;
+            instructionText.color = instructionTextColor;
+            instructionText.outlineColor = textOutlineColor;
+            instructionText.outlineWidth = instructionOutlineWidth;
+            instructionText.alignment = TextAlignmentOptions.Center;
+        }
+
+        instructionText.textWrappingMode = TextWrappingModes.NoWrap;
+        instructionText.raycastTarget = false;
+    }
+
+    private void ApplyInstructionDefaults()
+    {
+        if (instructionText == null)
+            return;
+
+        RectTransform rect = instructionText.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = instructionOffset;
+        rect.sizeDelta = instructionSize;
+        rect.localEulerAngles = Vector3.zero;
+        rect.localScale = Vector3.one;
+
+        instructionText.fontSize = instructionFontSize;
+        instructionText.color = instructionTextColor;
+        instructionText.outlineColor = textOutlineColor;
+        instructionText.outlineWidth = instructionOutlineWidth;
+        instructionText.alignment = TextAlignmentOptions.Center;
+        instructionText.textWrappingMode = TextWrappingModes.NoWrap;
+        instructionText.raycastTarget = false;
+    }
+
+    private InstructionSnapshot CaptureInstructionSnapshot()
+    {
+        InstructionSnapshot snapshot = default;
+        ResolveExistingReferences();
+
+        if (instructionText == null)
+            return snapshot;
+
+        RectTransform rect = instructionText.rectTransform;
+        snapshot.valid = true;
+        snapshot.anchorMin = rect.anchorMin;
+        snapshot.anchorMax = rect.anchorMax;
+        snapshot.pivot = rect.pivot;
+        snapshot.anchoredPosition3D = rect.anchoredPosition3D;
+        snapshot.sizeDelta = rect.sizeDelta;
+        snapshot.localEulerAngles = rect.localEulerAngles;
+        snapshot.localScale = rect.localScale;
+        snapshot.fontSize = instructionText.fontSize;
+        snapshot.color = instructionText.color;
+        snapshot.outlineColor = instructionText.outlineColor;
+        snapshot.outlineWidth = instructionText.outlineWidth;
+        snapshot.fontStyle = instructionText.fontStyle;
+        snapshot.alignment = instructionText.alignment;
+        return snapshot;
+    }
+
+    private void RestoreInstructionSnapshot(InstructionSnapshot snapshot)
+    {
+        if (!snapshot.valid || instructionText == null)
+            return;
+
+        RectTransform rect = instructionText.rectTransform;
+        rect.anchorMin = snapshot.anchorMin;
+        rect.anchorMax = snapshot.anchorMax;
+        rect.pivot = snapshot.pivot;
+        rect.anchoredPosition3D = snapshot.anchoredPosition3D;
+        rect.sizeDelta = snapshot.sizeDelta;
+        rect.localEulerAngles = snapshot.localEulerAngles;
+        rect.localScale = snapshot.localScale;
+
+        instructionText.fontSize = snapshot.fontSize;
+        instructionText.color = snapshot.color;
+        instructionText.outlineColor = snapshot.outlineColor;
+        instructionText.outlineWidth = snapshot.outlineWidth;
+        instructionText.fontStyle = snapshot.fontStyle;
+        instructionText.alignment = snapshot.alignment;
+
+        SyncInstructionFieldsFromObject();
     }
 
     private void AnimatePrompt()
@@ -632,6 +801,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         orbitMarkerTertiary = null;
         centerText = null;
         instructionText = null;
+        instructionBindingInitialized = false;
     }
 
     private static Image GetImage(Transform parent, string childName)
