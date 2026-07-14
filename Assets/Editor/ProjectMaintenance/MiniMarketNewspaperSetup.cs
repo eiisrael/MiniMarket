@@ -250,7 +250,6 @@ public static class MiniMarketNewspaperSetup
             selected.centerFontSize = 30f;
         }
 
-        // Migração dos valores gigantes/altos das versões anteriores.
         Undo.RecordObject(selected, "Migrar visual do prompt de jornal");
         if (selected.worldScale >= 0.006f)
             selected.worldScale = 0.0023f;
@@ -266,9 +265,10 @@ public static class MiniMarketNewspaperSetup
             selected.instructionOffset = new Vector2(selected.instructionOffset.x, 52f);
 
         selected.previewInEditMode = true;
+        selected.useRootTransformAsSource = true;
+        selected.faceCamera = false;
         selected.sortingOrder = 260;
 
-        // Remove todos os outros prompts do expositor para impedir E e % duplicados.
         for (int i = 0; i < promptComponents.Length; i++)
         {
             NewspaperWorldPromptVisual candidate = promptComponents[i];
