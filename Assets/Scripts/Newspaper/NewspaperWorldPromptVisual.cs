@@ -7,9 +7,9 @@ using UnityEngine.UI;
 /// Prompt circular persistente do sistema de jornal.
 ///
 /// O layout é aplicado somente na criação/reparo. Durante o jogo, o componente altera
-/// apenas estado, visibilidade e animações explicitamente habilitadas. Assim os
+/// apenas estado, visibilidade, billboard e animações explicitamente habilitadas.
 /// RectTransforms, cores, transparências e tamanhos ajustados no Inspector não são
-/// sobrescritos a cada frame.
+/// reescritos a cada frame.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -44,11 +44,14 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [Tooltip("Marcado: posição, rotação, escala e tamanho de CircularPrompt vêm do próprio RectTransform.")]
     public bool useCircularPromptTransformAsSource = true;
 
-    [Tooltip("Marcado: os RectTransforms dos anéis, disco, brilhos e marcadores não são reposicionados pelo script.")]
+    [Tooltip("Marcado: RectTransforms dos anéis, disco, brilhos e marcadores não são reposicionados pelo script.")]
     public bool useGeneratedChildTransformsAsSource = true;
 
     [Tooltip("Marcado: cores, transparências, fonte e estilos dos filhos vêm dos componentes da Hierarchy.")]
     public bool useGeneratedGraphicStylesAsSource = true;
+
+    [Tooltip("Mantém as imagens conhecidas usando máscaras realmente circulares, sem alterar Transform ou cor.")]
+    public bool enforceCircularSprites = true;
 
     [Min(48f)] public float circleDiameter = 86f;
     [Min(1f)] public float progressThickness = 10f;
@@ -209,21 +212,29 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private void Awake()
     {
         ResolveExistingReferences();
-        EnsurePersistentVisual();
+
+        if (Application.isPlaying)
+            EnsurePersistentVisual();
+        else if (built)
+            ApplyStaticInspectorSettings();
+
         RepairLegacyPlacementPromptOnce();
         CaptureAnimationBase();
-        ApplyStaticInspectorSettings();
     }
 
     private void OnEnable()
     {
         ResolveExistingReferences();
-        EnsurePersistentVisual();
+
+        if (Application.isPlaying)
+            EnsurePersistentVisual();
+        else if (built)
+            ApplyStaticInspectorSettings();
+
         RepairLegacyPlacementPromptOnce();
         CaptureAnimationBase();
-        ApplyStaticInspectorSettings();
 
-        if (!Application.isPlaying && previewInEditMode)
+        if (!Application.isPlaying && previewInEditMode && built)
             ApplyCanvasVisibility(true);
     }
 
@@ -338,16 +349,16 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
             rootRect.sizeDelta = new Vector2(220f, 125f);
 
         visualRoot = GetOrCreateRect("CircularPrompt", rootRect);
-        glowImage = GetOrCreateImage("SoftGlow", visualRoot, discSprite);
-        outerRingImage = GetOrCreateImage("GoldenOuterRing", visualRoot, ringSprite);
+        glowImage = GetOrCreateImage("SoftGlow", visualRoot, discSprite, glowColor);
+        outerRingImage = GetOrCreateImage("GoldenOuterRing", visualRoot, ringSprite, outerRingColor);
         rotatingRing = GetOrCreateRect("RotatingSegmentedRing", visualRoot);
-        rotatingRingImage = GetOrCreateImage("Segments", rotatingRing, segmentedRingSprite);
-        orbitMarker = GetOrCreateImage("OrbitSparkTop", rotatingRing, discSprite);
-        orbitMarkerSecondary = GetOrCreateImage("OrbitSparkLeft", rotatingRing, discSprite);
-        orbitMarkerTertiary = GetOrCreateImage("OrbitSparkRight", rotatingRing, discSprite);
-        progressImage = GetOrCreateImage("CircularProgress", visualRoot, ringSprite);
-        innerAccentRingImage = GetOrCreateImage("PinkInnerAccent", visualRoot, ringSprite);
-        centerDisc = GetOrCreateImage("CenterDisc", visualRoot, discSprite);
+        rotatingRingImage = GetOrCreateImage("Segments", rotatingRing, segmentedRingSprite, currentAccentColor);
+        orbitMarker = GetOrCreateImage("OrbitSparkTop", rotatingRing, discSprite, currentAccentColor);
+        orbitMarkerSecondary = GetOrCreateImage("OrbitSparkLeft", rotatingRing, discSprite, innerAccentColor);
+        orbitMarkerTertiary = GetOrCreateImage("OrbitSparkRight", rotatingRing, discSprite, outerRingColor);
+        progressImage = GetOrCreateImage("CircularProgress", visualRoot, ringSprite, currentAccentColor);
+        innerAccentRingImage = GetOrCreateImage("PinkInnerAccent", visualRoot, ringSprite, innerAccentColor);
+        centerDisc = GetOrCreateImage("CenterDisc", visualRoot, discSprite, centerDiscColor);
         centerText = GetOrCreateText("CenterText", visualRoot, centerFontSize, FontStyles.Bold);
         instructionText = GetOrCreateText("Instruction", rootRect, instructionFontSize, FontStyles.Bold);
 
@@ -355,6 +366,11 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
             centerText.text = "E";
         if (instructionText != null && string.IsNullOrEmpty(instructionText.text))
             instructionText.text = "Segure E para pegar";
+
+        if (centerText != null && centerText.color == Color.white)
+            centerText.color = centerTextColor;
+        if (instructionText != null && instructionText.color == Color.white)
+            instructionText.color = instructionTextColor;
 
         if (progressImage != null)
         {
@@ -368,7 +384,6 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         ApplyCircularPromptDefaults();
         ApplyGeneratedChildTransformDefaults();
         ApplyInstructionDefaults();
-
         built = true;
     }
 
@@ -377,7 +392,6 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         rootRect = transform as RectTransform;
         worldCanvas = GetComponent<Canvas>();
         canvasGroup = GetComponent<CanvasGroup>();
-
         visualRoot = transform.Find("CircularPrompt") as RectTransform;
 
         if (visualRoot != null)
@@ -655,8 +669,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 changed = true;
             }
 
-            Vector3 visualScale = visualRoot.localScale;
-            if (visualScale.sqrMagnitude < 0.03f)
+            if (visualRoot.localScale.sqrMagnitude < 0.03f)
             {
                 visualRoot.localScale = Vector3.one;
                 changed = true;
@@ -804,9 +817,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         nextCameraResolveTime = Time.unscaledTime + 0.5f;
 
         PlayerCameraController controller =
-            UnityEngine.Object.FindAnyObjectByType<PlayerCameraController>(
-                FindObjectsInactive.Include
-            );
+            UnityEngine.Object.FindAnyObjectByType<PlayerCameraController>(FindObjectsInactive.Include);
 
         if (controller != null && controller.gameCamera != null &&
             controller.gameCamera.isActiveAndEnabled)
@@ -1041,6 +1052,9 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
     private void EnsureGeneratedSprites()
     {
+        if (!enforceCircularSprites)
+            return;
+
         EnsureSprites();
         AssignSprite(glowImage, discSprite);
         AssignSprite(outerRingImage, ringSprite);
@@ -1058,10 +1072,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (image == null || sprite == null)
             return;
 
-        if (image.sprite == null || image.sprite.name.StartsWith("NewspaperPrompt_"))
-            image.sprite = sprite;
-
-        image.type = image == null ? Image.Type.Simple : image.type;
+        image.sprite = sprite;
         image.raycastTarget = false;
     }
 
@@ -1095,15 +1106,25 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         return value.GetComponent<RectTransform>();
     }
 
-    private static Image GetOrCreateImage(string objectName, Transform parent, Sprite sprite)
+    private static Image GetOrCreateImage(
+        string objectName,
+        Transform parent,
+        Sprite sprite,
+        Color defaultColor)
     {
         RectTransform rect = GetOrCreateRect(objectName, parent);
         Image image = rect.GetComponent<Image>();
-        if (image == null)
+        bool created = image == null;
+
+        if (created)
             image = rect.gameObject.AddComponent<Image>();
 
         image.sprite = sprite;
         image.raycastTarget = false;
+
+        if (created)
+            image.color = defaultColor;
+
         return image;
     }
 
@@ -1115,12 +1136,14 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     {
         RectTransform rect = GetOrCreateRect(objectName, parent);
         TextMeshProUGUI text = rect.GetComponent<TextMeshProUGUI>();
-        if (text == null)
+        bool created = text == null;
+
+        if (created)
             text = rect.gameObject.AddComponent<TextMeshProUGUI>();
 
-        if (text.fontSize <= 0f)
+        if (created || text.fontSize <= 0f)
             text.fontSize = fontSize;
-        if (text.fontStyle == FontStyles.Normal)
+        if (created || text.fontStyle == FontStyles.Normal)
             text.fontStyle = style;
 
         text.textWrappingMode = TextWrappingModes.NoWrap;
