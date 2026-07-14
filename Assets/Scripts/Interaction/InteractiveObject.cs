@@ -7,8 +7,9 @@ using UnityEngine.Events;
 /// Marca portas, caixas, interruptores e outros objetos como interativos.
 ///
 /// A ação pode ser ligada pelo UnityEvent. Para objetos antigos, o componente também
-/// consegue chamar uma única função pública comum (Interact, Toggle, Open, Abrir etc.)
-/// somente no clique, sem reflexão no Update.
+/// procura uma função pública comum no próprio objeto, nos pais e nos filhos.
+/// Isso permite que o collider, o InteractiveObject e o script real da porta fiquem
+/// em pontos diferentes da mesma hierarquia.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class InteractiveObject : MonoBehaviour
@@ -23,12 +24,19 @@ public sealed class InteractiveObject : MonoBehaviour
 
     [Header("Compatibilidade com scripts existentes")]
     public bool autoInvokeCommonMethod = true;
+    public bool searchMethodInParents = true;
+    public bool searchMethodInChildren = true;
     public string[] commonMethodNames =
     {
         "Interact",
         "Interagir",
         "Toggle",
         "Alternar",
+        "ToggleDoor",
+        "OpenDoor",
+        "AbrirPorta",
+        "AbrirFechar",
+        "AlternarPorta",
         "Open",
         "Abrir",
         "Use",
@@ -60,6 +68,7 @@ public sealed class InteractiveObject : MonoBehaviour
     private void OnEnable()
     {
         ResolveHighlight();
+        RefreshCommonMethod();
     }
 
     private void OnDisable()
@@ -117,10 +126,24 @@ public sealed class InteractiveObject : MonoBehaviour
         cachedMethodTarget = null;
         cachedMethod = null;
 
-        if (!autoInvokeCommonMethod || commonMethodNames == null)
+        if (!autoInvokeCommonMethod || commonMethodNames == null || commonMethodNames.Length == 0)
             return;
 
-        MonoBehaviour[] behaviours = GetComponents<MonoBehaviour>();
+        if (TryResolveFromBehaviours(GetComponents<MonoBehaviour>()))
+            return;
+
+        if (searchMethodInParents && TryResolveFromBehaviours(GetComponentsInParent<MonoBehaviour>(true)))
+            return;
+
+        if (searchMethodInChildren)
+            TryResolveFromBehaviours(GetComponentsInChildren<MonoBehaviour>(true));
+    }
+
+    private bool TryResolveFromBehaviours(MonoBehaviour[] behaviours)
+    {
+        if (behaviours == null || behaviours.Length == 0)
+            return false;
+
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
 
         for (int i = 0; i < commonMethodNames.Length; i++)
@@ -148,9 +171,11 @@ public sealed class InteractiveObject : MonoBehaviour
 
                 cachedMethodTarget = behaviour;
                 cachedMethod = method;
-                return;
+                return true;
             }
         }
+
+        return false;
     }
 
     private void InvokeCommonMethod()
