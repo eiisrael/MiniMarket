@@ -3,9 +3,8 @@ using TMPro;
 using UnityEngine;
 
 /// <summary>
-/// Perfil editável dos textos exibidos pelo objeto filho Instruction.
-/// O componente é anexado diretamente ao Instruction para que todos os textos
-/// de estado possam ser alterados no próprio Inspector.
+/// Editor dos textos exibidos pelo objeto filho Instruction.
+/// Os textos são salvos também no objeto raiz para sobreviver à reconstrução visual.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -21,7 +20,7 @@ public sealed class NewspaperInstructionTextSettings : MonoBehaviour
     }
 
     [Header("Controle")]
-    [Tooltip("Quando marcado, os textos abaixo substituem os textos fixos enviados pelos controladores.")]
+    [Tooltip("Substitui os textos fixos enviados pelos controladores pelos textos configurados abaixo.")]
     public bool overrideControllerTexts = true;
 
     [Tooltip("Mostra no Edit Mode o estado escolhido em Estado de visualização.")]
@@ -52,23 +51,25 @@ public sealed class NewspaperInstructionTextSettings : MonoBehaviour
 
     private TMP_Text targetText;
     private NewspaperWorldPromptVisual promptVisual;
+    private NewspaperInstructionTextProfile persistentProfile;
     private string lastAppliedText;
 
     private void Awake()
     {
-        ResolveReferences();
+        InitializeFromPersistentProfile();
     }
 
     private void OnEnable()
     {
-        ResolveReferences();
+        InitializeFromPersistentProfile();
         ApplyNow();
     }
 
     private void OnValidate()
     {
         previewRespawnSeconds = Mathf.Max(0f, previewRespawnSeconds);
-        ResolveReferences();
+        ResolveReferences(false);
+        SaveToPersistentProfile();
 
         if (!Application.isPlaying && previewInEditMode)
             ApplyPreview();
@@ -76,7 +77,7 @@ public sealed class NewspaperInstructionTextSettings : MonoBehaviour
 
     private void LateUpdate()
     {
-        ResolveReferences();
+        ResolveReferences(Application.isPlaying);
 
         if (!overrideControllerTexts || targetText == null)
             return;
@@ -101,18 +102,35 @@ public sealed class NewspaperInstructionTextSettings : MonoBehaviour
         lastAppliedText = resolved;
     }
 
+    /// <summary>
+    /// Chamado pelo instalador quando o filho Instruction é recriado.
+    /// </summary>
+    public void InitializeFromPersistentProfile()
+    {
+        ResolveReferences(Application.isPlaying);
+
+        if (persistentProfile != null && persistentProfile.initialized)
+            LoadFromPersistentProfile();
+        else
+            SaveToPersistentProfile();
+    }
+
     [ContextMenu("Aplicar textos agora")]
     public void ApplyNow()
     {
-        ResolveReferences();
+        ResolveReferences(Application.isPlaying);
 
         if (targetText == null || !overrideControllerTexts)
             return;
 
         currentState = Application.isPlaying ? DetectRuntimeState() : previewState;
-        string resolved = ResolveText(currentState, targetText.text);
+        string resolved = currentState == InstructionState.Respawn && !Application.isPlaying
+            ? FormatRespawn(respawnText, previewRespawnSeconds)
+            : ResolveText(currentState, targetText.text);
+
         targetText.text = resolved;
         lastAppliedText = resolved;
+        SaveToPersistentProfile();
     }
 
     private void ApplyPreview()
@@ -173,6 +191,52 @@ public sealed class NewspaperInstructionTextSettings : MonoBehaviour
             default:
                 return SelectText(availableText, controllerText);
         }
+    }
+
+    private void ResolveReferences(bool createRuntimeProfile)
+    {
+        if (targetText == null)
+            targetText = GetComponent<TMP_Text>();
+
+        if (promptVisual == null)
+            promptVisual = GetComponentInParent<NewspaperWorldPromptVisual>(true);
+
+        if (persistentProfile == null && promptVisual != null)
+            persistentProfile = promptVisual.GetComponent<NewspaperInstructionTextProfile>();
+
+        if (persistentProfile == null && createRuntimeProfile && promptVisual != null)
+            persistentProfile = promptVisual.gameObject.AddComponent<NewspaperInstructionTextProfile>();
+    }
+
+    private void LoadFromPersistentProfile()
+    {
+        if (persistentProfile == null || !persistentProfile.initialized)
+            return;
+
+        overrideControllerTexts = persistentProfile.overrideControllerTexts;
+        previewInEditMode = persistentProfile.previewInEditMode;
+        previewState = persistentProfile.previewState;
+        availableText = persistentProfile.availableText;
+        holdingText = persistentProfile.holdingText;
+        respawnText = persistentProfile.respawnText;
+        placementText = persistentProfile.placementText;
+        previewRespawnSeconds = persistentProfile.previewRespawnSeconds;
+    }
+
+    private void SaveToPersistentProfile()
+    {
+        if (persistentProfile == null)
+            return;
+
+        persistentProfile.overrideControllerTexts = overrideControllerTexts;
+        persistentProfile.previewInEditMode = previewInEditMode;
+        persistentProfile.previewState = previewState;
+        persistentProfile.availableText = availableText;
+        persistentProfile.holdingText = holdingText;
+        persistentProfile.respawnText = respawnText;
+        persistentProfile.placementText = placementText;
+        persistentProfile.previewRespawnSeconds = previewRespawnSeconds;
+        persistentProfile.initialized = true;
     }
 
     private static string SelectText(string customText, string fallback)
@@ -258,15 +322,6 @@ public sealed class NewspaperInstructionTextSettings : MonoBehaviour
         return false;
     }
 
-    private void ResolveReferences()
-    {
-        if (targetText == null)
-            targetText = GetComponent<TMP_Text>();
-
-        if (promptVisual == null)
-            promptVisual = GetComponentInParent<NewspaperWorldPromptVisual>(true);
-    }
-
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void InstallMissingRuntimeComponents()
     {
@@ -279,12 +334,21 @@ public sealed class NewspaperInstructionTextSettings : MonoBehaviour
             if (prompt == null)
                 continue;
 
+            NewspaperInstructionTextProfile profile =
+                prompt.GetComponent<NewspaperInstructionTextProfile>();
+            if (profile == null)
+                profile = prompt.gameObject.AddComponent<NewspaperInstructionTextProfile>();
+
             Transform instruction = prompt.transform.Find("Instruction");
             if (instruction == null || instruction.GetComponent<TMP_Text>() == null)
                 continue;
 
-            if (instruction.GetComponent<NewspaperInstructionTextSettings>() == null)
-                instruction.gameObject.AddComponent<NewspaperInstructionTextSettings>();
+            NewspaperInstructionTextSettings settings =
+                instruction.GetComponent<NewspaperInstructionTextSettings>();
+            if (settings == null)
+                settings = instruction.gameObject.AddComponent<NewspaperInstructionTextSettings>();
+
+            settings.InitializeFromPersistentProfile();
         }
     }
 }
