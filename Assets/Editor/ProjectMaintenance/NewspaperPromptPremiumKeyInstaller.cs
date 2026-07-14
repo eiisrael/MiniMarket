@@ -6,8 +6,8 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Mantém o visual já aprovado do Newspaper_Stand intacto e usa esse prompt somente
-/// como referência para instalar o mesmo padrão no Newspaper_PlacePrompt.
+/// Mantém o visual já aprovado do Newspaper_Stand estritamente somente leitura e usa
+/// esse prompt como referência para instalar o mesmo padrão no Newspaper_PlacePrompt.
 ///
 /// A sincronização da Put_Area acontece uma única vez. Depois que a hierarquia é salva,
 /// as edições manuais do Inspector não são sobrescritas em recompilações futuras.
@@ -147,7 +147,7 @@ internal static class NewspaperPromptPremiumKeyInstaller
             premium.EnsureEditableHierarchy(true);
 
             if (approvedStandVisual != null)
-                CopyActualVisualHierarchy(approvedStandVisual, premium);
+                CopyActualVisualHierarchyReadOnly(approvedStandVisual, premium);
 
             guard.controller = controller;
             guard.premiumPrompt = premium;
@@ -172,7 +172,7 @@ internal static class NewspaperPromptPremiumKeyInstaller
         if (logResult || installedCount > 0 || synchronizedCount > 0)
         {
             Debug.Log(
-                "[NewspaperPremiumKey] Newspaper_Stand preservado. " +
+                "[NewspaperPremiumKey] Newspaper_Stand mantido somente leitura. " +
                 "Componentes instalados na Put_Area: " + installedCount +
                 ", prompts sincronizados: " + synchronizedCount +
                 ". Confira e use Ctrl+S para salvar a cena."
@@ -198,7 +198,6 @@ internal static class NewspaperPromptPremiumKeyInstaller
             if (prompt.transform.Find("CircularPrompt/PremiumKeyVisual") == null)
                 continue;
 
-            premium.RepairReferences();
             return premium;
         }
 
@@ -253,30 +252,60 @@ internal static class NewspaperPromptPremiumKeyInstaller
         target.centerOutlineWidth = source.centerOutlineWidth;
     }
 
-    private static void CopyActualVisualHierarchy(
+    private static void CopyActualVisualHierarchyReadOnly(
         NewspaperPromptPremiumKeyVisual source,
         NewspaperPromptPremiumKeyVisual target)
     {
         if (source == null || target == null)
             return;
 
-        source.RepairReferences();
+        // Resolve somente o destino. Nenhum método, Undo, SetDirty ou alteração é
+        // executado no Newspaper_Stand aprovado.
         target.RepairReferences();
 
-        CopyRect(source.premiumRoot, target.premiumRoot);
-        CopyRect(source.glowMotion, target.glowMotion);
-        CopyRect(source.orbitMotion, target.orbitMotion);
-        CopyRect(source.staticLayer, target.staticLayer);
+        RectTransform sourceCircular = source.transform.Find("CircularPrompt") as RectTransform;
+        RectTransform sourcePremium = sourceCircular != null
+            ? sourceCircular.Find("PremiumKeyVisual") as RectTransform
+            : null;
 
-        CopyShape(source.glowBack, target.glowBack);
-        CopyShape(source.outerRing, target.outerRing);
-        CopyShape(source.accentRing, target.accentRing);
-        CopyShape(source.sparkleTop, target.sparkleTop);
-        CopyShape(source.sparkleLeft, target.sparkleLeft);
-        CopyShape(source.sparkleRight, target.sparkleRight);
-        CopyShape(source.premiumCenterDisc, target.premiumCenterDisc);
-        CopyShape(source.centerHighlight, target.centerHighlight);
-        CopyTextStyle(source.centerText, target.centerText);
+        if (sourcePremium == null)
+            return;
+
+        RectTransform sourceGlowMotion = sourcePremium.Find("GlowMotion") as RectTransform;
+        RectTransform sourceOrbitMotion = sourcePremium.Find("OrbitMotion") as RectTransform;
+        RectTransform sourceStaticLayer = sourcePremium.Find("StaticLayer") as RectTransform;
+
+        CopyRect(sourcePremium, target.premiumRoot);
+        CopyRect(sourceGlowMotion, target.glowMotion);
+        CopyRect(sourceOrbitMotion, target.orbitMotion);
+        CopyRect(sourceStaticLayer, target.staticLayer);
+
+        CopyShape(FindShape(sourceGlowMotion, "DynamicGlow"), target.glowBack);
+        CopyShape(FindShape(sourceOrbitMotion, "OuterRing"), target.outerRing);
+        CopyShape(FindShape(sourceOrbitMotion, "AccentRing"), target.accentRing);
+        CopyShape(FindShape(sourceOrbitMotion, "SparkleTop"), target.sparkleTop);
+        CopyShape(FindShape(sourceOrbitMotion, "SparkleLeft"), target.sparkleLeft);
+        CopyShape(FindShape(sourceOrbitMotion, "SparkleRight"), target.sparkleRight);
+        CopyShape(FindShape(sourceStaticLayer, "CenterCircle"), target.premiumCenterDisc);
+        CopyShape(FindShape(sourceStaticLayer, "CenterHighlight"), target.centerHighlight);
+
+        TextMeshProUGUI sourceText = sourceCircular.Find("CenterText") != null
+            ? sourceCircular.Find("CenterText").GetComponent<TextMeshProUGUI>()
+            : null;
+        CopyTextStyle(sourceText, target.centerText);
+    }
+
+    private static NewspaperPromptShapeGraphic FindShape(
+        Transform parent,
+        string childName)
+    {
+        if (parent == null)
+            return null;
+
+        Transform child = parent.Find(childName);
+        return child != null
+            ? child.GetComponent<NewspaperPromptShapeGraphic>()
+            : null;
     }
 
     private static void CopyRect(RectTransform source, RectTransform target)
