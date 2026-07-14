@@ -1,17 +1,22 @@
 #if UNITY_EDITOR
 using System;
+using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Compatibilidade para versões experimentais do Unity/.NET que expõem apenas a
-/// sobrecarga de comparação de ReadOnlySpan com StringComparison obrigatório.
-/// Permite que código legado usando span.CompareTo(outroSpan) continue compilando
-/// com comparação ordinal determinística.
+/// Compatibilidade para versões experimentais do Unity/.NET.
+/// Adiciona comparações determinísticas para tipos que não implementam CompareTo
+/// diretamente nas versões alpha do Unity 6.
 /// </summary>
-internal static class ReadOnlySpanCompareToCompatibility
+internal static class UnityAlphaCompareToCompatibility
 {
     public static int CompareTo(this ReadOnlySpan<char> left, ReadOnlySpan<char> right)
     {
         return MemoryExtensions.CompareTo(left, right, StringComparison.Ordinal);
+    }
+
+    public static int CompareTo(this SceneHandle left, SceneHandle right)
+    {
+        return left.GetRawData().CompareTo(right.GetRawData());
     }
 }
 #endif
