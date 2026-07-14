@@ -31,6 +31,27 @@ Não usar `git reset --hard` ou `git clean -fd` sem backup e sem conferir os arq
 
 ## 3. Regressão imediata de 2026-07-14
 
+### Edição completa do jornal durante Play Mode
+
+1. Salvar a cena antes do teste.
+2. Entrar no Play Mode.
+3. Alterar `Position`, `Rotation` e `Scale` de `Newspaper_PlacePrompt`.
+4. Alterar `RectTransform` de `CircularPrompt`, `Instruction` e pelo menos um anel.
+5. Alterar cor/transparência de uma `Image`.
+6. Alterar texto, tamanho da fonte ou contorno de `Instruction`.
+7. Alterar uma opção serializada de `NewspaperWorldPromptVisual`.
+8. Alterar largura ou cor de um `LineRenderer` da Put Area.
+9. Alterar Transform de `Placed_Newspaper_Runtime`.
+10. Pressionar Stop.
+11. Confirmar que todas as alterações manuais continuam visíveis na cena.
+12. Confirmar que a cena fica com asterisco somente porque existem alterações reais reaplicadas.
+13. Confirmar no Console a mensagem `[NewspaperPlayEdit]` informando alterações aplicadas.
+14. Salvar com `Ctrl+S`, fechar e reabrir a cena.
+15. Confirmar que os valores continuam iguais.
+16. Repetir entrando e saindo do Play sem editar nada; a cena não deve receber alterações novas.
+17. Confirmar que animação, billboard, progresso e visibilidade automáticos do gameplay não viram valores permanentes.
+18. Criar/apagar/reordenar objetos somente fora do Play; esse fluxo não é responsabilidade do persistidor.
+
 ### Porta em terceira pessoa
 
 1. Iniciar Play usando a câmera principal em terceira pessoa.
@@ -187,7 +208,9 @@ Repetir o teste na cópia:
 - `Newspaper_InteractionPrompt`, `Newspaper_PlacePrompt` e `Placed_Newspaper_Runtime` existem antes do Play;
 - `CircularPrompt`, `Instruction`, anéis, brilhos, disco e textos são selecionáveis;
 - Stop não remove os objetos;
-- `Ctrl+S` não volta a exibir o asterisco sem uma alteração real;
+- propriedades alteradas manualmente durante o Play são reaplicadas no Stop;
+- estados automáticos do gameplay não são persistidos;
+- `Ctrl+S` salva os valores reaplicados;
 - o prompt da Put_Area fica vertical e visível apenas quando oferecido ao jogador;
 - posição/escala dos filhos não são redefinidas a cada frame.
 
@@ -260,4 +283,4 @@ Antes de encerrar:
 
 ## Validação ainda necessária no ambiente local
 
-A revisão desta alteração é estática. Compilação do projeto, comportamento visual, perfil de frame e persistência final precisam ser confirmados no Unity local depois do pull.
+A revisão desta alteração é estática. Compilação do projeto, comportamento visual e persistência final precisam ser confirmados no Unity local depois do pull.
