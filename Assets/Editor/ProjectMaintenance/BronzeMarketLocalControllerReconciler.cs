@@ -8,9 +8,8 @@ using Object = UnityEngine.Object;
 
 /// <summary>
 /// Prefere o controlador já existente em BuySceneController, preservando os ajustes de câmera
-/// feitos pelo usuário, e desativa controladores duplicados criados por versões antigas.
-/// A execução automática é coordenada por BronzeMarketPostDuplicateFinalizer para ocorrer
-/// somente depois da geração do ID e da montagem inicial da cópia.
+/// feitos pelo usuário, e desativa controladores duplicados de versões antigas.
+/// Não usa SendMessage em Edit Mode e não força a reconstrução runtime dos LineRenderers.
 /// </summary>
 public static class BronzeMarketLocalControllerReconciler
 {
@@ -94,6 +93,7 @@ public static class BronzeMarketLocalControllerReconciler
 
         Undo.RecordObject(bridge, "Reconciliar ponte de câmera Bronze");
         Undo.RecordObject(purchase, "Reconciliar compra Bronze");
+
         bridge.enabled = true;
         bridge.purchaseController = preferred;
         bridge.playerCamera = lot.cameraDoJogador;
@@ -120,8 +120,9 @@ public static class BronzeMarketLocalControllerReconciler
                 : Array.Empty<BuyableLandAreaMarker>();
             lot.triggerEntrada.usarTerrenosProximosSeListaVazia = false;
             lot.triggerEntrada.sincronizarComTerrenosEncontradosAutomaticamente = false;
-            lot.triggerEntrada.SendMessage("CriarRenderizadores", SendMessageOptions.DontRequireReceiver);
-            lot.triggerEntrada.SendMessage("AtualizarVisualCompleto", SendMessageOptions.DontRequireReceiver);
+
+            // Os objetos visuais já são persistentes e foram copiados junto da loja.
+            // Em Edit Mode apenas usamos sharedMaterial; nenhuma mensagem runtime é enviada.
             AssignLineMaterial(lot.triggerEntrada.transform, lineMaterial);
         }
 
@@ -131,7 +132,6 @@ public static class BronzeMarketLocalControllerReconciler
             lot.terrenoPrincipal.idPersistente = lot.idLote;
             lot.terrenoPrincipal.nomeDoTerreno = lot.nomeDaLoja;
             lot.terrenoPrincipal.precoGold = lot.precoGold;
-            lot.terrenoPrincipal.SendMessage("CriarOuAtualizarLinhas", SendMessageOptions.DontRequireReceiver);
             AssignLineMaterial(lot.terrenoPrincipal.transform, lineMaterial);
         }
 
@@ -170,7 +170,15 @@ public static class BronzeMarketLocalControllerReconciler
         }
 
         lot.AplicarVinculosRuntime();
-        MarkDirty(lot, preferred, bridge, purchase, lot.triggerEntrada, lot.terrenoPrincipal, lot.visualStatus);
+        MarkDirty(
+            lot,
+            preferred,
+            bridge,
+            purchase,
+            lot.triggerEntrada,
+            lot.terrenoPrincipal,
+            lot.visualStatus
+        );
         return true;
     }
 
@@ -238,12 +246,13 @@ public static class BronzeMarketLocalControllerReconciler
         LineRenderer[] lines = root.GetComponentsInChildren<LineRenderer>(true);
         for (int i = 0; i < lines.Length; i++)
         {
-            if (lines[i] == null)
+            LineRenderer line = lines[i];
+            if (line == null)
                 continue;
 
-            Undo.RecordObject(lines[i], "Atribuir material persistente da compra");
-            lines[i].sharedMaterial = material;
-            EditorUtility.SetDirty(lines[i]);
+            Undo.RecordObject(line, "Atribuir material persistente da compra");
+            line.sharedMaterial = material;
+            EditorUtility.SetDirty(line);
         }
     }
 
