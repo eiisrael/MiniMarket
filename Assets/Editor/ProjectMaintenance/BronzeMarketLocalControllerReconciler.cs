@@ -7,22 +7,14 @@ using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Reconciliador complementar das lojas Bronze. Prefere o controlador já existente em
-/// BuySceneController, preservando os ajustes de câmera que o usuário já fez, e desativa
-/// controladores duplicados criados por versões antigas do reparo.
+/// Prefere o controlador já existente em BuySceneController, preservando os ajustes de câmera
+/// feitos pelo usuário, e desativa controladores duplicados criados por versões antigas.
+/// A execução automática é coordenada por BronzeMarketPostDuplicateFinalizer para ocorrer
+/// somente depois da geração do ID e da montagem inicial da cópia.
 /// </summary>
-[InitializeOnLoad]
 public static class BronzeMarketLocalControllerReconciler
 {
     private const string MaterialPath = "Assets/Generated/MiniMarket/Materials/BuyAreaLine.mat";
-    private static bool scheduled;
-    private static bool executing;
-
-    static BronzeMarketLocalControllerReconciler()
-    {
-        EditorApplication.hierarchyChanged -= Schedule;
-        EditorApplication.hierarchyChanged += Schedule;
-    }
 
     [MenuItem("Tools/MiniMarket/Bronze Market/Reconciliar Controladores e Visuais", priority = 4)]
     public static void RunAndSave()
@@ -40,48 +32,15 @@ public static class BronzeMarketLocalControllerReconciler
             return;
         }
 
-        int changed = ReconcileAll();
-        if (changed > 0)
+        int reconciled = ReconcileAll();
+        if (reconciled > 0)
         {
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
         }
 
-        Debug.Log("[BronzeMarketReconciler] Finalizado. Lojas reconciliadas=" + changed + ".");
-    }
-
-    private static void Schedule()
-    {
-        if (scheduled || executing || EditorApplication.isPlayingOrWillChangePlaymode ||
-            EditorApplication.isCompiling || EditorApplication.isUpdating)
-        {
-            return;
-        }
-
-        scheduled = true;
-        EditorApplication.delayCall += RunDelayed;
-    }
-
-    private static void RunDelayed()
-    {
-        scheduled = false;
-        if (executing || EditorApplication.isPlayingOrWillChangePlaymode ||
-            EditorApplication.isCompiling || EditorApplication.isUpdating)
-        {
-            return;
-        }
-
-        Scene scene = SceneManager.GetActiveScene();
-        if (!scene.IsValid() || !scene.isLoaded || string.IsNullOrWhiteSpace(scene.path))
-            return;
-
-        int changed = ReconcileAll();
-        if (changed > 0)
-        {
-            EditorSceneManager.MarkSceneDirty(scene);
-            SceneView.RepaintAll();
-        }
+        Debug.Log("[BronzeMarketReconciler] Finalizado. Lojas reconciliadas=" + reconciled + ".");
     }
 
     private static int ReconcileAll()
@@ -94,23 +53,16 @@ public static class BronzeMarketLocalControllerReconciler
         if (lots.Length == 0)
             return 0;
 
-        executing = true;
-        int changed = 0;
-        try
+        Material lineMaterial = EnsureLineMaterial();
+        int reconciled = 0;
+
+        for (int i = 0; i < lots.Length; i++)
         {
-            Material lineMaterial = EnsureLineMaterial();
-            for (int i = 0; i < lots.Length; i++)
-            {
-                if (ReconcileLot(lots[i], lineMaterial))
-                    changed++;
-            }
-        }
-        finally
-        {
-            executing = false;
+            if (ReconcileLot(lots[i], lineMaterial))
+                reconciled++;
         }
 
-        return changed;
+        return reconciled;
     }
 
     private static bool ReconcileLot(BronzeMarketPurchaseLot lot, Material lineMaterial)
@@ -127,27 +79,22 @@ public static class BronzeMarketLocalControllerReconciler
         if (preferred == null)
             return false;
 
-        bool changed = lot.controladorCamera != preferred;
         Undo.RecordObject(lot, "Reconciliar controlador da Bronze_Market");
         lot.controladorCamera = preferred;
+        preferred.enabled = true;
 
         PurchaseModeBridge bridge = preferred.GetComponent<PurchaseModeBridge>();
         if (bridge == null)
-        {
             bridge = Undo.AddComponent<PurchaseModeBridge>(preferred.gameObject);
-            changed = true;
-        }
 
         BuySceneLandPurchaseController purchase =
             preferred.GetComponent<BuySceneLandPurchaseController>();
         if (purchase == null)
-        {
             purchase = Undo.AddComponent<BuySceneLandPurchaseController>(preferred.gameObject);
-            changed = true;
-        }
 
         Undo.RecordObject(bridge, "Reconciliar ponte de câmera Bronze");
         Undo.RecordObject(purchase, "Reconciliar compra Bronze");
+        bridge.enabled = true;
         bridge.purchaseController = preferred;
         bridge.playerCamera = lot.cameraDoJogador;
         bridge.movement = lot.movimentoDoJogador;
@@ -220,12 +167,11 @@ public static class BronzeMarketLocalControllerReconciler
                 Undo.RecordObject(otherPurchase, "Desativar compra Bronze duplicada");
                 otherPurchase.enabled = false;
             }
-            changed = true;
         }
 
         lot.AplicarVinculosRuntime();
         MarkDirty(lot, preferred, bridge, purchase, lot.triggerEntrada, lot.terrenoPrincipal, lot.visualStatus);
-        return changed || true;
+        return true;
     }
 
     private static BuySceneCameraModeController ChoosePreferredController(
