@@ -1,14 +1,18 @@
 using System;
+using System.Globalization;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// Reconfigura automaticamente o botão Energia Grátis para adicionar 25% da
-/// energia total por clique, em vez de restaurar 100% de uma vez.
+/// Fonte autoritativa do botão Energia +25%.
 ///
-/// O cálculo respeita o sistema segmentado, dispara o evento de stamina,
-/// atualiza o HUD imediatamente e força a persistência no banco local.
+/// - encontra o CameraRelativeMovement realmente ligado à câmera/jogador ativo;
+/// - evita conflito com os listeners antigos que restauravam 100%;
+/// - aplica exatamente +25% da energia total segmentada;
+/// - atualiza o texto do menu no mesmo frame;
+/// - salva imediatamente no banco local.
 /// </summary>
 [DefaultExecutionOrder(11050)]
 [DisallowMultipleComponent]
@@ -16,24 +20,25 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
 {
     [Header("Referências")]
     public MiniMarketMenuController menuController;
+    public PlayerCameraController playerCamera;
     public CameraRelativeMovement movement;
 
     [Header("Recarga")]
     [Range(0.01f, 1f)] public float amountPerClick = 0.25f;
-
-    [Header("Busca automática")]
-    [Min(0.1f)] public float referenceSearchInterval = 0.75f;
+    [Min(0.02f)] public float liveUpdateInterval = 0.08f;
 
     [Header("Debug")]
     public bool logRefills;
 
     private static MiniMarketEnergyQuarterRefill instance;
-    private Button boundButton;
-    private bool previousMenuOpen;
-    private float nextReferenceSearch;
-
     private static readonly BindingFlags InstancePrivate =
         BindingFlags.Instance | BindingFlags.NonPublic;
+
+    private readonly CultureInfo culture = new CultureInfo("pt-BR");
+    private Button boundButton;
+    private MiniMarketEnergyQuarterButtonProxy boundProxy;
+    private float nextRefresh;
+    private int lastProcessedFrame = -1;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -68,12 +73,13 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
         instance = this;
         DontDestroyOnLoad(gameObject);
         ResolveReferences(true);
-        EnsureButtonBinding(true);
+        ConfigureMenuAndButton(true);
+        SyncMenuEnergyText();
     }
 
     private void OnDestroy()
     {
-        UnbindButton();
+        ReleaseButton();
 
         if (instance == this)
             instance = null;
@@ -82,43 +88,45 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
     private void LateUpdate()
     {
         ResolveReferences(false);
+        ConfigureMenuAndButton(false);
 
-        if (menuController == null)
-            return;
-
-        // O clique manual antigo chamava diretamente a recarga de 100%.
-        // O Button padrão permanece como única fonte do clique.
-        menuController.usarCliqueManualDeSeguranca = false;
-
-        bool menuOpenedNow = menuController.MenuAberto && !previousMenuOpen;
-        EnsureButtonBinding(menuOpenedNow);
-        previousMenuOpen = menuController.MenuAberto;
+        if (Time.unscaledTime >= nextRefresh)
+        {
+            nextRefresh = Time.unscaledTime + Mathf.Max(0.02f, liveUpdateInterval);
+            SyncMenuEnergyText();
+        }
     }
 
     public void AddTwentyFivePercent()
     {
+        if (Time.frameCount == lastProcessedFrame)
+            return;
+
+        lastProcessedFrame = Time.frameCount;
         ResolveReferences(true);
 
         if (movement == null)
         {
             Debug.LogWarning(
-                "[EnergyQuarterRefill] CameraRelativeMovement não foi encontrado.",
+                "[EnergyQuarterRefill] Movimento ativo do jogador não foi encontrado.",
                 this
             );
             return;
         }
 
-        float before = movement.EnergiaPercentual01;
+        float before = Mathf.Clamp01(movement.EnergiaPercentual01);
         float target = Mathf.Clamp01(before + Mathf.Clamp(amountPerClick, 0.01f, 1f));
 
         if (!TrySetEnergyPercent(movement, target))
         {
             Debug.LogWarning(
-                "[EnergyQuarterRefill] Não foi possível aplicar a recarga incremental.",
+                "[EnergyQuarterRefill] Falha ao aplicar energia incremental.",
                 movement
             );
             return;
         }
+
+        SyncMenuEnergyText();
 
         if (menuController != null)
             menuController.AtualizarTextos();
@@ -136,63 +144,134 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
 
     private void ResolveReferences(bool force)
     {
-        if (!force && Time.unscaledTime < nextReferenceSearch &&
-            menuController != null && movement != null)
-        {
-            return;
-        }
-
-        nextReferenceSearch = Time.unscaledTime + Mathf.Max(0.1f, referenceSearchInterval);
-
-        if (menuController == null)
+        if (force || menuController == null)
         {
             menuController = UnityEngine.Object.FindAnyObjectByType<MiniMarketMenuController>(
                 FindObjectsInactive.Include
             );
         }
 
-        if (movement == null && menuController != null)
-            movement = menuController.movimento;
-
-        if (movement == null)
+        if (force || playerCamera == null)
         {
-            movement = UnityEngine.Object.FindAnyObjectByType<CameraRelativeMovement>(
+            playerCamera = UnityEngine.Object.FindAnyObjectByType<PlayerCameraController>(
                 FindObjectsInactive.Include
             );
         }
 
-        if (menuController != null && menuController.movimento == null && movement != null)
+        CameraRelativeMovement resolvedMovement = null;
+
+        if (playerCamera != null && IsUsableMovement(playerCamera.movement))
+            resolvedMovement = playerCamera.movement;
+
+        if (resolvedMovement == null &&
+            menuController != null &&
+            IsUsableMovement(menuController.movimento))
+        {
+            resolvedMovement = menuController.movimento;
+        }
+
+        if (resolvedMovement == null)
+        {
+            CameraRelativeMovement[] candidates =
+                UnityEngine.Object.FindObjectsByType<CameraRelativeMovement>(
+                    FindObjectsInactive.Include,
+                    FindObjectsSortMode.None
+                );
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                CameraRelativeMovement candidate = candidates[i];
+                if (candidate != null && candidate.isActiveAndEnabled)
+                {
+                    resolvedMovement = candidate;
+                    break;
+                }
+            }
+
+            if (resolvedMovement == null && candidates.Length > 0)
+                resolvedMovement = candidates[0];
+        }
+
+        if (resolvedMovement != null)
+            movement = resolvedMovement;
+
+        if (menuController != null && movement != null)
             menuController.movimento = movement;
     }
 
-    private void EnsureButtonBinding(bool force)
+    private static bool IsUsableMovement(CameraRelativeMovement value)
+    {
+        return value != null && value.gameObject.scene.IsValid();
+    }
+
+    private void ConfigureMenuAndButton(bool force)
     {
         if (menuController == null)
             return;
 
-        Button targetButton = menuController.botaoGemasGratis;
-        if (targetButton == null)
+        menuController.usarCliqueManualDeSeguranca = false;
+        menuController.atualizarEmTempoReal = true;
+        menuController.intervaloAtualizacaoAberto = Mathf.Min(
+            menuController.intervaloAtualizacaoAberto,
+            0.10f
+        );
+
+        Button target = menuController.botaoGemasGratis;
+        if (target == null)
             return;
 
-        if (!force && boundButton == targetButton)
+        if (!force && target == boundButton && boundProxy != null)
+        {
+            boundProxy.service = this;
+            target.enabled = false;
             return;
+        }
 
-        UnbindButton();
-        boundButton = targetButton;
+        ReleaseButton();
+        boundButton = target;
 
-        boundButton.onClick.RemoveListener(menuController.RecarregarEnergiaComGemasGratis);
-        boundButton.onClick.RemoveListener(menuController.RecarregarStaminaComGemasGratis);
-        boundButton.onClick.RemoveListener(AddTwentyFivePercent);
-        boundButton.onClick.AddListener(AddTwentyFivePercent);
+        // Desliga somente o componente Button antigo. A Image continua recebendo raycast
+        // e o proxy abaixo passa a ser a única fonte do clique.
+        boundButton.enabled = false;
+
+        Graphic graphic = boundButton.GetComponent<Graphic>();
+        if (graphic != null)
+            graphic.raycastTarget = true;
+
+        boundProxy = boundButton.GetComponent<MiniMarketEnergyQuarterButtonProxy>();
+        if (boundProxy == null)
+            boundProxy = boundButton.gameObject.AddComponent<MiniMarketEnergyQuarterButtonProxy>();
+
+        boundProxy.service = this;
+
+        Text label = boundButton.GetComponentInChildren<Text>(true);
+        if (label != null)
+            label.text = "ENERGIA\n+25%";
     }
 
-    private void UnbindButton()
+    private void ReleaseButton()
     {
-        if (boundButton == null)
+        if (boundProxy != null && boundProxy.service == this)
+            boundProxy.service = null;
+
+        boundProxy = null;
+        boundButton = null;
+    }
+
+    private void SyncMenuEnergyText()
+    {
+        if (menuController == null || movement == null)
             return;
 
-        boundButton.onClick.RemoveListener(AddTwentyFivePercent);
-        boundButton = null;
+        menuController.movimento = movement;
+
+        if (menuController.textoStamina != null)
+        {
+            int percent = Mathf.RoundToInt(Mathf.Clamp01(movement.EnergiaPercentual01) * 100f);
+            menuController.textoStamina.text = menuController.incluirRotulosNosTextos
+                ? menuController.rotuloEnergia + ": " + percent.ToString(culture) + "%"
+                : percent.ToString(culture) + "%";
+        }
     }
 
     private static bool TrySetEnergyPercent(
@@ -233,7 +312,6 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
                 float activeBar01 = totalBars - (newSegments - 1);
                 activeBar01 = Mathf.Clamp01(activeBar01);
 
-                // Em valores exatos como 20%, 40% e 100%, a barra ativa é cheia.
                 if (activeBar01 <= 0.0001f)
                     activeBar01 = 1f;
 
@@ -276,5 +354,22 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
         saveDatabase?.Invoke(targetMovement, new object[] { true });
 
         return true;
+    }
+}
+
+/// <summary>
+/// Recebe o clique mesmo com o componente Button legado desativado.
+/// A Image do botão permanece como alvo de raycast do EventSystem.
+/// </summary>
+public sealed class MiniMarketEnergyQuarterButtonProxy : MonoBehaviour, IPointerClickHandler
+{
+    [NonSerialized] public MiniMarketEnergyQuarterRefill service;
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData == null || eventData.button != PointerEventData.InputButton.Left)
+            return;
+
+        service?.AddTwentyFivePercent();
     }
 }
