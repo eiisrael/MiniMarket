@@ -160,15 +160,28 @@ internal static class PlayerDatabaseCrossSceneReferenceGuard
         if (targetObject.name == "MiniMarket_PlayerDatabase")
             return true;
 
-        Component component = reference as Component;
-        string typeName = component != null
-            ? component.GetType().Name
-            : string.Empty;
+        Component referencedComponent = reference as Component;
+        if (IsDatabaseComponent(referencedComponent))
+            return true;
 
+        Component[] components = targetObject.GetComponents<Component>();
+        for (int i = 0; i < components.Length; i++)
+        {
+            if (IsDatabaseComponent(components[i]))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsDatabaseComponent(Component component)
+    {
+        if (component == null)
+            return false;
+
+        string typeName = component.GetType().Name;
         return typeName == "PlayerDatabase" ||
-               typeName == "MiniMarketPlayerDatabase" ||
-               targetObject.GetComponent("PlayerDatabase") != null ||
-               targetObject.GetComponent("MiniMarketPlayerDatabase") != null;
+               typeName == "MiniMarketPlayerDatabase";
     }
 
     private static GameObject ResolveGameObject(Object reference)
