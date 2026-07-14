@@ -2,6 +2,38 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-14 — Compatibilidade Unity 6.7 do editor persistente do jornal
+
+### Erros corrigidos
+
+- removido o uso de `UnityEngine.Object.GetInstanceID()`, que virou erro de compilação no Unity 6.7;
+- removido o uso inexistente de `PropertyModification.Apply()`.
+
+### Implementação
+
+Arquivo principal:
+
+```text
+Assets/Editor/ProjectMaintenance/NewspaperPlacePromptScalePersistence.cs
+```
+
+Alterações:
+
+- objetos do Play Mode são identificados por referência somente enquanto continuam vivos;
+- o alvo real após Stop continua sendo localizado por cena, caminho de sibling, tipo e índice do componente;
+- valores são capturados com tipo forte por `SerializedProperty`;
+- valores são reaplicados por `SerializedObject.ApplyModifiedPropertiesWithoutUndo()`;
+- Undo e marcação da cena como modificada foram preservados;
+- referências para assets e objetos da cena continuam sendo resolvidas sem IDs obsoletos;
+- não existe busca, reflexão ou gravação por frame;
+- nenhuma cena, prefab ou conteúdo de `Assets/Brick Project Studio` foi alterado.
+
+### Documentação e validação
+
+- criado `Relatorios/JORNAL_PLAY_MODE_EDITAVEL_UNITY_6_7.md`;
+- revisão estática concluída;
+- compilação e comportamento final precisam ser confirmados no Unity 6.7 local.
+
 ## 2026-07-14 — Toda a estrutura do jornal editável durante Play e persistente no Stop
 
 ### Problema
