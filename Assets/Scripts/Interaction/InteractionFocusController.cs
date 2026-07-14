@@ -4,6 +4,10 @@ using UnityEngine;
 /// Detecta objetos interativos pela câmera em primeira ou terceira pessoa.
 /// O mesmo componente funciona com mouse, toque central e botões de UI mobile.
 /// Itens GrabbableItem continuam sob responsabilidade do GetItemController.
+///
+/// Em terceira pessoa, além do raio da câmera, usa um segundo raio saindo da altura
+/// do personagem em direção ao centro da tela. Isso evita que a distância/offset da
+/// câmera impeça a abertura de portas próximas ao jogador.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(1100)]
@@ -21,6 +25,11 @@ public sealed class InteractionFocusController : MonoBehaviour
     public LayerMask interactionLayers = ~0;
     public bool ignoreTriggers = true;
     public bool useScreenCenter = true;
+
+    [Header("Terceira pessoa")]
+    public bool usePlayerOriginFallbackInThirdPerson = true;
+    [Min(0f)] public float thirdPersonOriginHeight = 1.25f;
+    [Min(0.1f)] public float thirdPersonFallbackDistance = 7f;
 
     [Header("Input Desktop")]
     public bool interactWithMouse = true;
@@ -119,7 +128,57 @@ public sealed class InteractionFocusController : MonoBehaviour
 
     private InteractiveObject FindCandidate()
     {
-        Ray ray = BuildRay();
+        Ray cameraRay = BuildRay();
+        InteractiveObject candidate = FindCandidateAlongRay(
+            cameraRay,
+            interactionDistance,
+            out float cameraDistance
+        );
+
+        if (candidate != null)
+        {
+            DrawDebugRay(cameraRay, interactionDistance, true);
+            return candidate;
+        }
+
+        if (!ShouldUseThirdPersonFallback())
+        {
+            DrawDebugRay(cameraRay, interactionDistance, false);
+            return null;
+        }
+
+        Vector3 playerOrigin = playerRoot.position + Vector3.up * thirdPersonOriginHeight;
+        Vector3 screenTarget = cameraRay.origin + cameraRay.direction * interactionDistance;
+        Vector3 direction = screenTarget - playerOrigin;
+
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            DrawDebugRay(cameraRay, interactionDistance, false);
+            return null;
+        }
+
+        float fallbackDistance = Mathf.Min(
+            Mathf.Max(0.1f, thirdPersonFallbackDistance),
+            direction.magnitude
+        );
+
+        Ray playerRay = new Ray(playerOrigin, direction.normalized);
+        candidate = FindCandidateAlongRay(playerRay, fallbackDistance, out float playerDistance);
+
+        if (drawDebug)
+        {
+            DrawDebugRay(cameraRay, interactionDistance, false);
+            DrawDebugRay(playerRay, fallbackDistance, candidate != null);
+        }
+
+        return candidate;
+    }
+
+    private InteractiveObject FindCandidateAlongRay(
+        Ray ray,
+        float maxDistance,
+        out float bestDistance)
+    {
         QueryTriggerInteraction triggerMode = ignoreTriggers
             ? QueryTriggerInteraction.Ignore
             : QueryTriggerInteraction.Collide;
@@ -131,7 +190,7 @@ public sealed class InteractionFocusController : MonoBehaviour
                 ray,
                 interactionRadius,
                 hits,
-                interactionDistance,
+                maxDistance,
                 interactionLayers,
                 triggerMode
             );
@@ -141,14 +200,14 @@ public sealed class InteractionFocusController : MonoBehaviour
             count = Physics.RaycastNonAlloc(
                 ray,
                 hits,
-                interactionDistance,
+                maxDistance,
                 interactionLayers,
                 triggerMode
             );
         }
 
         InteractiveObject best = null;
-        float bestDistance = float.PositiveInfinity;
+        bestDistance = float.PositiveInfinity;
 
         for (int i = 0; i < count; i++)
         {
@@ -156,24 +215,25 @@ public sealed class InteractionFocusController : MonoBehaviour
             if (hitCollider == null || IsPlayerCollider(hitCollider))
                 continue;
 
-            InteractiveObject candidate = hitCollider.GetComponentInParent<InteractiveObject>();
-            if (candidate == null || !candidate.canInteract || !candidate.isActiveAndEnabled)
+            InteractiveObject current = hitCollider.GetComponentInParent<InteractiveObject>();
+            if (current == null || !current.canInteract || !current.isActiveAndEnabled)
                 continue;
 
             if (hits[i].distance >= bestDistance)
                 continue;
 
             bestDistance = hits[i].distance;
-            best = candidate;
-        }
-
-        if (drawDebug)
-        {
-            Color color = best != null ? Color.green : Color.red;
-            Debug.DrawRay(ray.origin, ray.direction * interactionDistance, color);
+            best = current;
         }
 
         return best;
+    }
+
+    private bool ShouldUseThirdPersonFallback()
+    {
+        return usePlayerOriginFallbackInThirdPerson &&
+               playerRoot != null &&
+               (cameraController == null || !cameraController.IsFirstPerson);
     }
 
     private Ray BuildRay()
@@ -182,6 +242,18 @@ public sealed class InteractionFocusController : MonoBehaviour
             return cameraSource.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
 
         return cameraSource.ScreenPointToRay(externalScreenPosition);
+    }
+
+    private void DrawDebugRay(Ray ray, float distance, bool found)
+    {
+        if (!drawDebug)
+            return;
+
+        Debug.DrawRay(
+            ray.origin,
+            ray.direction * distance,
+            found ? Color.green : Color.red
+        );
     }
 
     private bool IsPlayerCollider(Collider collider)
@@ -212,6 +284,13 @@ public sealed class InteractionFocusController : MonoBehaviour
         if (cameraController == null)
             cameraController = GetComponent<PlayerCameraController>();
 
+        if (cameraController == null)
+        {
+            cameraController = Object.FindAnyObjectByType<PlayerCameraController>(
+                FindObjectsInactive.Include
+            );
+        }
+
         if (cameraSource == null && cameraController != null)
             cameraSource = cameraController.gameCamera;
 
@@ -232,5 +311,7 @@ public sealed class InteractionFocusController : MonoBehaviour
     {
         interactionDistance = Mathf.Max(0.1f, interactionDistance);
         interactionRadius = Mathf.Max(0f, interactionRadius);
+        thirdPersonOriginHeight = Mathf.Max(0f, thirdPersonOriginHeight);
+        thirdPersonFallbackDistance = Mathf.Max(0.1f, thirdPersonFallbackDistance);
     }
 }
