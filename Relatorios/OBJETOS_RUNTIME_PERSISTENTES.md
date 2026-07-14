@@ -2,30 +2,56 @@
 
 Atualizado em: 2026-07-14
 
-## Atualização de 2026-07-14 — escala persistente do Newspaper_PlacePrompt
+## Atualização de 2026-07-14 — edição completa do jornal durante Play Mode
 
-Foi criado:
+O arquivo:
 
 ```text
 Assets/Editor/ProjectMaintenance/NewspaperPlacePromptScalePersistence.cs
 ```
 
-Comportamento:
+agora contém `NewspaperPlayModeHierarchyPersistence`, responsável por transformar as edições manuais feitas durante o Play Mode em valores reais da cena ao voltar para Stop.
 
-- a escala da raiz `Newspaper_PlacePrompt` passa a vir exclusivamente do `Transform` editado no Inspector;
-- o reparo legado que normalizava escalas pequenas é desativado em memória antes do Play Mode;
-- a escala exata anterior ao Play é registrada no `SessionState` do Editor;
-- ao pressionar Stop, a escala só é restaurada quando algum código antigo realmente a modificou;
-- não existe `Update`, busca por frame ou salvamento automático da cena;
-- escalas uniformes e não uniformes são preservadas;
-- o sistema não altera posição, rotação, tamanho, filhos, cores ou transparências.
+### Estrutura abrangida
 
-Fluxo recomendado:
+O sistema reconhece objetos e componentes já existentes sob:
 
-1. fora do Play Mode, alterar `Transform > Scale` de `Newspaper_PlacePrompt`;
-2. salvar a cena com `Ctrl + S`;
-3. entrar e sair do Play Mode;
-4. confirmar que os três eixos permanecem exatamente iguais.
+```text
+Newspaper_Stand
+Newspaper_InteractionPrompt
+Jornal_Place
+Put_Area
+Newspaper_PlacePrompt
+Placed_Newspaper_Runtime
+NewspaperPutArea_*
+```
+
+Isso inclui `Transform`, `RectTransform`, componentes de UI, textos, imagens, Canvas, CanvasGroup, LineRenderer e campos serializados dos scripts do jornal.
+
+### Comportamento
+
+- alterações feitas pelo Inspector ou pelos gizmos durante o Play são registradas pelo Undo do Editor;
+- ao pressionar Stop, somente essas alterações manuais são reaplicadas à cena;
+- mudanças automáticas do gameplay, como billboard, progresso, visibilidade e animações, não são copiadas porque não passam pelo Undo do Editor;
+- posição, rotação, escala, tamanho, âncoras, pivot, cores, transparência, textos e opções serializadas podem permanecer após o Stop;
+- referências para assets persistentes e referências entre objetos da mesma cena também podem ser restauradas;
+- a cena é marcada como modificada e deve ser salva com `Ctrl + S`;
+- não existe busca por frame, gravação em disco por frame ou salvamento automático da cena;
+- o reparo legado de escala do `Newspaper_PlacePrompt` continua desativado em memória antes do Play;
+- a escala-base anterior ao Play ainda é protegida contra alterações feitas por código antigo.
+
+### Limite intencional
+
+O recurso persiste propriedades de objetos e componentes que já existiam antes do Play. Criar, apagar, reordenar ou trocar o parent de objetos/componentes deve continuar sendo feito fora do Play Mode.
+
+### Fluxo recomendado
+
+1. entrar no Play Mode;
+2. selecionar qualquer objeto existente da estrutura do jornal;
+3. editar valores no Inspector ou mover/rotacionar/escalar com os gizmos;
+4. pressionar Stop;
+5. confirmar os valores aplicados na cena;
+6. salvar com `Ctrl + S`.
 
 ## Atualização de 2026-07-14 — sistema de jornal
 
@@ -261,15 +287,13 @@ Esses itens não são layouts editáveis da Hierarchy. Os respectivos hosts e pa
 
 ## Regras de edição
 
-- editar fora do Play Mode;
-- usar `Ctrl + S` depois das alterações;
-- não editar objetos sob `DontDestroyOnLoad` durante o Play esperando persistência;
-- para o jornal, editar `Newspaper_InteractionPrompt`, `Newspaper_PlacePrompt`, `Instruction`, `CircularPrompt` e `Placed_Newspaper_Runtime` fora do Play;
-- a escala da raiz `Newspaper_PlacePrompt` é controlada diretamente por `Transform > Scale` e não deve ser normalizada pelo reparo legado;
-- quando `Face Camera` estiver marcado, a rotação mundial da raiz do prompt é controlada pelo billboard durante o Play; usar `Billboard Euler Offset` para ajuste fino ou desmarcar `Face Camera` para rotação manual;
-- para a energia, editar `EnergyProgressFill` ou `MiniMarketEnergyProgressBar`;
-- para mobile, editar os objetos persistentes e também os valores do `MobileControlsHUD`;
-- para minimapa, editar os objetos persistentes e os parâmetros do `RuntimeMiniMap`;
+- fora do Play, todas as alterações continuam funcionando normalmente;
+- durante o Play, alterações manuais no Inspector/gizmos da estrutura existente do jornal são reaplicadas ao voltar para Stop;
+- usar `Ctrl + S` depois que o Stop aplicar os valores;
+- não editar objetos sob `DontDestroyOnLoad` esperando persistência de cena;
+- `Newspaper_InteractionPrompt`, `Newspaper_PlacePrompt`, `Instruction`, `CircularPrompt`, filhos, linhas e `Placed_Newspaper_Runtime` são abrangidos;
+- criar, apagar, reordenar ou trocar o parent deve ser feito fora do Play;
+- quando `Face Camera` estiver marcado, a rotação mundial da raiz do prompt é controlada pelo billboard durante o Play; para ajuste visual persistente usar `Billboard Euler Offset` ou desmarcar `Face Camera`;
 - não alterar `Assets/Brick Project Studio`.
 
 ## Validação estática
@@ -289,6 +313,6 @@ Foram revisados:
 - `NewspaperPlacementAreaController`;
 - `MiniMarketNewspaperInventoryService`;
 - `NewspaperWorldPromptVisual`;
-- `NewspaperPlacePromptScalePersistence`.
+- `NewspaperPlayModeHierarchyPersistence`.
 
-A compilação e o comportamento visual final precisam ser confirmados no Unity local.
+A compilação e o comportamento final precisam ser confirmados no Unity local.
