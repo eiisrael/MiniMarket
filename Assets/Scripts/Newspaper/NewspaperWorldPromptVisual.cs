@@ -134,6 +134,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private float nextCameraResolveTime;
     private bool built;
     private bool animationBaseCaptured;
+    private bool animationWasRunning;
     private Vector2 visualBaseAnchoredPosition;
     private Vector3 visualBaseScale = Vector3.one;
     private Quaternion rotatingRingBaseRotation = Quaternion.identity;
@@ -220,6 +221,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         RepairLegacyPlacementPromptOnce();
         CaptureAnimationBase();
+        animationWasRunning = false;
     }
 
     private void OnEnable()
@@ -233,9 +235,18 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         RepairLegacyPlacementPromptOnce();
         CaptureAnimationBase();
+        animationWasRunning = false;
 
         if (!Application.isPlaying && previewInEditMode && built)
             ApplyCanvasVisibility(true);
+    }
+
+    private void OnDisable()
+    {
+        if (animationWasRunning)
+            ResetInnerAnimation();
+
+        animationWasRunning = false;
     }
 
     private void OnValidate()
@@ -246,7 +257,9 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         if (built)
         {
-            CaptureAnimationBase();
+            if (!animationWasRunning)
+                CaptureAnimationBase();
+
             ApplyStaticInspectorSettings();
         }
     }
@@ -257,10 +270,23 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
             return;
 
         bool shouldAnimate = Application.isPlaying || animateInEditMode;
+
         if (shouldAnimate)
+        {
+            if (!animationWasRunning)
+            {
+                CaptureAnimationBase();
+                animationWasRunning = true;
+            }
+
             AnimatePrompt();
-        else
+        }
+        else if (animationWasRunning)
+        {
             ResetInnerAnimation();
+            animationWasRunning = false;
+            CaptureAnimationBase();
+        }
 
         if (faceCamera && Application.isPlaying)
             FaceActiveCamera();
@@ -763,7 +789,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     private void ResetInnerAnimation()
     {
         if (!animationBaseCaptured)
-            CaptureAnimationBase();
+            return;
 
         if (visualRoot != null)
         {
@@ -831,10 +857,13 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
     public void SetVisible(bool visible)
     {
-        ResolveExistingReferences();
+        if (!built)
+        {
+            ResolveExistingReferences();
 
-        if (!built && Application.isPlaying)
-            EnsurePersistentVisual();
+            if (!built && Application.isPlaying)
+                EnsurePersistentVisual();
+        }
 
         bool finalVisible = visible || (!Application.isPlaying && previewInEditMode);
         ApplyCanvasVisibility(finalVisible);
@@ -1048,6 +1077,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         centerText = null;
         instructionText = null;
         animationBaseCaptured = false;
+        animationWasRunning = false;
     }
 
     private void EnsureGeneratedSprites()
