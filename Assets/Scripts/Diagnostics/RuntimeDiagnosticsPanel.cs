@@ -56,12 +56,12 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
 
     private GUIStyle titleStyle;
     private GUIStyle subtitleStyle;
-    private GUIStyle sectionTitleStyle;
+    private GUIStyle sectionStyle;
     private GUIStyle labelStyle;
     private GUIStyle valueStyle;
-    private GUIStyle mutedStyle;
     private GUIStyle badgeStyle;
     private GUIStyle closeButtonStyle;
+    private GUIStyle cardStyle;
 
     private Texture2D panelTexture;
     private Texture2D headerTexture;
@@ -123,6 +123,7 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
         visible = showOnStart;
         smoothedDelta = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
         RefreshReferences();
+        RefreshData();
     }
 
     private void OnDestroy()
@@ -149,6 +150,12 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
             visible = !visible;
             nextDataRefresh = 0f;
             nextObjectRefresh = 0f;
+
+            if (visible)
+            {
+                RefreshObjectCounts();
+                RefreshData();
+            }
         }
 
         float currentDelta = Mathf.Max(Time.unscaledDeltaTime, 0.0001f);
@@ -260,31 +267,38 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
         EnsureStylesAndTextures();
         GUI.depth = -10000;
 
-        float safeWidth = Mathf.Min(width, Screen.width - margin * 2f);
-        float safeHeight = Mathf.Min(height, Screen.height - margin * 2f);
+        float safeWidth = Mathf.Max(520f, Mathf.Min(width, Screen.width - margin * 2f));
+        float safeHeight = Mathf.Max(420f, Mathf.Min(height, Screen.height - margin * 2f));
         Rect panelRect = new Rect(margin, margin, safeWidth, safeHeight);
 
         GUI.DrawTexture(panelRect, panelTexture, ScaleMode.StretchToFill);
         DrawHeader(panelRect);
 
-        Rect scrollRect = new Rect(
+        Rect contentArea = new Rect(
             panelRect.x + 18f,
-            panelRect.y + 104f,
+            panelRect.y + 103f,
             panelRect.width - 36f,
-            panelRect.height - 124f
+            panelRect.height - 121f
         );
-        Rect contentRect = new Rect(0f, 0f, scrollRect.width - 22f, 1040f);
 
-        scrollPosition = GUI.BeginScrollView(scrollRect, scrollPosition, contentRect);
-        float y = 4f;
+        GUILayout.BeginArea(contentArea);
+        scrollPosition = GUILayout.BeginScrollView(
+            scrollPosition,
+            false,
+            true,
+            GUIStyle.none,
+            GUI.skin.verticalScrollbar
+        );
 
-        y = DrawPerformanceCard(contentRect.width, y);
-        y = DrawPlayerCard(contentRect.width, y + 12f);
-        y = DrawWorldCard(contentRect.width, y + 12f);
-        y = DrawInteractionCard(contentRect.width, y + 12f);
-        y = DrawSystemCard(contentRect.width, y + 12f);
+        DrawPerformanceSection();
+        DrawPlayerSection();
+        DrawWorldSection();
+        DrawInteractionSection();
+        DrawSystemSection();
+        GUILayout.Space(8f);
 
-        GUI.EndScrollView();
+        GUILayout.EndScrollView();
+        GUILayout.EndArea();
     }
 
     private void DrawHeader(Rect panelRect)
@@ -294,23 +308,23 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
         GUI.DrawTexture(new Rect(header.x, header.y, header.width, 6f), goldTexture);
 
         GUI.Label(
-            new Rect(header.x + 24f, header.y + 16f, header.width - 120f, 38f),
+            new Rect(header.x + 24f, header.y + 15f, header.width - 220f, 38f),
             "MINIMARKET • CENTRAL DE DIAGNÓSTICO",
             titleStyle
         );
         GUI.Label(
-            new Rect(header.x + 26f, header.y + 54f, header.width - 130f, 24f),
-            "DADOS DE RUNTIME EM TEMPO REAL  •  F10 PARA FECHAR",
+            new Rect(header.x + 26f, header.y + 54f, header.width - 220f, 24f),
+            "RUNTIME AO VIVO  •  F10 PARA FECHAR",
             subtitleStyle
         );
 
         Color statusColor = GetFpsColor();
         GUI.DrawTexture(
-            new Rect(header.x + header.width - 172f, header.y + 23f, 92f, 38f),
+            new Rect(header.x + header.width - 174f, header.y + 23f, 92f, 38f),
             GetTexture(statusColor)
         );
         GUI.Label(
-            new Rect(header.x + header.width - 172f, header.y + 23f, 92f, 38f),
+            new Rect(header.x + header.width - 174f, header.y + 23f, 92f, 38f),
             fps.ToString("0") + " FPS",
             badgeStyle
         );
@@ -324,26 +338,21 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
         }
     }
 
-    private float DrawPerformanceCard(float widthValue, float y)
+    private void DrawPerformanceSection()
     {
-        float heightValue = 238f;
-        Rect card = DrawCard(widthValue, y, heightValue, "DESEMPENHO", GoldColor);
-        float rowY = card.y + 48f;
-
-        DrawRow(card, ref rowY, "FPS atual", fps.ToString("0.0"), GetFpsColor());
-        DrawRow(card, ref rowY, "Tempo de frame", frameMs.ToString("0.00") + " ms", GetFrameColor());
-        DrawRow(card, ref rowY, "Meta / VSync", Application.targetFrameRate + " FPS  •  VSync " + QualitySettings.vSyncCount, TextColor);
-        DrawRow(card, ref rowY, "Memória gerenciada", FormatBytes(managedMemory), TextColor);
-        DrawRow(card, ref rowY, "Unity alocada", FormatBytes(allocatedMemory), TextColor);
-        DrawRow(card, ref rowY, "Unity reservada", FormatBytes(reservedMemory), MutedColor);
-        return y + heightValue;
+        BeginSection("DESEMPENHO", GoldColor);
+        DrawRow("FPS atual", fps.ToString("0.0"), GetFpsColor());
+        DrawRow("Tempo de frame", frameMs.ToString("0.00") + " ms", GetFrameColor());
+        DrawRow("Meta / VSync", Application.targetFrameRate + " FPS  •  VSync " + QualitySettings.vSyncCount, TextColor);
+        DrawRow("Memória gerenciada", FormatBytes(managedMemory), TextColor);
+        DrawRow("Unity alocada", FormatBytes(allocatedMemory), TextColor);
+        DrawRow("Unity reservada", FormatBytes(reservedMemory), MutedColor);
+        EndSection();
     }
 
-    private float DrawPlayerCard(float widthValue, float y)
+    private void DrawPlayerSection()
     {
-        float heightValue = 250f;
-        Rect card = DrawCard(widthValue, y, heightValue, "JOGADOR E ENERGIA", GreenColor);
-        float rowY = card.y + 48f;
+        BeginSection("JOGADOR E ENERGIA", GreenColor);
 
         float energy01 = movement != null
             ? Mathf.Clamp01(movement.EnergiaPercentual01)
@@ -357,35 +366,28 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
             ? "NÃO ENCONTRADO"
             : (movement.IsRunning ? "CORRENDO" : (movement.CurrentSpeed > 0.05f ? "ANDANDO" : "PARADO"));
 
-        DrawRow(card, ref rowY, "Câmera", cameraMode, cameraController != null ? BlueColor : RedColor);
-        DrawRow(card, ref rowY, "Movimento", movementState, movement != null ? TextColor : RedColor);
-        DrawRow(card, ref rowY, "Velocidade", movement != null ? movement.CurrentSpeed.ToString("0.00") + " m/s" : "--", TextColor);
-        DrawRow(card, ref rowY, "Cargas", movement != null ? movement.StaminaSegmentadaTexto : "--/--", TextColor);
-
-        Rect bar = new Rect(card.x + 22f, rowY + 7f, card.width - 44f, 30f);
-        DrawProgressBar(bar, energy01, GetEnergyColor(energyPercent), energyPercent + "% ENERGIA TOTAL");
-        return y + heightValue;
+        DrawRow("Câmera", cameraMode, cameraController != null ? BlueColor : RedColor);
+        DrawRow("Movimento", movementState, movement != null ? TextColor : RedColor);
+        DrawRow("Velocidade", movement != null ? movement.CurrentSpeed.ToString("0.00") + " m/s" : "--", TextColor);
+        DrawRow("Cargas", movement != null ? movement.StaminaSegmentadaTexto : "--/--", TextColor);
+        DrawProgressBar(energy01, GetEnergyColor(energyPercent), energyPercent + "% ENERGIA TOTAL");
+        EndSection();
     }
 
-    private float DrawWorldCard(float widthValue, float y)
+    private void DrawWorldSection()
     {
-        float heightValue = 220f;
-        Rect card = DrawCard(widthValue, y, heightValue, "MUNDO E CENA", BlueColor);
-        float rowY = card.y + 48f;
-
-        DrawRow(card, ref rowY, "Objetos / Renderers", objectCount + "  /  " + rendererCount, TextColor);
-        DrawRow(card, ref rowY, "Colliders / Rigidbodies", colliderCount + "  /  " + rigidbodyCount, TextColor);
-        DrawRow(card, ref rowY, "Câmeras", cameraCount + " total  •  " + activeCameraCount + " ativas", activeCameraCount == 1 ? GreenColor : YellowColor);
-        DrawRow(card, ref rowY, "AudioListeners", listenerCount + " ativo(s)", listenerCount == 1 ? GreenColor : YellowColor);
-        DrawRow(card, ref rowY, "Minimapa", miniMap != null ? (miniMap.IsOpen ? "ABERTO" : "FECHADO") : "NÃO ENCONTRADO", miniMap != null ? TextColor : RedColor);
-        return y + heightValue;
+        BeginSection("MUNDO E CENA", BlueColor);
+        DrawRow("Objetos / Renderers", objectCount + "  /  " + rendererCount, TextColor);
+        DrawRow("Colliders / Rigidbodies", colliderCount + "  /  " + rigidbodyCount, TextColor);
+        DrawRow("Câmeras", cameraCount + " total  •  " + activeCameraCount + " ativas", activeCameraCount == 1 ? GreenColor : YellowColor);
+        DrawRow("AudioListeners", listenerCount + " ativo(s)", listenerCount == 1 ? GreenColor : YellowColor);
+        DrawRow("Minimapa", miniMap != null ? (miniMap.IsOpen ? "ABERTO" : "FECHADO") : "NÃO ENCONTRADO", miniMap != null ? TextColor : RedColor);
+        EndSection();
     }
 
-    private float DrawInteractionCard(float widthValue, float y)
+    private void DrawInteractionSection()
     {
-        float heightValue = 238f;
-        Rect card = DrawCard(widthValue, y, heightValue, "INTERAÇÃO E GAMEPLAY", PinkColor);
-        float rowY = card.y + 48f;
+        BeginSection("INTERAÇÃO E GAMEPLAY", PinkColor);
 
         string selected = getItemController != null && getItemController.SelectedItem != null
             ? getItemController.SelectedItem.name
@@ -400,58 +402,67 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
             ? "Controlador não encontrado"
             : (purchaseController.ModoCompraAtivo ? "MODO COMPRA ATIVO" : "Pronto");
 
-        DrawRow(card, ref rowY, "Item selecionado", selected, selected == "Nenhum" ? MutedColor : BlueColor);
-        DrawRow(card, ref rowY, "Item segurado", held, held == "Nenhum" ? MutedColor : GreenColor);
-        DrawRow(card, ref rowY, "Alvo interativo", focused, focused == "Nenhum" ? MutedColor : GoldColor);
-        DrawRow(card, ref rowY, "Compra de terreno", purchase, purchaseController != null ? TextColor : YellowColor);
-        DrawRow(card, ref rowY, "Input bloqueado", GameplayInputState.IsBlocked ? "SIM" : "NÃO", GameplayInputState.IsBlocked ? YellowColor : GreenColor);
-        return y + heightValue;
+        DrawRow("Item selecionado", selected, selected == "Nenhum" ? MutedColor : BlueColor);
+        DrawRow("Item segurado", held, held == "Nenhum" ? MutedColor : GreenColor);
+        DrawRow("Alvo interativo", focused, focused == "Nenhum" ? MutedColor : GoldColor);
+        DrawRow("Compra de terreno", purchase, purchaseController != null ? TextColor : YellowColor);
+        DrawRow("Input bloqueado", GameplayInputState.IsBlocked ? "SIM" : "NÃO", GameplayInputState.IsBlocked ? YellowColor : GreenColor);
+        EndSection();
     }
 
-    private float DrawSystemCard(float widthValue, float y)
+    private void DrawSystemSection()
     {
-        float heightValue = 250f;
-        Rect card = DrawCard(widthValue, y, heightValue, "SISTEMA E BANCO", GoldColor);
-        float rowY = card.y + 48f;
+        BeginSection("SISTEMA E BANCO", GoldColor);
 
         string quality = QualitySettings.names.Length > 0
             ? QualitySettings.names[Mathf.Clamp(QualitySettings.GetQualityLevel(), 0, QualitySettings.names.Length - 1)]
             : "--";
 
-        DrawRow(card, ref rowY, "Plataforma / Qualidade", Application.platform + "  •  " + quality, TextColor);
-        DrawRow(card, ref rowY, "CPU", SystemInfo.processorType + "  •  " + SystemInfo.processorCount + " threads", TextColor);
-        DrawRow(card, ref rowY, "GPU", SystemInfo.graphicsDeviceName + "  •  " + SystemInfo.graphicsMemorySize + " MB", TextColor);
-        DrawRow(card, ref rowY, "RAM do sistema", SystemInfo.systemMemorySize + " MB", TextColor);
-        DrawRow(card, ref rowY, "Banco local", database != null ? "CONECTADO" : "NÃO ENCONTRADO", database != null ? GreenColor : RedColor);
-        DrawRow(card, ref rowY, "Salvamento pendente", database != null ? (database.SalvamentoPendente ? "SIM" : "NÃO") : "--", database != null && database.SalvamentoPendente ? YellowColor : GreenColor);
-        return y + heightValue;
+        DrawRow("Plataforma / Qualidade", Application.platform + "  •  " + quality, TextColor);
+        DrawRow("CPU", SystemInfo.processorType + "  •  " + SystemInfo.processorCount + " threads", TextColor);
+        DrawRow("GPU", SystemInfo.graphicsDeviceName + "  •  " + SystemInfo.graphicsMemorySize + " MB", TextColor);
+        DrawRow("RAM do sistema", SystemInfo.systemMemorySize + " MB", TextColor);
+        DrawRow("Banco local", database != null ? "CONECTADO" : "NÃO ENCONTRADO", database != null ? GreenColor : RedColor);
+        DrawRow("Salvamento pendente", database != null ? (database.SalvamentoPendente ? "SIM" : "NÃO") : "--", database != null && database.SalvamentoPendente ? YellowColor : GreenColor);
+        EndSection();
     }
 
-    private Rect DrawCard(float widthValue, float y, float heightValue, string title, Color accent)
+    private void BeginSection(string title, Color accent)
     {
-        Rect card = new Rect(2f, y, widthValue - 6f, heightValue);
-        GUI.DrawTexture(card, cardTexture, ScaleMode.StretchToFill);
-        GUI.DrawTexture(new Rect(card.x, card.y, 7f, card.height), GetTexture(accent));
-        GUI.Label(new Rect(card.x + 22f, card.y + 12f, card.width - 44f, 30f), title, sectionTitleStyle);
-        return card;
+        GUILayout.BeginVertical(cardStyle, GUILayout.ExpandWidth(true));
+        Color previous = GUI.color;
+        GUI.color = accent;
+        GUILayout.Label(title, sectionStyle, GUILayout.Height(28f));
+        GUI.color = previous;
+        GUILayout.Space(3f);
     }
 
-    private void DrawRow(Rect card, ref float y, string label, string value, Color valueColor)
+    private static void EndSection()
     {
-        Rect labelRect = new Rect(card.x + 22f, y, card.width * 0.43f, 26f);
-        Rect valueRect = new Rect(card.x + card.width * 0.43f, y, card.width * 0.53f - 22f, 26f);
+        GUILayout.Space(7f);
+        GUILayout.EndVertical();
+        GUILayout.Space(12f);
+    }
 
-        GUI.Label(labelRect, label, labelStyle);
+    private void DrawRow(string label, string value, Color valueColor)
+    {
+        GUILayout.BeginHorizontal(GUILayout.Height(25f));
+        GUILayout.Label(label, labelStyle, GUILayout.Width(255f));
+
         Color previous = GUI.color;
         GUI.color = valueColor;
-        GUI.Label(valueRect, value, valueStyle);
+        GUILayout.Label(value, valueStyle, GUILayout.ExpandWidth(true));
         GUI.color = previous;
-        y += 28f;
+
+        GUILayout.EndHorizontal();
     }
 
-    private void DrawProgressBar(Rect rect, float value, Color color, string label)
+    private void DrawProgressBar(float value, Color color, string label)
     {
+        GUILayout.Space(5f);
+        Rect rect = GUILayoutUtility.GetRect(120f, 32f, GUILayout.ExpandWidth(true));
         GUI.DrawTexture(rect, darkTexture, ScaleMode.StretchToFill);
+
         Rect inner = new Rect(rect.x + 4f, rect.y + 4f, rect.width - 8f, rect.height - 8f);
         Rect fill = new Rect(inner.x, inner.y, inner.width * Mathf.Clamp01(value), inner.height);
         GUI.DrawTexture(fill, GetTexture(color), ScaleMode.StretchToFill);
@@ -488,18 +499,17 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
         subtitleStyle = new GUIStyle(GUI.skin.label)
         {
             fontSize = 12,
-            fontStyle = FontStyle.Normal,
             alignment = TextAnchor.MiddleLeft
         };
         subtitleStyle.normal.textColor = MutedColor;
 
-        sectionTitleStyle = new GUIStyle(GUI.skin.label)
+        sectionStyle = new GUIStyle(GUI.skin.label)
         {
             fontSize = 17,
             fontStyle = FontStyle.Bold,
             alignment = TextAnchor.MiddleLeft
         };
-        sectionTitleStyle.normal.textColor = TextColor;
+        sectionStyle.normal.textColor = Color.white;
 
         labelStyle = new GUIStyle(GUI.skin.label)
         {
@@ -515,10 +525,7 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
             alignment = TextAnchor.MiddleRight,
             clipping = TextClipping.Clip
         };
-        valueStyle.normal.textColor = TextColor;
-
-        mutedStyle = new GUIStyle(labelStyle);
-        mutedStyle.normal.textColor = MutedColor;
+        valueStyle.normal.textColor = Color.white;
 
         badgeStyle = new GUIStyle(GUI.skin.label)
         {
@@ -537,6 +544,13 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
         closeButtonStyle.normal.textColor = Color.white;
         closeButtonStyle.hover.textColor = GoldColor;
         closeButtonStyle.active.textColor = RedColor;
+
+        cardStyle = new GUIStyle(GUI.skin.box)
+        {
+            padding = new RectOffset(18, 18, 12, 12),
+            margin = new RectOffset(0, 6, 0, 0)
+        };
+        cardStyle.normal.background = cardTexture;
     }
 
     private Color GetFpsColor()
@@ -593,7 +607,7 @@ public sealed class RuntimeDiagnosticsPanel : MonoBehaviour
     private static void DestroyTexture(ref Texture2D texture)
     {
         if (texture != null)
-            Destroy(texture);
+            Object.Destroy(texture);
         texture = null;
     }
 
