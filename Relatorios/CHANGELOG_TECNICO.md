@@ -2,6 +2,56 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-14 — Toda a estrutura do jornal editável durante Play e persistente no Stop
+
+### Problema
+
+- o Unity normalmente descarta alterações feitas no Inspector ao sair do Play Mode;
+- apenas a escala da raiz `Newspaper_PlacePrompt` possuía proteção específica;
+- posições, rotações, tamanhos, âncoras, cores, textos, transparências e opções dos filhos voltavam aos valores anteriores ao pressionar Stop.
+
+### Correção
+
+O arquivo:
+
+```text
+Assets/Editor/ProjectMaintenance/NewspaperPlacePromptScalePersistence.cs
+```
+
+passou a conter `NewspaperPlayModeHierarchyPersistence`.
+
+Comportamento:
+
+- observa modificações manuais registradas pelo Undo do Editor durante o Play;
+- reconhece objetos/componentes existentes sob `Newspaper_Stand`, `Jornal_Place`, `Put_Area`, prompts, linhas e `Placed_Newspaper_Runtime`;
+- registra o alvo por cena, caminho de sibling, tipo e índice do componente;
+- reaplica somente as propriedades realmente editadas pelo usuário ao voltar para Stop;
+- suporta `Transform`, `RectTransform`, campos serializados, UI, textos, cores, transparências, LineRenderer e referências persistentes;
+- mantém a última alteração de cada propriedade quando o mesmo campo é editado várias vezes;
+- marca a cena como modificada e deixa o salvamento final para `Ctrl+S`;
+- não copia alterações automáticas do gameplay, pois elas não passam pelo Undo do Editor;
+- não possui `Update`, busca por frame ou gravação em disco por frame;
+- mantém a proteção da escala-base e desativa em memória o reparo legado do `Newspaper_PlacePrompt`.
+
+### Limite intencional
+
+- persistem propriedades de objetos e componentes que já existiam antes do Play;
+- criação, exclusão, reordenação, troca de parent ou adição/remoção de componentes deve continuar sendo feita fora do Play Mode.
+
+### Arquitetura e impacto
+
+- `NewspaperWorldPromptVisual` continua sendo a autoridade visual;
+- nenhum controlador de gameplay paralelo foi criado;
+- a função existe somente no Editor e não entra em builds Desktop/Mobile;
+- nenhuma cena, prefab ou conteúdo de `Assets/Brick Project Studio` foi alterado.
+
+### Validação
+
+- revisão estática concluída;
+- após o pull, editar vários objetos da estrutura durante o Play, pressionar Stop e confirmar os valores aplicados;
+- salvar com `Ctrl+S` depois do Stop;
+- compilação e execução final dependem do Unity local.
+
 ## 2026-07-14 — Escala do Newspaper_PlacePrompt preservada no Play/Stop
 
 ### Problema
