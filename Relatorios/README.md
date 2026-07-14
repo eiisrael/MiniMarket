@@ -15,6 +15,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 
 ## Relatório mais recente
 
+- `CORRECAO_DUPLICACAO_BRONZE_MARKET.md`: preserva integralmente o layout de `PurchaseLotStatus` ao duplicar a loja, elimina `SendMessage` no Edit Mode e exibe o ID do lote.
 - `BRONZE_MARKET_LOTES_INDEPENDENTES.md`: transforma cada cópia de `Bronze_Market` em uma loja comprável independente, com ID, calçada, terreno, status, hover e controladores próprios.
 - `ENERGIA_PERCENTUAL_CORES.md`: troca `5/5` por porcentagem e alterna ícone/cor verde, amarelo e vermelho pela energia total.
 - `OBJETOS_RUNTIME_PERSISTENTES.md`: materialização dos objetos visuais e hosts de configuração que antes apareciam somente no Play Mode.
@@ -33,6 +34,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `OBJETOS_RUNTIME_PERSISTENTES.md`: hierarquia persistente e editável para energia, minimapa, mobile, mira, compra e serviços.
 - `ENERGIA_PERCENTUAL_CORES.md`: texto percentual, sprites, degradê e pulsação do ícone de energia.
 - `BRONZE_MARKET_LOTES_INDEPENDENTES.md`: cópia segura de lojas Bronze e isolamento de seleção/compra por hierarquia.
+- `CORRECAO_DUPLICACAO_BRONZE_MARKET.md`: cópia fiel do layout, ID visual e reconciliação segura fora do Play Mode.
 - `TESTES_POS_GIT_PULL.md`: checklist de compilação e validação manual.
 - `CHANGELOG_TECNICO.md`: histórico das mudanças que afetam arquitetura ou comportamento.
 
@@ -62,6 +64,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - Desktop e Mobile devem compartilhar a mesma lógica de gameplay.
 - Objetos visuais configuráveis devem ser salvos na cena; somente recursos transitórios devem nascer apenas no Play Mode.
 - Cada `Bronze_Market` deve possuir ID e escopo de compra próprios; não usar busca global de terrenos dentro de lojas configuradas.
+- Ao duplicar uma loja, a automação pode alterar IDs e referências locais, mas não pode redefinir layout, escala, posição, cores, fontes ou filhos copiados.
 - Não afirmar que o Unity compilou ou executou sem validação no Editor local.
 
 ## Quando houver divergência
