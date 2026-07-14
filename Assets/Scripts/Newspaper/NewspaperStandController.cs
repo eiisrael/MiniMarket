@@ -3,8 +3,8 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Controla a coleta de jornal no Newspaper_Stand.
-/// O prompt do expositor é persistente na cena, sempre visível e reutilizado
-/// tanto para a tecla E quanto para o contador de respawn.
+/// Referências estruturais são resolvidas somente na inicialização ou quando ficam nulas;
+/// o Update processa apenas distância, input e animação do estado.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class NewspaperStandController : MonoBehaviour
@@ -58,10 +58,12 @@ public sealed class NewspaperStandController : MonoBehaviour
 
     private MiniMarketNewspaperInventoryService inventory;
     private Transform player;
-    private float nextPlayerResolve;
+    private float nextDependencyResolve;
     private float holdProgress;
     private float respawnRemaining;
     private bool newspaperAvailable = true;
+    private bool lastNearState;
+    private bool nearStateInitialized;
 
     public bool NewspaperAvailable => newspaperAvailable;
     public float HoldProgress01 => Mathf.Clamp01(holdProgress);
@@ -69,17 +71,19 @@ public sealed class NewspaperStandController : MonoBehaviour
 
     private void Awake()
     {
-        ResolveReferences();
+        ResolveSceneReferences();
+        ResolveRuntimeDependencies(true);
         ConfigureControlledNewspaper();
-        EnsurePrompt();
+        EnsurePromptReference();
         SetNewspaperAvailable(true);
     }
 
     private void OnEnable()
     {
-        ResolveReferences();
+        ResolveSceneReferences();
+        ResolveRuntimeDependencies(true);
         ConfigureControlledNewspaper();
-        EnsurePrompt();
+        EnsurePromptReference();
 
         if (!Application.isPlaying && promptVisual != null && previewPromptInEditMode)
             promptVisual.SetVisible(true);
@@ -90,14 +94,18 @@ public sealed class NewspaperStandController : MonoBehaviour
         if (highlight != null)
             highlight.Clear();
 
+        nearStateInitialized = false;
+
         if (Application.isPlaying && promptVisual != null)
             promptVisual.SetVisible(false);
     }
 
     private void Update()
     {
-        ResolveReferences();
-        EnsurePrompt();
+        ResolveRuntimeDependencies(false);
+
+        if (promptVisual == null && Time.unscaledTime >= nextDependencyResolve)
+            EnsurePromptReference();
 
         if (newspaperAvailable)
             UpdateAvailableState();
@@ -108,16 +116,16 @@ public sealed class NewspaperStandController : MonoBehaviour
     private void UpdateAvailableState()
     {
         bool near = IsPlayerWithin(interactionRadius);
+        UpdateHighlight(near);
 
-        if (highlight != null)
-            highlight.SetFocused(near);
-
-        bool holding = near && !GameplayInputState.IsBlocked && Input.GetKey(interactionKey);
+        bool inputAllowed = !GameplayInputState.IsBlocked;
+        bool holding = near && inputAllowed && Input.GetKey(interactionKey);
 
         if (holding)
         {
-            holdProgress += Time.deltaTime / Mathf.Max(0.1f, holdDuration);
-            holdProgress = Mathf.Clamp01(holdProgress);
+            holdProgress = Mathf.Clamp01(
+                holdProgress + Time.deltaTime / Mathf.Max(0.1f, holdDuration)
+            );
         }
         else if (!near || !Input.GetKey(interactionKey))
         {
@@ -126,20 +134,18 @@ public sealed class NewspaperStandController : MonoBehaviour
 
         if (promptVisual != null)
         {
+            bool progressing = holdProgress > 0.001f;
             promptVisual.SetVisible(alwaysShowPrompt || near);
             promptVisual.SetInteractionPrompt(
                 "E",
-                holdProgress > 0.001f ? holdingInstruction : availableInstruction,
+                progressing ? holdingInstruction : availableInstruction,
                 holdProgress,
-                holdProgress > 0.001f,
-                holdProgress > 0.001f ? holdingColor : availableColor
+                progressing,
+                progressing ? holdingColor : availableColor
             );
         }
 
-        if (!near || GameplayInputState.IsBlocked)
-            return;
-
-        if (holdProgress >= 0.999f)
+        if (near && inputAllowed && holdProgress >= 0.999f)
             CollectNewspaper();
     }
 
@@ -172,7 +178,7 @@ public sealed class NewspaperStandController : MonoBehaviour
         if (!newspaperAvailable)
             return;
 
-        ResolveReferences();
+        ResolveRuntimeDependencies(true);
         if (inventory == null)
         {
             Debug.LogWarning("[NewspaperStand] Inventário de jornais não encontrado.", this);
@@ -235,7 +241,7 @@ public sealed class NewspaperStandController : MonoBehaviour
     {
         newspaperAvailable = available;
 
-        if (newspaperVisual != null)
+        if (newspaperVisual != null && newspaperVisual.activeSelf != available)
             newspaperVisual.SetActive(available);
 
         if (highlight != null)
@@ -243,6 +249,21 @@ public sealed class NewspaperStandController : MonoBehaviour
             highlight.Clear();
             highlight.enabled = available;
         }
+
+        nearStateInitialized = false;
+    }
+
+    private void UpdateHighlight(bool near)
+    {
+        if (highlight == null)
+            return;
+
+        if (nearStateInitialized && lastNearState == near)
+            return;
+
+        lastNearState = near;
+        nearStateInitialized = true;
+        highlight.SetFocused(near);
     }
 
     private void ConfigureControlledNewspaper()
@@ -273,23 +294,13 @@ public sealed class NewspaperStandController : MonoBehaviour
                 body.angularVelocity = Vector3.zero;
             }
 
-            body.isKinematic = true;
             body.useGravity = false;
+            body.isKinematic = true;
         }
     }
 
-    private void ResolveReferences()
+    private void ResolveSceneReferences()
     {
-        if (inventory == null)
-            inventory = MiniMarketNewspaperInventoryService.Instance;
-
-        if (inventory == null && Application.isPlaying)
-        {
-            inventory = UnityEngine.Object.FindAnyObjectByType<MiniMarketNewspaperInventoryService>(
-                FindObjectsInactive.Include
-            );
-        }
-
         if (newspaperVisual == null)
         {
             Transform candidate = FindChildRecursive(transform, "Jornal");
@@ -304,58 +315,62 @@ public sealed class NewspaperStandController : MonoBehaviour
             promptAnchor = transform;
 
         if (highlight == null && newspaperVisual != null)
-        {
             highlight = newspaperVisual.GetComponent<InteractionHighlight>();
-            if (highlight == null && Application.isPlaying)
-                highlight = newspaperVisual.AddComponent<InteractionHighlight>();
+    }
+
+    private void ResolveRuntimeDependencies(bool force)
+    {
+        if (!Application.isPlaying)
+            return;
+
+        if (!force && Time.unscaledTime < nextDependencyResolve)
+            return;
+
+        nextDependencyResolve = Time.unscaledTime + 0.5f;
+
+        if (inventory == null)
+        {
+            inventory = MiniMarketNewspaperInventoryService.Instance;
+            if (inventory == null)
+            {
+                inventory = UnityEngine.Object.FindAnyObjectByType<MiniMarketNewspaperInventoryService>(
+                    FindObjectsInactive.Include
+                );
+            }
         }
 
-        if (player == null && Application.isPlaying && Time.unscaledTime >= nextPlayerResolve)
+        if (player == null)
         {
-            nextPlayerResolve = Time.unscaledTime + 0.5f;
             CameraRelativeMovement movement =
                 UnityEngine.Object.FindAnyObjectByType<CameraRelativeMovement>(
                     FindObjectsInactive.Exclude
                 );
+
             if (movement != null)
                 player = movement.transform;
         }
     }
 
-    private void EnsurePrompt()
+    private void EnsurePromptReference()
     {
+        if (promptVisual != null)
+            return;
+
         NewspaperWorldPromptVisual[] prompts =
             GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
-
-        NewspaperWorldPromptVisual selected = promptVisual;
-
-        if (selected == null)
-        {
-            for (int i = 0; i < prompts.Length; i++)
-            {
-                if (prompts[i] != null && prompts[i].name == "Newspaper_InteractionPrompt")
-                {
-                    selected = prompts[i];
-                    break;
-                }
-            }
-        }
-
-        if (selected == null && prompts.Length > 0)
-            selected = prompts[0];
-
-        promptVisual = selected;
 
         for (int i = 0; i < prompts.Length; i++)
         {
             NewspaperWorldPromptVisual candidate = prompts[i];
-            if (candidate == null || candidate == promptVisual)
-                continue;
-
-            candidate.SetVisible(false);
-            if (Application.isPlaying)
-                candidate.enabled = false;
+            if (candidate != null && candidate.name == "Newspaper_InteractionPrompt")
+            {
+                promptVisual = candidate;
+                break;
+            }
         }
+
+        if (promptVisual == null && prompts.Length > 0)
+            promptVisual = prompts[0];
 
         if (promptVisual == null && Application.isPlaying)
         {
@@ -388,15 +403,14 @@ public sealed class NewspaperStandController : MonoBehaviour
         if (resetProgressWhenReleased)
         {
             holdProgress = 0f;
+            return;
         }
-        else
-        {
-            holdProgress = Mathf.MoveTowards(
-                holdProgress,
-                0f,
-                Mathf.Max(0f, progressDecayPerSecond) * Time.deltaTime
-            );
-        }
+
+        holdProgress = Mathf.MoveTowards(
+            holdProgress,
+            0f,
+            Mathf.Max(0f, progressDecayPerSecond) * Time.deltaTime
+        );
     }
 
     private static Transform FindChildRecursive(Transform root, string exactName)
@@ -425,30 +439,9 @@ public sealed class NewspaperStandController : MonoBehaviour
         respawnSeconds = Mathf.Max(0.5f, respawnSeconds);
         respawnPromptDistance = Mathf.Max(1f, respawnPromptDistance);
         promptWorldScale = Mathf.Max(0.0005f, promptWorldScale);
+        progressDecayPerSecond = Mathf.Max(0f, progressDecayPerSecond);
 
-        if (newspaperVisual == null)
-        {
-            Transform candidate = FindChildRecursive(transform, "Jornal");
-            if (candidate != null)
-                newspaperVisual = candidate.gameObject;
-        }
-
-        if (promptAnchor == null)
-            promptAnchor = transform;
-
-        if (promptVisual == null)
-        {
-            NewspaperWorldPromptVisual[] prompts =
-                GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
-
-            for (int i = 0; i < prompts.Length; i++)
-            {
-                if (prompts[i] != null && prompts[i].name == "Newspaper_InteractionPrompt")
-                {
-                    promptVisual = prompts[i];
-                    break;
-                }
-            }
-        }
+        if (!Application.isPlaying)
+            ResolveSceneReferences();
     }
 }
