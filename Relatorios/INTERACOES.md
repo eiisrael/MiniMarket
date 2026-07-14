@@ -1,6 +1,48 @@
 # Interações, realce visual e objetos móveis
 
-Atualizado em: 2026-07-12
+Atualizado em: 2026-07-14
+
+## Atualização de 2026-07-14 — portas em terceira pessoa
+
+### Problema corrigido
+
+- algumas portas legadas possuíam `InteractiveObject`, mas o script real expunha apenas um campo booleano público chamado `Open`;
+- o fallback antigo procurava somente métodos públicos e, por isso, podia destacar a porta sem executar sua abertura;
+- a busca em terceira pessoa ainda dependia demais da direção da câmera e podia ser bloqueada pela moldura da própria porta.
+
+### Autoridade mantida
+
+A arquitetura não recebeu um segundo controlador. Continuam como autoridades:
+
+```text
+InteractionFocusController
+InteractiveObject
+InteractionHighlight
+```
+
+### Compatibilidade legada
+
+`InteractiveObject` resolve a ação uma única vez e mantém o resultado em cache:
+
+1. método público conhecido, como `Interact`, `Toggle`, `OpenDoor` ou `AbrirPorta`;
+2. campo ou propriedade booleana conhecida, como `Open`, `IsOpen` ou `Aberta`;
+3. parâmetro booleano conhecido no `Animator` da mesma hierarquia.
+
+A reflexão não acontece no `Update`. Ela é usada somente na resolução inicial e no momento explícito da interação.
+
+### Terceira pessoa
+
+`InteractionFocusController` agora:
+
+- mantém o raycast central como primeira opção;
+- usa `Collider.ClosestPoint` na busca de proximidade;
+- considera a frente da câmera e a frente do personagem;
+- amplia a busca somente quando o jogador pressiona `E`/INTERACT;
+- ignora objetos com `GrabbableItem` nesse fallback;
+- preserva a proteção contra paredes;
+- tolera apenas uma moldura fina muito próxima quando a porta também está ao alcance imediato.
+
+Os buffers de raycast e overlap continuam reutilizados, sem alocação de arrays por frame.
 
 ## Objetivo
 
@@ -26,7 +68,9 @@ Marca portas e mecanismos.
 - eventos de foco, perda de foco e interação;
 - `onInteract` configurável no Inspector;
 - compatibilidade opcional com métodos antigos sem parâmetros;
-- reflexão somente no momento da interação.
+- compatibilidade com campos/propriedades booleanas de portas legadas;
+- fallback para parâmetro booleano do Animator;
+- reflexão somente na resolução e na interação explícita, nunca por frame.
 
 ### `InteractionFocusController`
 
@@ -37,7 +81,9 @@ Fica na câmera do jogador.
 - tecla `E` e clique no Desktop;
 - `RequestInteract()` para mobile;
 - posição de toque opcional;
-- ignora o personagem.
+- ignora o personagem;
+- busca de proximidade em terceira pessoa sem exigir mira central;
+- busca ampliada somente no pedido explícito de interação.
 
 ### `GrabbableItem`
 
@@ -133,7 +179,7 @@ InteractionHighlight
 Script real da porta
 ```
 
-No `InteractiveObject.onInteract`, ligar explicitamente a função real da porta é a opção mais segura.
+No `InteractiveObject.onInteract`, ligar explicitamente a função real da porta continua sendo a opção mais direta. Para scripts legados sem método público, o fallback booleano cacheado suporta campos como `Open`.
 
 ## Conflito entre pegar e interagir
 
@@ -143,9 +189,10 @@ Objetos com `GrabbableItem` pertencem ao `GetItemController`. O instalador não 
 
 - nenhuma troca de `sharedMaterial`;
 - nenhuma criação de material por seleção;
-- spherecasts usam buffers reutilizados;
+- spherecasts, raycasts e overlaps usam buffers reutilizados;
 - busca de referências acontece somente quando faltam referências;
-- reflexão não ocorre por frame.
+- reflexão não ocorre por frame;
+- a busca ampliada de terceira pessoa só acontece no pedido explícito de interação.
 
 ## Testes obrigatórios
 
@@ -160,6 +207,9 @@ Objetos com `GrabbableItem` pertencem ao `GetItemController`. O instalador não 
 9. Confirmar proteção contra parede.
 10. Mirar porta e confirmar realce.
 11. Pressionar `E` uma vez e executar uma ação.
-12. Abrir menu e confirmar remoção do foco.
-13. Testar dois objetos com o mesmo material e confirmar alteração somente no alvo.
-14. Testar os botões mobile de interagir, pegar, soltar e arremessar.
+12. Em terceira pessoa, ficar próximo da porta e pressionar `E` sem centralizar a mira.
+13. Confirmar que campo booleano `Open` alterna apenas uma vez por interação.
+14. Confirmar que parede real continua impedindo interação.
+15. Abrir menu e confirmar remoção do foco.
+16. Testar dois objetos com o mesmo material e confirmar alteração somente no alvo.
+17. Testar os botões mobile de interagir, pegar, soltar e arremessar.
