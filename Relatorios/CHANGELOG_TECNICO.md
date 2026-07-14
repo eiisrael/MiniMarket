@@ -2,6 +2,66 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-14 — Visual premium circular e editável da tecla E do jornal
+
+### Problema
+
+- a tecla `E` dos prompts de pegar e colocar jornal apresentava um painel central quadrado e genérico;
+- o efeito não possuía uma camada visual própria para brilho, anéis e partículas;
+- qualquer melhoria precisava continuar compatível com a edição e persistência entre Play e Stop.
+
+### Implementação
+
+Foram adicionados:
+
+```text
+Assets/Scripts/Newspaper/NewspaperPromptShapeGraphic.cs
+Assets/Scripts/Newspaper/NewspaperPromptPremiumKeyVisual.cs
+Assets/Editor/ProjectMaintenance/NewspaperPromptPremiumKeyInstaller.cs
+```
+
+Alterações:
+
+- criado `NewspaperPromptShapeGraphic`, que desenha círculos e anéis diretamente pela malha da UI, sem sprites ou texturas runtime;
+- criado círculo central premium para substituir visualmente o `CenterDisc` quadrado legado;
+- adicionados halo azul, anel dourado, anel de destaque rosa, brilho interno e três partículas orbitais;
+- pulsação e rotação acontecem somente em wrappers próprios (`GlowMotion` e `OrbitMotion`);
+- os transforms dos elementos gráficos continuam livres para edição;
+- cores, transparências, tamanhos, espessuras, velocidades, fonte e contorno ficam expostos no Inspector;
+- o texto `E` existente permanece em TextMeshPro;
+- o disco legado é apenas desativado, não apagado;
+- o mesmo componente atende `Newspaper_InteractionPrompt` e `Newspaper_PlacePrompt`;
+- a nova hierarquia é persistente, aparece na Hierarchy e é coberta pelo sistema de edição Play/Stop já existente;
+- o instalador é idempotente e só marca a cena quando o componente ou a estrutura ainda não existem;
+- nenhuma lógica de pegar, colocar, banco, câmera ou interação foi duplicada;
+- nenhum arquivo de `Assets/Brick Project Studio` foi alterado.
+
+### Hierarquia persistente
+
+```text
+CircularPrompt
+├── PremiumKeyVisual
+│   ├── GlowMotion
+│   │   └── DynamicGlow
+│   ├── OrbitMotion
+│   │   ├── OuterRing
+│   │   ├── AccentRing
+│   │   ├── SparkleTop
+│   │   ├── SparkleLeft
+│   │   └── SparkleRight
+│   └── StaticLayer
+│       ├── CenterCircle
+│       └── CenterHighlight
+└── CenterText
+```
+
+### Documentação e validação
+
+- criado `Relatorios/JORNAL_PROMPT_VISUAL_PREMIUM.md`;
+- atualizado `Relatorios/README.md`;
+- revisão estática concluída;
+- compilação, aparência final e persistência precisam ser confirmadas no Unity 6.7 local.
+
 ## 2026-07-14 — Compatibilidade Unity 6.7 do editor persistente do jornal
 
 ### Erros corrigidos
