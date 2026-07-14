@@ -3,74 +3,50 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Prompt circular compacto para as interações do sistema de jornal.
+/// Prompt circular persistente do sistema de jornal.
 ///
-/// Versão 2.0:
-/// - círculo real, sem painel quadrado;
-/// - progresso radial;
-/// - anel segmentado giratório;
-/// - brilho, pulsação, flutuação e partículas orbitais;
-/// - tema infantil/gamer compatível com o HUD dourado, rosa e verde;
-/// - parâmetros editáveis em tempo real no Inspector durante o Play Mode.
+/// O objeto pode existir e ser editado diretamente na cena. O script somente cria
+/// a hierarquia visual quando solicitado pelo configurador do Editor ou quando
+/// precisa atuar como fallback durante o jogo.
 /// </summary>
+[ExecuteAlways]
 [DisallowMultipleComponent]
 public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 {
-    [Header("Referências Runtime")]
-    public Canvas worldCanvas;
-    public CanvasGroup canvasGroup;
-    public RectTransform rootRect;
-    public RectTransform visualRoot;
-    public RectTransform rotatingRing;
-
-    public Image glowImage;
-    public Image outerRingImage;
-    public Image rotatingRingImage;
-    public Image progressImage;
-    public Image innerAccentRingImage;
-    public Image centerDisc;
-    public Image orbitMarker;
-    public Image orbitMarkerSecondary;
-    public Image orbitMarkerTertiary;
-
-    public TextMeshProUGUI centerText;
-    public TextMeshProUGUI instructionText;
+    [Header("Visualização")]
+    public bool previewInEditMode = true;
+    public bool animateInEditMode;
+    public bool faceCamera = true;
+    public bool showInstructionText = true;
+    public int sortingOrder = 260;
 
     [Header("Posição e Escala")]
-    [Tooltip("Escala final do prompt em World Space. Pode ser alterada em tempo real.")]
-    [Min(0.0001f)] public float worldScale = 0.0027f;
-
-    [Tooltip("Posição local do prompt em relação ao objeto pai.")]
-    public Vector3 localOffset = new Vector3(0f, 1.35f, 0f);
-
-    [Min(48f)] public float circleDiameter = 108f;
-    [Min(1f)] public float progressThickness = 12f;
-    [Min(1f)] public float innerAccentThickness = 8f;
-    [Min(4f)] public float orbitMarkerSize = 12f;
+    [Min(0.0001f)] public float worldScale = 0.0023f;
+    public Vector3 localOffset = new Vector3(0f, 0.72f, 0f);
+    [Min(48f)] public float circleDiameter = 86f;
+    [Min(1f)] public float progressThickness = 10f;
+    [Min(1f)] public float innerAccentThickness = 6f;
+    [Min(4f)] public float orbitMarkerSize = 9f;
 
     [Header("Texto")]
-    public Vector2 instructionOffset = new Vector2(0f, 78f);
-    public Vector2 instructionSize = new Vector2(290f, 40f);
-    [Min(8f)] public float instructionFontSize = 20f;
-    [Min(8f)] public float centerFontSize = 38f;
-    [Range(0f, 1f)] public float instructionOutlineWidth = 0.18f;
-    [Range(0f, 1f)] public float centerOutlineWidth = 0.22f;
+    public Vector2 instructionOffset = new Vector2(0f, 52f);
+    public Vector2 instructionSize = new Vector2(220f, 30f);
+    [Min(8f)] public float instructionFontSize = 15f;
+    [Min(8f)] public float centerFontSize = 30f;
+    [Range(0f, 1f)] public float instructionOutlineWidth = 0.16f;
+    [Range(0f, 1f)] public float centerOutlineWidth = 0.20f;
 
     [Header("Animação")]
-    public bool faceCamera = true;
-
-    [Tooltip("Mantido com este nome para compatibilidade com os controladores existentes.")]
-    [Min(0f)] public float rotationDegreesPerSecond = 42f;
-
-    [Min(0f)] public float floatingAmplitude = 0.035f;
-    [Min(0f)] public float floatingSpeed = 2.15f;
-    [Range(0f, 0.25f)] public float pulseAmount = 0.055f;
-    [Min(0f)] public float pulseSpeed = 3.2f;
-    [Range(0f, 0.5f)] public float glowPulseAmount = 0.16f;
-    [Min(0f)] public float glowPulseSpeed = 3.8f;
+    [Min(0f)] public float rotationDegreesPerSecond = 38f;
+    [Min(0f)] public float floatingAmplitude = 0.015f;
+    [Min(0f)] public float floatingSpeed = 2.1f;
+    [Range(0f, 0.25f)] public float pulseAmount = 0.035f;
+    [Min(0f)] public float pulseSpeed = 3f;
+    [Range(0f, 0.5f)] public float glowPulseAmount = 0.12f;
+    [Min(0f)] public float glowPulseSpeed = 3.4f;
 
     [Header("Tema Infantil / Gamer")]
-    public Color glowColor = new Color32(255, 220, 84, 68);
+    public Color glowColor = new Color32(255, 220, 84, 56);
     public Color outerRingColor = new Color32(255, 205, 65, 255);
     public Color innerAccentColor = new Color32(255, 102, 171, 255);
     public Color centerDiscColor = new Color32(22, 29, 45, 244);
@@ -82,6 +58,24 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     [SerializeField] private Color currentAccentColor = new Color32(76, 235, 124, 255);
     [SerializeField, Range(0f, 1f)] private float currentProgress;
     [SerializeField] private bool progressVisible;
+
+    [Header("Referências Geradas")]
+    [HideInInspector] public Canvas worldCanvas;
+    [HideInInspector] public CanvasGroup canvasGroup;
+    [HideInInspector] public RectTransform rootRect;
+    [HideInInspector] public RectTransform visualRoot;
+    [HideInInspector] public RectTransform rotatingRing;
+    [HideInInspector] public Image glowImage;
+    [HideInInspector] public Image outerRingImage;
+    [HideInInspector] public Image rotatingRingImage;
+    [HideInInspector] public Image progressImage;
+    [HideInInspector] public Image innerAccentRingImage;
+    [HideInInspector] public Image centerDisc;
+    [HideInInspector] public Image orbitMarker;
+    [HideInInspector] public Image orbitMarkerSecondary;
+    [HideInInspector] public Image orbitMarkerTertiary;
+    [HideInInspector] public TextMeshProUGUI centerText;
+    [HideInInspector] public TextMeshProUGUI instructionText;
 
     private Camera cachedCamera;
     private Vector3 baseLocalPosition;
@@ -110,7 +104,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         string objectName,
         Vector3 requestedLocalOffset,
         float requestedWorldScale,
-        int sortingOrder = 260)
+        int requestedSortingOrder = 260)
     {
         GameObject root = new GameObject(objectName, typeof(RectTransform));
         root.transform.SetParent(parent, false);
@@ -118,34 +112,44 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         NewspaperWorldPromptVisual visual = root.AddComponent<NewspaperWorldPromptVisual>();
         visual.localOffset = requestedLocalOffset;
         visual.worldScale = NormalizeLegacyScale(requestedWorldScale);
-        visual.Build(sortingOrder);
+        visual.sortingOrder = requestedSortingOrder;
+        visual.EnsurePersistentVisual();
         visual.SetVisible(false);
         return visual;
     }
 
     private void Awake()
     {
-        ClampInspectorValues();
-        EnsureBuilt();
+        ResolveExistingReferences();
+
+        if (Application.isPlaying)
+            EnsurePersistentVisual();
+
         ApplyInspectorSettings();
     }
 
     private void OnEnable()
     {
-        ClampInspectorValues();
-        EnsureBuilt();
+        ResolveExistingReferences();
+
+        if (Application.isPlaying)
+            EnsurePersistentVisual();
+
         ApplyInspectorSettings();
+
+        if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
+            canvasGroup.alpha = 1f;
     }
 
     private void OnValidate()
     {
         ClampInspectorValues();
+        ResolveExistingReferences();
 
-        if (Application.isPlaying && isActiveAndEnabled)
-        {
-            EnsureBuilt();
+        // Não adiciona componentes durante OnValidate. O configurador do Editor
+        // cria/repara a hierarquia fora do ciclo de validação do Unity.
+        if (built)
             ApplyInspectorSettings();
-        }
     }
 
     private void LateUpdate()
@@ -153,30 +157,98 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (!built)
             return;
 
-        // Atualização proposital em cada frame para permitir edição visual em tempo real.
         ApplyInspectorSettings();
-        AnimatePrompt();
-        FaceActiveCamera();
+
+        bool shouldAnimate = Application.isPlaying || animateInEditMode;
+        if (shouldAnimate)
+            AnimatePrompt();
+
+        if (Application.isPlaying)
+            FaceActiveCamera();
     }
 
-    private void EnsureBuilt()
+    [ContextMenu("Jornal/Reparar visual circular")]
+    public void EnsurePersistentVisual()
     {
-        if (built)
-            return;
+        ResolveExistingReferences();
 
-        if (visualRoot != null && worldCanvas != null)
+        if (!built)
+            Build(sortOrderOverride: sortingOrder);
+
+        ApplyInspectorSettings();
+
+        if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
+            canvasGroup.alpha = 1f;
+    }
+
+    [ContextMenu("Jornal/Reconstruir visual circular")]
+    public void RebuildVisual()
+    {
+        ClearGeneratedChildren();
+        ResetGeneratedReferences();
+        Build(sortOrderOverride: sortingOrder);
+        ApplyInspectorSettings();
+
+        if (!Application.isPlaying && previewInEditMode && canvasGroup != null)
+            canvasGroup.alpha = 1f;
+    }
+
+    private void ResolveExistingReferences()
+    {
+        rootRect = transform as RectTransform;
+        worldCanvas = GetComponent<Canvas>();
+        canvasGroup = GetComponent<CanvasGroup>();
+
+        Transform visual = transform.Find("CircularPrompt");
+        visualRoot = visual as RectTransform;
+
+        if (visualRoot != null)
         {
-            built = true;
-            baseLocalPosition = localOffset;
-            return;
+            glowImage = GetImage(visualRoot, "SoftGlow");
+            outerRingImage = GetImage(visualRoot, "GoldenOuterRing");
+            rotatingRing = visualRoot.Find("RotatingSegmentedRing") as RectTransform;
+
+            if (rotatingRing != null)
+            {
+                rotatingRingImage = GetImage(rotatingRing, "Segments");
+                orbitMarker = GetImage(rotatingRing, "OrbitSparkTop");
+                orbitMarkerSecondary = GetImage(rotatingRing, "OrbitSparkLeft");
+                orbitMarkerTertiary = GetImage(rotatingRing, "OrbitSparkRight");
+            }
+
+            progressImage = GetImage(visualRoot, "CircularProgress");
+            innerAccentRingImage = GetImage(visualRoot, "PinkInnerAccent");
+            centerDisc = GetImage(visualRoot, "CenterDisc");
+            centerText = GetText(visualRoot, "CenterText");
         }
 
-        Build(260);
+        instructionText = GetText(transform, "Instruction");
+
+        built = rootRect != null &&
+                worldCanvas != null &&
+                canvasGroup != null &&
+                visualRoot != null &&
+                rotatingRing != null &&
+                glowImage != null &&
+                outerRingImage != null &&
+                rotatingRingImage != null &&
+                progressImage != null &&
+                innerAccentRingImage != null &&
+                centerDisc != null &&
+                centerText != null &&
+                instructionText != null;
+
+        if (built)
+            baseLocalPosition = localOffset;
     }
 
-    private void Build(int sortingOrder)
+    private void Build(int sortOrderOverride)
     {
         EnsureSprites();
+
+        rootRect = transform as RectTransform;
+        if (rootRect == null)
+            return;
 
         worldCanvas = GetComponent<Canvas>();
         if (worldCanvas == null)
@@ -184,7 +256,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         worldCanvas.renderMode = RenderMode.WorldSpace;
         worldCanvas.overrideSorting = true;
-        worldCanvas.sortingOrder = sortingOrder;
+        worldCanvas.sortingOrder = sortOrderOverride;
 
         CanvasScaler scaler = GetComponent<CanvasScaler>();
         if (scaler == null)
@@ -203,18 +275,13 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
 
-        rootRect = transform as RectTransform;
-        rootRect.sizeDelta = new Vector2(320f, 210f);
+        rootRect.sizeDelta = new Vector2(220f, 125f);
 
         visualRoot = CreateRect("CircularPrompt", rootRect);
         visualRoot.anchorMin = new Vector2(0.5f, 0.5f);
         visualRoot.anchorMax = new Vector2(0.5f, 0.5f);
         visualRoot.pivot = new Vector2(0.5f, 0.5f);
         visualRoot.anchoredPosition = Vector2.zero;
-
-        instructionText = CreateText("Instruction", visualRoot, instructionFontSize, FontStyles.Bold);
-        instructionText.text = "Segure E para pegar";
-        instructionText.alignment = TextAlignmentOptions.Center;
 
         glowImage = CreateImage("SoftGlow", visualRoot, discSprite);
         outerRingImage = CreateImage("GoldenOuterRing", visualRoot, ringSprite);
@@ -241,9 +308,12 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         centerText.text = "E";
         centerText.alignment = TextAlignmentOptions.Center;
 
+        instructionText = CreateText("Instruction", rootRect, instructionFontSize, FontStyles.Bold);
+        instructionText.text = "Segure E para pegar";
+        instructionText.alignment = TextAlignmentOptions.Center;
+
         built = true;
         baseLocalPosition = localOffset;
-        ApplyInspectorSettings();
     }
 
     private void ApplyInspectorSettings()
@@ -255,24 +325,31 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         baseLocalPosition = localOffset;
 
         transform.localScale = Vector3.one * worldScale;
+        transform.localPosition = localOffset;
+
+        if (worldCanvas != null)
+            worldCanvas.sortingOrder = sortingOrder;
 
         if (rootRect != null)
-            rootRect.sizeDelta = new Vector2(320f, 210f);
+            rootRect.sizeDelta = new Vector2(220f, 125f);
 
         if (visualRoot != null)
-            visualRoot.sizeDelta = new Vector2(320f, 210f);
+        {
+            visualRoot.sizeDelta = new Vector2(circleDiameter, circleDiameter);
+            visualRoot.anchoredPosition = Vector2.zero;
+        }
 
-        ConfigureCenteredCircle(glowImage != null ? glowImage.rectTransform : null, circleDiameter * 1.32f);
+        ConfigureCenteredCircle(glowImage != null ? glowImage.rectTransform : null, circleDiameter * 1.28f);
         ConfigureCenteredCircle(outerRingImage != null ? outerRingImage.rectTransform : null, circleDiameter);
-        ConfigureCenteredCircle(rotatingRing, circleDiameter - 8f);
-        ConfigureCenteredCircle(progressImage != null ? progressImage.rectTransform : null, circleDiameter - 7f);
+        ConfigureCenteredCircle(rotatingRing, circleDiameter - 7f);
+        ConfigureCenteredCircle(progressImage != null ? progressImage.rectTransform : null, circleDiameter - 6f);
         ConfigureCenteredCircle(
             innerAccentRingImage != null ? innerAccentRingImage.rectTransform : null,
-            circleDiameter - progressThickness * 2f - 7f
+            circleDiameter - progressThickness * 2f - 5f
         );
         ConfigureCenteredCircle(
             centerDisc != null ? centerDisc.rectTransform : null,
-            circleDiameter - progressThickness * 2f - innerAccentThickness * 2f - 13f
+            circleDiameter - progressThickness * 2f - innerAccentThickness * 2f - 10f
         );
 
         ConfigureOrbitMarker(orbitMarker != null ? orbitMarker.rectTransform : null, 0f);
@@ -288,6 +365,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
             rect.anchoredPosition = instructionOffset;
             rect.sizeDelta = instructionSize;
 
+            instructionText.gameObject.SetActive(showInstructionText);
             instructionText.fontSize = instructionFontSize;
             instructionText.color = instructionTextColor;
             instructionText.outlineColor = textOutlineColor;
@@ -299,7 +377,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (centerText != null)
         {
             RectTransform rect = centerText.rectTransform;
-            float centerSize = Mathf.Max(30f, circleDiameter * 0.48f);
+            float centerSize = Mathf.Max(24f, circleDiameter * 0.5f);
             ConfigureCenteredCircle(rect, centerSize);
 
             centerText.fontSize = centerFontSize;
@@ -336,19 +414,13 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
     private void AnimatePrompt()
     {
-        float time = Time.unscaledTime;
+        float time = Time.realtimeSinceStartup;
 
         transform.localPosition = baseLocalPosition +
                                   Vector3.up * (Mathf.Sin(time * floatingSpeed) * floatingAmplitude);
 
         if (rotatingRing != null)
-        {
-            rotatingRing.localRotation = Quaternion.Euler(
-                0f,
-                0f,
-                -time * rotationDegreesPerSecond
-            );
-        }
+            rotatingRing.localRotation = Quaternion.Euler(0f, 0f, -time * rotationDegreesPerSecond);
 
         if (visualRoot != null)
         {
@@ -380,20 +452,21 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         if (direction.sqrMagnitude <= 0.0001f)
             return;
 
-        transform.rotation = Quaternion.LookRotation(
-            direction.normalized,
-            cachedCamera.transform.up
-        );
+        transform.rotation = Quaternion.LookRotation(direction.normalized, cachedCamera.transform.up);
     }
 
     public void SetVisible(bool visible)
     {
-        EnsureBuilt();
+        ResolveExistingReferences();
+
+        if (!built && Application.isPlaying)
+            EnsurePersistentVisual();
 
         if (canvasGroup == null)
             return;
 
-        canvasGroup.alpha = visible ? 1f : 0f;
+        bool finalVisible = visible || (!Application.isPlaying && previewInEditMode);
+        canvasGroup.alpha = finalVisible ? 1f : 0f;
         canvasGroup.interactable = false;
         canvasGroup.blocksRaycasts = false;
     }
@@ -405,7 +478,8 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         bool showProgress,
         Color accentColor)
     {
-        EnsureBuilt();
+        if (!built)
+            EnsurePersistentVisual();
 
         currentAccentColor = accentColor;
         currentProgress = Mathf.Clamp01(progress01);
@@ -437,51 +511,74 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     {
         worldScale = Mathf.Clamp(worldScale, 0.0001f, 0.02f);
         circleDiameter = Mathf.Max(48f, circleDiameter);
-        progressThickness = Mathf.Clamp(progressThickness, 1f, circleDiameter * 0.22f);
-        innerAccentThickness = Mathf.Clamp(innerAccentThickness, 1f, circleDiameter * 0.18f);
-        orbitMarkerSize = Mathf.Clamp(orbitMarkerSize, 4f, circleDiameter * 0.22f);
+        progressThickness = Mathf.Clamp(progressThickness, 1f, circleDiameter * 0.25f);
+        innerAccentThickness = Mathf.Clamp(innerAccentThickness, 1f, circleDiameter * 0.2f);
+        orbitMarkerSize = Mathf.Clamp(orbitMarkerSize, 4f, circleDiameter * 0.25f);
         instructionFontSize = Mathf.Max(8f, instructionFontSize);
         centerFontSize = Mathf.Max(8f, centerFontSize);
         currentProgress = Mathf.Clamp01(currentProgress);
     }
 
-    private void ConfigureOrbitMarker(RectTransform marker, float angleDegrees)
-    {
-        if (marker == null || rotatingRing == null)
-            return;
-
-        marker.anchorMin = new Vector2(0.5f, 0.5f);
-        marker.anchorMax = new Vector2(0.5f, 0.5f);
-        marker.pivot = new Vector2(0.5f, 0.5f);
-        marker.sizeDelta = Vector2.one * orbitMarkerSize;
-
-        float radius = Mathf.Max(8f, (circleDiameter - 8f) * 0.5f - orbitMarkerSize * 0.25f);
-        float radians = angleDegrees * Mathf.Deg2Rad;
-        marker.anchoredPosition = new Vector2(
-            Mathf.Sin(radians) * radius,
-            Mathf.Cos(radians) * radius
-        );
-    }
-
-    private static void ConfigureCenteredCircle(RectTransform rect, float diameter)
+    private void ConfigureOrbitMarker(RectTransform rect, float angleDegrees)
     {
         if (rect == null)
             return;
 
+        float radius = Mathf.Max(4f, (circleDiameter - 7f) * 0.5f - 3f);
+        float radians = angleDegrees * Mathf.Deg2Rad;
+        Vector2 position = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * radius;
+
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = Vector2.one * Mathf.Max(1f, diameter);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(orbitMarkerSize, orbitMarkerSize);
     }
 
-    private static float NormalizeLegacyScale(float scale)
+    private void ClearGeneratedChildren()
     {
-        scale = Mathf.Max(0.0001f, scale);
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            Transform child = transform.GetChild(i);
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
+        }
+    }
 
-        // As versões anteriores usavam aproximadamente 0.008, deixando o prompt gigante.
-        // Valores antigos são convertidos automaticamente para o novo padrão compacto.
-        return scale > 0.0045f ? scale * 0.34f : scale;
+    private void ResetGeneratedReferences()
+    {
+        built = false;
+        visualRoot = null;
+        rotatingRing = null;
+        glowImage = null;
+        outerRingImage = null;
+        rotatingRingImage = null;
+        progressImage = null;
+        innerAccentRingImage = null;
+        centerDisc = null;
+        orbitMarker = null;
+        orbitMarkerSecondary = null;
+        orbitMarkerTertiary = null;
+        centerText = null;
+        instructionText = null;
+    }
+
+    private static Image GetImage(Transform parent, string childName)
+    {
+        if (parent == null)
+            return null;
+        Transform child = parent.Find(childName);
+        return child != null ? child.GetComponent<Image>() : null;
+    }
+
+    private static TextMeshProUGUI GetText(Transform parent, string childName)
+    {
+        if (parent == null)
+            return null;
+        Transform child = parent.Find(childName);
+        return child != null ? child.GetComponent<TextMeshProUGUI>() : null;
     }
 
     private static RectTransform CreateRect(string name, Transform parent)
@@ -515,8 +612,24 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         return text;
     }
 
+    private static void ConfigureCenteredCircle(RectTransform rect, float diameter)
+    {
+        if (rect == null)
+            return;
+
+        diameter = Mathf.Max(1f, diameter);
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = new Vector2(diameter, diameter);
+    }
+
     private static void Stretch(RectTransform rect)
     {
+        if (rect == null)
+            return;
+
         rect.anchorMin = Vector2.zero;
         rect.anchorMax = Vector2.one;
         rect.pivot = new Vector2(0.5f, 0.5f);
@@ -524,53 +637,54 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         rect.offsetMax = Vector2.zero;
     }
 
+    private static float NormalizeLegacyScale(float value)
+    {
+        if (value >= 0.006f)
+            return 0.0023f;
+        return Mathf.Clamp(value, 0.0001f, 0.02f);
+    }
+
     private static void EnsureSprites()
     {
         if (discSprite == null)
         {
             discTexture = CreateCircleTexture(128, 0f, 0.98f);
-            discTexture.name = "NewspaperPromptV2_Disc";
+            discTexture.name = "NewspaperPrompt_Disc";
             discTexture.hideFlags = HideFlags.HideAndDontSave;
-
             discSprite = Sprite.Create(
                 discTexture,
                 new Rect(0f, 0f, discTexture.width, discTexture.height),
                 new Vector2(0.5f, 0.5f),
                 100f
             );
-            discSprite.name = "NewspaperPromptV2_Disc";
             discSprite.hideFlags = HideFlags.HideAndDontSave;
         }
 
         if (ringSprite == null)
         {
             ringTexture = CreateCircleTexture(128, 0.76f, 0.98f);
-            ringTexture.name = "NewspaperPromptV2_Ring";
+            ringTexture.name = "NewspaperPrompt_Ring";
             ringTexture.hideFlags = HideFlags.HideAndDontSave;
-
             ringSprite = Sprite.Create(
                 ringTexture,
                 new Rect(0f, 0f, ringTexture.width, ringTexture.height),
                 new Vector2(0.5f, 0.5f),
                 100f
             );
-            ringSprite.name = "NewspaperPromptV2_Ring";
             ringSprite.hideFlags = HideFlags.HideAndDontSave;
         }
 
         if (segmentedRingSprite == null)
         {
-            segmentedRingTexture = CreateSegmentedRingTexture(128, 0.76f, 0.98f, 10, 0.28f);
-            segmentedRingTexture.name = "NewspaperPromptV2_SegmentedRing";
+            segmentedRingTexture = CreateSegmentedRingTexture(128, 0.75f, 0.98f, 12, 0.68f);
+            segmentedRingTexture.name = "NewspaperPrompt_SegmentedRing";
             segmentedRingTexture.hideFlags = HideFlags.HideAndDontSave;
-
             segmentedRingSprite = Sprite.Create(
                 segmentedRingTexture,
                 new Rect(0f, 0f, segmentedRingTexture.width, segmentedRingTexture.height),
                 new Vector2(0.5f, 0.5f),
                 100f
             );
-            segmentedRingSprite.name = "NewspaperPromptV2_SegmentedRing";
             segmentedRingSprite.hideFlags = HideFlags.HideAndDontSave;
         }
     }
@@ -592,22 +706,11 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 float dx = (x - center) / radius;
                 float dy = (y - center) / radius;
                 float distance = Mathf.Sqrt(dx * dx + dy * dy);
-                float outerAlpha = 1f - Mathf.SmoothStep(
-                    outerRadius - 0.025f,
-                    outerRadius + 0.01f,
-                    distance
-                );
+                float outerAlpha = 1f - Mathf.SmoothStep(outerRadius - 0.025f, outerRadius + 0.01f, distance);
                 float innerAlpha = innerRadius <= 0f
                     ? 1f
-                    : Mathf.SmoothStep(
-                        innerRadius - 0.018f,
-                        innerRadius + 0.026f,
-                        distance
-                    );
-
-                byte alpha = (byte)Mathf.RoundToInt(
-                    Mathf.Clamp01(outerAlpha * innerAlpha) * 255f
-                );
+                    : Mathf.SmoothStep(innerRadius - 0.015f, innerRadius + 0.025f, distance);
+                byte alpha = (byte)Mathf.RoundToInt(Mathf.Clamp01(outerAlpha * innerAlpha) * 255f);
                 pixels[y * size + x] = new Color32(255, 255, 255, alpha);
             }
         }
@@ -622,7 +725,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         float innerRadius,
         float outerRadius,
         int segmentCount,
-        float gapFraction)
+        float segmentFill)
     {
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false, true);
         texture.wrapMode = TextureWrapMode.Clamp;
@@ -631,8 +734,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         Color32[] pixels = new Color32[size * size];
         float center = (size - 1) * 0.5f;
         float radius = size * 0.5f;
-        segmentCount = Mathf.Max(2, segmentCount);
-        gapFraction = Mathf.Clamp01(gapFraction);
+        float segmentAngle = Mathf.PI * 2f / Mathf.Max(1, segmentCount);
 
         for (int y = 0; y < size; y++)
         {
@@ -641,25 +743,14 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
                 float dx = (x - center) / radius;
                 float dy = (y - center) / radius;
                 float distance = Mathf.Sqrt(dx * dx + dy * dy);
+                float angle = Mathf.Atan2(dy, dx) + Mathf.PI;
+                float withinSegment = Mathf.Repeat(angle, segmentAngle) / segmentAngle;
+                bool segmentVisible = withinSegment <= segmentFill;
 
-                float outerAlpha = 1f - Mathf.SmoothStep(
-                    outerRadius - 0.025f,
-                    outerRadius + 0.01f,
-                    distance
-                );
-                float innerAlpha = Mathf.SmoothStep(
-                    innerRadius - 0.018f,
-                    innerRadius + 0.026f,
-                    distance
-                );
-
-                float angle = Mathf.Atan2(dy, dx) / (Mathf.PI * 2f) + 0.5f;
-                float segmentPosition = Mathf.Repeat(angle * segmentCount, 1f);
-                float segmentAlpha = segmentPosition <= 1f - gapFraction ? 1f : 0f;
-
-                byte alpha = (byte)Mathf.RoundToInt(
-                    Mathf.Clamp01(outerAlpha * innerAlpha * segmentAlpha) * 255f
-                );
+                float outerAlpha = 1f - Mathf.SmoothStep(outerRadius - 0.025f, outerRadius + 0.01f, distance);
+                float innerAlpha = Mathf.SmoothStep(innerRadius - 0.015f, innerRadius + 0.025f, distance);
+                float alpha01 = segmentVisible ? Mathf.Clamp01(outerAlpha * innerAlpha) : 0f;
+                byte alpha = (byte)Mathf.RoundToInt(alpha01 * 255f);
                 pixels[y * size + x] = new Color32(255, 255, 255, alpha);
             }
         }
