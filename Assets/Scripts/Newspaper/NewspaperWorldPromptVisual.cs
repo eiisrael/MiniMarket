@@ -14,6 +14,7 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
     public CanvasGroup canvasGroup;
     public RectTransform rotatingRing;
     public Image rotatingRingImage;
+    public Image orbitMarker;
     public Image progressImage;
     public Image centerDisc;
     public TextMeshProUGUI centerText;
@@ -117,6 +118,18 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
         rotatingRingImage.color = new Color32(255, 255, 255, 245);
         rotatingRingImage.raycastTarget = false;
 
+        GameObject markerObject = CreateUiObject("OrbitMarker", rotatingRing);
+        RectTransform markerRect = markerObject.GetComponent<RectTransform>();
+        markerRect.anchorMin = new Vector2(0.5f, 1f);
+        markerRect.anchorMax = new Vector2(0.5f, 1f);
+        markerRect.pivot = new Vector2(0.5f, 0.5f);
+        markerRect.anchoredPosition = new Vector2(0f, -3f);
+        markerRect.sizeDelta = new Vector2(15f, 15f);
+        orbitMarker = markerObject.AddComponent<Image>();
+        orbitMarker.sprite = discSprite;
+        orbitMarker.color = new Color32(255, 255, 255, 255);
+        orbitMarker.raycastTarget = false;
+
         GameObject progressObject = CreateUiObject("ProgressRing", circleRoot);
         RectTransform progressRect = progressObject.GetComponent<RectTransform>();
         Stretch(progressRect, new Vector2(6f, 6f), new Vector2(-6f, -6f));
@@ -198,6 +211,9 @@ public sealed class NewspaperWorldPromptVisual : MonoBehaviour
 
         if (rotatingRingImage != null)
             rotatingRingImage.color = accentColor;
+
+        if (orbitMarker != null)
+            orbitMarker.color = accentColor;
 
         if (progressImage != null)
         {
