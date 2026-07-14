@@ -39,7 +39,7 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
 
     public CameraRelativeMovement ActiveMovement => movement;
     public float CurrentEnergy01 => movement != null
-        ? Mathf.Clamp01(movement.EnergiaPercentual01)
+        ? MiniMarketRuntimeConsistencyController.CalculateContinuousEnergy01(movement)
         : 0f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -124,7 +124,7 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
             return false;
         }
 
-        float before = Mathf.Clamp01(movement.EnergiaPercentual01);
+        float before = CurrentEnergy01;
         float target = Mathf.Clamp01(before + Mathf.Max(0f, normalizedAmount));
 
         if (Mathf.Approximately(before, target))
@@ -246,6 +246,8 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
         if (target == null)
             return;
 
+        DisableChildGraphicRaycasts(target);
+
         if (!force && target == boundButton && boundProxy != null)
         {
             boundProxy.service = this;
@@ -265,6 +267,8 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
         if (graphic != null)
             graphic.raycastTarget = true;
 
+        DisableChildGraphicRaycasts(boundButton);
+
         boundProxy = boundButton.GetComponent<MiniMarketEnergyQuarterButtonProxy>();
         if (boundProxy == null)
             boundProxy = boundButton.gameObject.AddComponent<MiniMarketEnergyQuarterButtonProxy>();
@@ -273,7 +277,28 @@ public sealed class MiniMarketEnergyQuarterRefill : MonoBehaviour
 
         Text label = boundButton.GetComponentInChildren<Text>(true);
         if (label != null)
+        {
             label.text = "RECUPERAR\n+25%";
+            label.raycastTarget = false;
+        }
+    }
+
+    private static void DisableChildGraphicRaycasts(Button button)
+    {
+        if (button == null)
+            return;
+
+        Graphic rootGraphic = button.GetComponent<Graphic>();
+        Graphic[] graphics = button.GetComponentsInChildren<Graphic>(true);
+
+        for (int i = 0; i < graphics.Length; i++)
+        {
+            Graphic graphic = graphics[i];
+            if (graphic == null)
+                continue;
+
+            graphic.raycastTarget = graphic == rootGraphic;
+        }
     }
 
     private void ReleaseButton()
