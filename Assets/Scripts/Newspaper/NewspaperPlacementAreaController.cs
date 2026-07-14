@@ -13,8 +13,16 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
 
     [Header("Referências")]
     public Transform putArea;
+
+    [Tooltip("Jornal real usado como fonte. Deve apontar para Newspaper_Stand/Jornal.")]
     public GameObject newspaperSourceVisual;
+
+    [Tooltip("Referência runtime do jornal realmente colocado. Não use como guia visual.")]
     public GameObject placedNewspaperVisual;
+
+    [Tooltip("Objeto opcional usado apenas para demonstrar onde o jornal será colocado.")]
+    public GameObject placementGuideVisual;
+
     public Transform promptAnchor;
     public Collider areaCollider;
 
@@ -36,6 +44,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     [Min(0f)] public float areaHeightOffset = 0.025f;
     [Min(0.005f)] public float lineWidth = 0.055f;
     public bool showCentralX = true;
+    public bool showPlacementGuide = true;
     public Color availableAreaColor = new Color32(255, 215, 52, 255);
     public Color nearbyAreaColor = new Color32(73, 235, 118, 255);
 
@@ -64,6 +73,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
 
     private void Awake()
     {
+        NormalizeSerializedReferences();
         ResolveReferences();
         EnsureAreaVisual();
         EnsurePrompt();
@@ -72,6 +82,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
 
     private void OnEnable()
     {
+        NormalizeSerializedReferences();
         ResolveReferences();
         EnsureAreaVisual();
         EnsurePrompt();
@@ -89,6 +100,8 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     private void OnDisable()
     {
         SetAreaVisualVisible(false);
+        SetPlacementGuideVisible(false);
+
         if (promptVisual != null)
             promptVisual.SetVisible(false);
     }
@@ -106,10 +119,12 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         bool near = shouldOffer && IsPlayerWithin(interactionRadius);
 
         SetAreaVisualVisible(shouldOffer);
+        SetPlacementGuideVisible(shouldOffer && showPlacementGuide);
         SetAreaColor(near ? nearbyAreaColor : availableAreaColor);
 
         if (promptVisual != null)
         {
+            // O prompt da Put_Area continua aparecendo somente de perto.
             promptVisual.SetVisible(near);
             promptVisual.SetInteractionPrompt(
                 "E",
@@ -141,6 +156,8 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
             inventory.DefinirJornalNoLocal(placeId, true);
 
         SetAreaVisualVisible(false);
+        SetPlacementGuideVisible(false);
+
         if (promptVisual != null)
             promptVisual.SetVisible(false);
 
@@ -182,14 +199,41 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         occupied = persistPlacedState && inventory != null && inventory.LocalPossuiJornal(placeId);
 
         if (occupied)
+        {
             CreatePlacedNewspaperVisual();
+            SetPlacementGuideVisible(false);
+        }
         else if (placedNewspaperVisual != null)
+        {
             placedNewspaperVisual.SetActive(false);
+        }
+    }
+
+    private void NormalizeSerializedReferences()
+    {
+        // Versões anteriores usavam placedNewspaperVisual como objeto demonstrativo.
+        // Converte automaticamente essa referência para placementGuideVisual.
+        if (placedNewspaperVisual != null && !IsRuntimePlacedVisual(placedNewspaperVisual))
+        {
+            if (placementGuideVisual == null)
+                placementGuideVisual = placedNewspaperVisual;
+
+            placedNewspaperVisual = null;
+        }
+
+        if (putArea == null)
+            putArea = transform;
+
+        if (placementGuideVisual == null && putArea != null)
+            placementGuideVisual = putArea.gameObject;
     }
 
     private void CreatePlacedNewspaperVisual()
     {
-        if (placedNewspaperVisual != null)
+        NormalizeSerializedReferences();
+        ResolveReferences();
+
+        if (placedNewspaperVisual != null && IsRuntimePlacedVisual(placedNewspaperVisual))
         {
             placedNewspaperVisual.SetActive(true);
             ApplyPlacedTransform(placedNewspaperVisual.transform);
@@ -200,17 +244,22 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         if (newspaperSourceVisual == null || putArea == null)
         {
             Debug.LogWarning(
-                "[NewspaperPlace] Fonte visual ou Put_Area não configurada.",
+                "[NewspaperPlace] Jornal real do Newspaper_Stand ou Put_Area não configurado.",
                 this
             );
             return;
         }
 
         placedNewspaperVisual = Instantiate(newspaperSourceVisual, putArea);
-        placedNewspaperVisual.name = "Placed_Newspaper";
+        placedNewspaperVisual.name = "Placed_Newspaper_Runtime";
         placedNewspaperVisual.SetActive(true);
         ApplyPlacedTransform(placedNewspaperVisual.transform);
         SanitizePlacedVisual(placedNewspaperVisual);
+    }
+
+    private static bool IsRuntimePlacedVisual(GameObject target)
+    {
+        return target != null && target.name.StartsWith("Placed_Newspaper_Runtime");
     }
 
     private void ApplyPlacedTransform(Transform target)
@@ -236,7 +285,28 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         NewspaperStandController[] standControllers =
             target.GetComponentsInChildren<NewspaperStandController>(true);
         for (int i = 0; i < standControllers.Length; i++)
-            standControllers[i].enabled = false;
+        {
+            if (standControllers[i] != null)
+                standControllers[i].enabled = false;
+        }
+
+        NewspaperPlacementAreaController[] placementControllers =
+            target.GetComponentsInChildren<NewspaperPlacementAreaController>(true);
+        for (int i = 0; i < placementControllers.Length; i++)
+        {
+            if (placementControllers[i] != null)
+                placementControllers[i].enabled = false;
+        }
+
+        NewspaperWorldPromptVisual[] prompts =
+            target.GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
+        for (int i = 0; i < prompts.Length; i++)
+        {
+            if (prompts[i] == null)
+                continue;
+            prompts[i].SetVisible(false);
+            prompts[i].enabled = false;
+        }
 
         GrabbableItem[] grabbables = target.GetComponentsInChildren<GrabbableItem>(true);
         for (int i = 0; i < grabbables.Length; i++)
@@ -257,15 +327,28 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
             highlights[i].enabled = false;
         }
 
+        Collider[] colliders = target.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null)
+                colliders[i].enabled = false;
+        }
+
         Rigidbody[] bodies = target.GetComponentsInChildren<Rigidbody>(true);
         for (int i = 0; i < bodies.Length; i++)
         {
-            if (bodies[i] == null)
+            Rigidbody body = bodies[i];
+            if (body == null)
                 continue;
-            bodies[i].linearVelocity = Vector3.zero;
-            bodies[i].angularVelocity = Vector3.zero;
-            bodies[i].useGravity = false;
-            bodies[i].isKinematic = true;
+
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+
+            body.useGravity = false;
+            body.isKinematic = true;
         }
     }
 
@@ -280,6 +363,17 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         if (areaCollider == null && putArea != null)
             areaCollider = putArea.GetComponent<Collider>();
 
+        if (newspaperSourceVisual == null)
+        {
+            NewspaperStandController stand =
+                UnityEngine.Object.FindAnyObjectByType<NewspaperStandController>(
+                    FindObjectsInactive.Include
+                );
+
+            if (stand != null)
+                newspaperSourceVisual = stand.newspaperVisual;
+        }
+
         if (inventory == null)
             inventory = MiniMarketNewspaperInventoryService.Instance;
 
@@ -290,7 +384,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
             );
         }
 
-        if (player == null && Time.unscaledTime >= nextPlayerResolve)
+        if (player == null && Application.isPlaying && Time.unscaledTime >= nextPlayerResolve)
         {
             nextPlayerResolve = Time.unscaledTime + 0.5f;
             CameraRelativeMovement movement =
@@ -458,6 +552,28 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
             diagonalB.gameObject.SetActive(visible && showCentralX);
     }
 
+    private void SetPlacementGuideVisible(bool visible)
+    {
+        if (placementGuideVisual == null)
+            return;
+
+        Renderer[] renderers = placementGuideVisual.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null)
+                continue;
+
+            if (placedNewspaperVisual != null &&
+                renderer.transform.IsChildOf(placedNewspaperVisual.transform))
+            {
+                continue;
+            }
+
+            renderer.enabled = visible;
+        }
+    }
+
     private bool IsPlayerWithin(float distance)
     {
         if (player == null)
@@ -475,6 +591,8 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         areaSize.y = Mathf.Max(0.1f, areaSize.y);
         lineWidth = Mathf.Max(0.005f, lineWidth);
         promptWorldScale = Mathf.Max(0.0005f, promptWorldScale);
+
+        NormalizeSerializedReferences();
 
         if (putArea == null)
             putArea = transform;
