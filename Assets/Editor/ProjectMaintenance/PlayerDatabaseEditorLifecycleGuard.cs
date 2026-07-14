@@ -1,26 +1,27 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Protege o PlayerDatabase durante transições do Unity Editor.
-///
-/// No Unity 6.7 alpha, alguns OnValidate são executados durante o pre-start do Play Mode,
-/// quando Application.isPlaying já pode retornar true. Sem esta proteção, os marcadores
-/// de compra tentam criar um GameObject DontDestroyOnLoad dentro do OnValidate, gerando
-/// SendMessage/OnDidAddComponent e referências inválidas entre cenas.
+/// Protege o PlayerDatabase durante as transições do Play Mode do Unity 6.
+/// Não grava alterações nas cenas e não deixa referências para objetos que foram
+/// movidos para DontDestroyOnLoad.
 /// </summary>
 [InitializeOnLoad]
 internal static class PlayerDatabaseEditorLifecycleGuard
 {
     private const BindingFlags StaticPrivate = BindingFlags.Static | BindingFlags.NonPublic;
+
     private static readonly FieldInfo ClosingField =
         typeof(PlayerDatabase).GetField("encerrandoAplicacao", StaticPrivate);
+
+    private static readonly Dictionary<int, bool> TriggerDatabaseSync =
+        new Dictionary<int, bool>();
 
     static PlayerDatabaseEditorLifecycleGuard()
     {
@@ -28,7 +29,6 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
 
         SetDatabaseCreationBlocked(!EditorApplication.isPlaying);
-        EditorApplication.delayCall += ClearInvalidDatabaseReferencesFromOpenScenes;
     }
 
     private static void OnPlayModeStateChanged(PlayModeStateChange state)
@@ -36,23 +36,27 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         switch (state)
         {
             case PlayModeStateChange.ExitingEditMode:
+                // OnValidate ainda pode ser executado durante esta etapa.
                 SetDatabaseCreationBlocked(true);
-                ClearInvalidDatabaseReferencesFromOpenScenes();
+                SuspendPurchaseDatabaseSync();
+                ClearRuntimeDatabaseReferencesFromOpenScenes();
                 break;
 
             case PlayModeStateChange.EnteredPlayMode:
                 SetDatabaseCreationBlocked(false);
+                RestorePurchaseDatabaseSync();
                 EditorApplication.delayCall += CreateDatabaseAfterPlayModeStarted;
                 break;
 
             case PlayModeStateChange.ExitingPlayMode:
                 SetDatabaseCreationBlocked(true);
-                ClearInvalidDatabaseReferencesFromOpenScenes();
+                ClearRuntimeDatabaseReferencesFromOpenScenes();
                 break;
 
             case PlayModeStateChange.EnteredEditMode:
                 SetDatabaseCreationBlocked(true);
-                EditorApplication.delayCall += ClearInvalidDatabaseReferencesFromOpenScenes;
+                RestorePurchaseDatabaseSync();
+                ClearRuntimeDatabaseReferencesFromOpenScenes();
                 break;
         }
     }
@@ -68,20 +72,65 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         }
         catch (Exception exception)
         {
-            Debug.LogWarning("[PlayerDatabaseEditorGuard] Falha ao alterar trava do banco: " + exception.Message);
+            Debug.LogWarning(
+                "[PlayerDatabaseEditorGuard] Falha ao alterar a trava do banco: " +
+                exception.Message
+            );
         }
     }
 
     private static void CreateDatabaseAfterPlayModeStarted()
     {
-        if (!EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode == false)
+        if (!EditorApplication.isPlaying)
             return;
 
         SetDatabaseCreationBlocked(false);
         PlayerDatabase.ObterOuCriar();
     }
 
-    private static void ClearInvalidDatabaseReferencesFromOpenScenes()
+    private static void SuspendPurchaseDatabaseSync()
+    {
+        TriggerDatabaseSync.Clear();
+
+        BuySceneEntryTrigger[] triggers =
+            Object.FindObjectsByType<BuySceneEntryTrigger>(FindObjectsInactive.Include);
+
+        for (int i = 0; i < triggers.Length; i++)
+        {
+            BuySceneEntryTrigger trigger = triggers[i];
+            if (trigger == null || !trigger.gameObject.scene.IsValid())
+                continue;
+
+            int id = trigger.GetInstanceID();
+            TriggerDatabaseSync[id] = trigger.sincronizarMarcacaoComStatusDosTerrenos;
+
+            // Atribuição apenas em memória. Não usa SetDirty e não altera o arquivo da cena.
+            trigger.sincronizarMarcacaoComStatusDosTerrenos = false;
+        }
+    }
+
+    private static void RestorePurchaseDatabaseSync()
+    {
+        if (TriggerDatabaseSync.Count == 0)
+            return;
+
+        BuySceneEntryTrigger[] triggers =
+            Object.FindObjectsByType<BuySceneEntryTrigger>(FindObjectsInactive.Include);
+
+        for (int i = 0; i < triggers.Length; i++)
+        {
+            BuySceneEntryTrigger trigger = triggers[i];
+            if (trigger == null)
+                continue;
+
+            if (TriggerDatabaseSync.TryGetValue(trigger.GetInstanceID(), out bool previous))
+                trigger.sincronizarMarcacaoComStatusDosTerrenos = previous;
+        }
+
+        TriggerDatabaseSync.Clear();
+    }
+
+    private static void ClearRuntimeDatabaseReferencesFromOpenScenes()
     {
         if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             return;
@@ -92,32 +141,21 @@ internal static class PlayerDatabaseEditorLifecycleGuard
             if (!scene.IsValid() || !scene.isLoaded)
                 continue;
 
-            bool sceneChanged = false;
             GameObject[] roots = scene.GetRootGameObjects();
-
             for (int rootIndex = 0; rootIndex < roots.Length; rootIndex++)
             {
                 Component[] components = roots[rootIndex].GetComponentsInChildren<Component>(true);
                 for (int componentIndex = 0; componentIndex < components.Length; componentIndex++)
                 {
                     Component component = components[componentIndex];
-                    if (component == null)
-                        continue;
-
-                    if (ClearDatabaseReferences(component))
-                    {
-                        sceneChanged = true;
-                        EditorUtility.SetDirty(component);
-                    }
+                    if (component != null)
+                        ClearDatabaseReferences(component);
                 }
             }
-
-            if (sceneChanged && !EditorApplication.isPlaying)
-                EditorSceneManager.MarkSceneDirty(scene);
         }
     }
 
-    private static bool ClearDatabaseReferences(Component component)
+    private static void ClearDatabaseReferences(Component component)
     {
         SerializedObject serializedObject;
         try
@@ -126,7 +164,7 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         }
         catch
         {
-            return false;
+            return;
         }
 
         bool changed = false;
@@ -151,10 +189,10 @@ internal static class PlayerDatabaseEditorLifecycleGuard
             changed = true;
         }
 
+        // Intencionalmente não chama EditorUtility.SetDirty/MarkSceneDirty.
+        // A limpeza vale para a transição atual sem reabrir a cena como modificada.
         if (changed)
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
-
-        return changed;
     }
 
     private static bool IsRuntimeDatabaseReference(Object referenced)
@@ -165,20 +203,18 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         if (referenced is PlayerDatabase)
             return true;
 
-        string typeName = referenced.GetType().Name;
-        if (typeName.IndexOf("PlayerDatabase", StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-
         GameObject target = referenced as GameObject;
         if (target == null && referenced is Component component)
             target = component.gameObject;
 
-        return target != null &&
-               string.Equals(
-                   target.name,
-                   "MiniMarket_PlayerDatabase",
-                   StringComparison.OrdinalIgnoreCase
-               );
+        if (target == null)
+            return false;
+
+        return string.Equals(
+            target.name,
+            "MiniMarket_PlayerDatabase",
+            StringComparison.OrdinalIgnoreCase
+        );
     }
 }
 #endif
