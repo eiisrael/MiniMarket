@@ -6,7 +6,7 @@ using UnityEngine;
 /// <summary>
 /// Valida o arquivo do banco antes de qualquer Awake da cena.
 /// Arquivos vazios, JSON inválido ou envelopes MMDB quebrados são movidos para
-/// um backup e o PlayerDatabase pode criar um arquivo novo sem repetir o erro.
+/// backup e o PlayerDatabase cria dados novos sem interromper o gameplay.
 /// </summary>
 public static class PlayerDatabaseFileRecoveryBootstrap
 {
@@ -26,16 +26,17 @@ public static class PlayerDatabaseFileRecoveryBootstrap
             if (IsStructurallyValid(content))
                 return;
 
-            QuarantineCorruptedFile(path);
-            Debug.LogWarning(
-                "[PlayerDatabase] Arquivo local inválido foi movido para backup. " +
-                "Um banco novo será criado automaticamente."
+            string backupPath = QuarantineCorruptedFile(path);
+            Debug.Log(
+                "[PlayerDatabase] Arquivo local inválido recuperado com segurança. " +
+                "Backup: " + backupPath +
+                ". Um banco novo será criado automaticamente."
             );
         }
         catch (Exception exception)
         {
             Debug.LogWarning(
-                "[PlayerDatabase] Não foi possível validar o arquivo local: " +
+                "[PlayerDatabase] Não foi possível validar ou recuperar o arquivo local: " +
                 exception.Message
             );
         }
@@ -89,7 +90,7 @@ public static class PlayerDatabaseFileRecoveryBootstrap
         }
     }
 
-    private static void QuarantineCorruptedFile(string path)
+    private static string QuarantineCorruptedFile(string path)
     {
         string backup = path + ".corrupt_" +
                         DateTime.UtcNow.ToString("yyyyMMdd_HHmmss_fff") +
@@ -104,5 +105,7 @@ public static class PlayerDatabaseFileRecoveryBootstrap
             File.Copy(path, backup, true);
             File.Delete(path);
         }
+
+        return backup;
     }
 }
