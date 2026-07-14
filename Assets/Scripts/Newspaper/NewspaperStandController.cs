@@ -3,7 +3,8 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Controla a coleta de jornal no Newspaper_Stand.
-/// O jogador aproxima, segura E, recebe um jornal no banco e aguarda o respawn.
+/// O prompt do expositor é persistente na cena, sempre visível e reutilizado
+/// tanto para a tecla E quanto para o contador de respawn.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class NewspaperStandController : MonoBehaviour
@@ -27,11 +28,18 @@ public sealed class NewspaperStandController : MonoBehaviour
     [Min(1f)] public float respawnPromptDistance = 8f;
     public bool showRespawnProgress = true;
 
-    [Header("Prompt World Space")]
+    [Header("Prompt Persistente")]
     public NewspaperWorldPromptVisual promptVisual;
-    public Vector3 promptLocalOffset = new Vector3(0f, 2.05f, 0f);
-    [Min(0.0005f)] public float promptWorldScale = 0.008f;
-    [Min(0f)] public float promptRotationSpeed = 32f;
+    public bool alwaysShowPrompt = true;
+    public bool previewPromptInEditMode = true;
+
+    [Tooltip("Usado apenas se o prompt ainda precisar ser criado como fallback em runtime.")]
+    public Vector3 promptLocalOffset = new Vector3(0f, 0.72f, 0f);
+
+    [Tooltip("Usado apenas se o prompt ainda precisar ser criado como fallback em runtime.")]
+    [Min(0.0005f)] public float promptWorldScale = 0.0023f;
+
+    [Min(0f)] public float promptRotationSpeed = 38f;
     public Color availableColor = new Color32(88, 210, 255, 255);
     public Color holdingColor = new Color32(89, 244, 128, 255);
     public Color respawnColor = new Color32(255, 190, 55, 255);
@@ -54,8 +62,6 @@ public sealed class NewspaperStandController : MonoBehaviour
     private float holdProgress;
     private float respawnRemaining;
     private bool newspaperAvailable = true;
-    private bool originalCanBeGrabbed;
-    private bool originalGrabbableEnabled;
 
     public bool NewspaperAvailable => newspaperAvailable;
     public float HoldProgress01 => Mathf.Clamp01(holdProgress);
@@ -66,7 +72,7 @@ public sealed class NewspaperStandController : MonoBehaviour
         ResolveReferences();
         ConfigureControlledNewspaper();
         EnsurePrompt();
-        SetNewspaperAvailable(true, false);
+        SetNewspaperAvailable(true);
     }
 
     private void OnEnable()
@@ -74,6 +80,9 @@ public sealed class NewspaperStandController : MonoBehaviour
         ResolveReferences();
         ConfigureControlledNewspaper();
         EnsurePrompt();
+
+        if (!Application.isPlaying && promptVisual != null && previewPromptInEditMode)
+            promptVisual.SetVisible(true);
     }
 
     private void OnDisable()
@@ -81,7 +90,7 @@ public sealed class NewspaperStandController : MonoBehaviour
         if (highlight != null)
             highlight.Clear();
 
-        if (promptVisual != null)
+        if (Application.isPlaying && promptVisual != null)
             promptVisual.SetVisible(false);
     }
 
@@ -103,47 +112,35 @@ public sealed class NewspaperStandController : MonoBehaviour
         if (highlight != null)
             highlight.SetFocused(near);
 
+        bool holding = near && !GameplayInputState.IsBlocked && Input.GetKey(interactionKey);
+
+        if (holding)
+        {
+            holdProgress += Time.deltaTime / Mathf.Max(0.1f, holdDuration);
+            holdProgress = Mathf.Clamp01(holdProgress);
+        }
+        else if (!near || !Input.GetKey(interactionKey))
+        {
+            DecayOrResetHoldProgress();
+        }
+
         if (promptVisual != null)
         {
-            promptVisual.SetVisible(near);
+            promptVisual.SetVisible(alwaysShowPrompt || near);
             promptVisual.SetInteractionPrompt(
                 "E",
                 holdProgress > 0.001f ? holdingInstruction : availableInstruction,
                 holdProgress,
-                true,
+                holdProgress > 0.001f,
                 holdProgress > 0.001f ? holdingColor : availableColor
             );
         }
 
         if (!near || GameplayInputState.IsBlocked)
-        {
-            DecayOrResetHoldProgress();
             return;
-        }
 
-        if (Input.GetKey(interactionKey))
-        {
-            holdProgress += Time.deltaTime / Mathf.Max(0.1f, holdDuration);
-            holdProgress = Mathf.Clamp01(holdProgress);
-
-            if (promptVisual != null)
-            {
-                promptVisual.SetInteractionPrompt(
-                    "E",
-                    holdingInstruction,
-                    holdProgress,
-                    true,
-                    holdingColor
-                );
-            }
-
-            if (holdProgress >= 0.999f)
-                CollectNewspaper();
-        }
-        else
-        {
-            DecayOrResetHoldProgress();
-        }
+        if (holdProgress >= 0.999f)
+            CollectNewspaper();
     }
 
     private void UpdateRespawnState()
@@ -151,7 +148,8 @@ public sealed class NewspaperStandController : MonoBehaviour
         respawnRemaining = Mathf.Max(0f, respawnRemaining - Time.deltaTime);
         float duration = Mathf.Max(0.5f, respawnSeconds);
         float progress = 1f - respawnRemaining / duration;
-        bool show = showRespawnProgress && IsPlayerWithin(respawnPromptDistance);
+        bool show = alwaysShowPrompt ||
+                    (showRespawnProgress && IsPlayerWithin(respawnPromptDistance));
 
         if (promptVisual != null)
         {
@@ -184,7 +182,20 @@ public sealed class NewspaperStandController : MonoBehaviour
         inventory.AdicionarJornais(1);
         holdProgress = 0f;
         respawnRemaining = Mathf.Max(0.5f, respawnSeconds);
-        SetNewspaperAvailable(false, false);
+        SetNewspaperAvailable(false);
+
+        if (promptVisual != null)
+        {
+            promptVisual.SetVisible(true);
+            promptVisual.SetInteractionPrompt(
+                "0%",
+                string.Format(respawnInstruction, respawnRemaining),
+                0f,
+                true,
+                respawnColor
+            );
+        }
+
         onCollected?.Invoke();
 
         if (logEvents)
@@ -200,14 +211,27 @@ public sealed class NewspaperStandController : MonoBehaviour
     {
         respawnRemaining = 0f;
         holdProgress = 0f;
-        SetNewspaperAvailable(true, true);
+        SetNewspaperAvailable(true);
+
+        if (promptVisual != null)
+        {
+            promptVisual.SetVisible(true);
+            promptVisual.SetInteractionPrompt(
+                "E",
+                availableInstruction,
+                0f,
+                false,
+                availableColor
+            );
+        }
+
         onRespawned?.Invoke();
 
         if (logEvents)
             Debug.Log("[NewspaperStand] Novo jornal disponível.", this);
     }
 
-    private void SetNewspaperAvailable(bool available, bool showPromptIfNear)
+    private void SetNewspaperAvailable(bool available)
     {
         newspaperAvailable = available;
 
@@ -219,9 +243,6 @@ public sealed class NewspaperStandController : MonoBehaviour
             highlight.Clear();
             highlight.enabled = available;
         }
-
-        if (promptVisual != null && !showPromptIfNear)
-            promptVisual.SetVisible(false);
     }
 
     private void ConfigureControlledNewspaper()
@@ -234,8 +255,6 @@ public sealed class NewspaperStandController : MonoBehaviour
 
         if (grabbableItem != null)
         {
-            originalCanBeGrabbed = grabbableItem.canBeGrabbed;
-            originalGrabbableEnabled = grabbableItem.enabled;
             grabbableItem.canBeGrabbed = false;
             grabbableItem.enabled = false;
             grabbableItem.SetSelected(false);
@@ -244,13 +263,18 @@ public sealed class NewspaperStandController : MonoBehaviour
         Rigidbody[] bodies = newspaperVisual.GetComponentsInChildren<Rigidbody>(true);
         for (int i = 0; i < bodies.Length; i++)
         {
-            if (bodies[i] == null)
+            Rigidbody body = bodies[i];
+            if (body == null)
                 continue;
 
-            bodies[i].linearVelocity = Vector3.zero;
-            bodies[i].angularVelocity = Vector3.zero;
-            bodies[i].isKinematic = true;
-            bodies[i].useGravity = false;
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+
+            body.isKinematic = true;
+            body.useGravity = false;
         }
     }
 
@@ -286,7 +310,7 @@ public sealed class NewspaperStandController : MonoBehaviour
                 highlight = newspaperVisual.AddComponent<InteractionHighlight>();
         }
 
-        if (player == null && Time.unscaledTime >= nextPlayerResolve)
+        if (player == null && Application.isPlaying && Time.unscaledTime >= nextPlayerResolve)
         {
             nextPlayerResolve = Time.unscaledTime + 0.5f;
             CameraRelativeMovement movement =
@@ -300,17 +324,53 @@ public sealed class NewspaperStandController : MonoBehaviour
 
     private void EnsurePrompt()
     {
-        if (promptVisual != null || !Application.isPlaying)
-            return;
+        NewspaperWorldPromptVisual[] prompts =
+            GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
 
-        Transform anchor = promptAnchor != null ? promptAnchor : transform;
-        promptVisual = NewspaperWorldPromptVisual.Create(
-            anchor,
-            "Newspaper_InteractionPrompt",
-            promptLocalOffset,
-            promptWorldScale
-        );
-        promptVisual.rotationDegreesPerSecond = promptRotationSpeed;
+        NewspaperWorldPromptVisual selected = promptVisual;
+
+        if (selected == null)
+        {
+            for (int i = 0; i < prompts.Length; i++)
+            {
+                if (prompts[i] != null && prompts[i].name == "Newspaper_InteractionPrompt")
+                {
+                    selected = prompts[i];
+                    break;
+                }
+            }
+        }
+
+        if (selected == null && prompts.Length > 0)
+            selected = prompts[0];
+
+        promptVisual = selected;
+
+        for (int i = 0; i < prompts.Length; i++)
+        {
+            NewspaperWorldPromptVisual candidate = prompts[i];
+            if (candidate == null || candidate == promptVisual)
+                continue;
+
+            candidate.SetVisible(false);
+            if (Application.isPlaying)
+                candidate.enabled = false;
+        }
+
+        if (promptVisual == null && Application.isPlaying)
+        {
+            Transform anchor = promptAnchor != null ? promptAnchor : transform;
+            promptVisual = NewspaperWorldPromptVisual.Create(
+                anchor,
+                "Newspaper_InteractionPrompt",
+                promptLocalOffset,
+                promptWorldScale
+            );
+            promptVisual.rotationDegreesPerSecond = promptRotationSpeed;
+        }
+
+        if (promptVisual != null && !Application.isPlaying && previewPromptInEditMode)
+            promptVisual.SetVisible(true);
     }
 
     private bool IsPlayerWithin(float distance)
@@ -326,13 +386,17 @@ public sealed class NewspaperStandController : MonoBehaviour
     private void DecayOrResetHoldProgress()
     {
         if (resetProgressWhenReleased)
+        {
             holdProgress = 0f;
+        }
         else
+        {
             holdProgress = Mathf.MoveTowards(
                 holdProgress,
                 0f,
                 Mathf.Max(0f, progressDecayPerSecond) * Time.deltaTime
             );
+        }
     }
 
     private static Transform FindChildRecursive(Transform root, string exactName)
@@ -367,6 +431,24 @@ public sealed class NewspaperStandController : MonoBehaviour
             Transform candidate = FindChildRecursive(transform, "Jornal");
             if (candidate != null)
                 newspaperVisual = candidate.gameObject;
+        }
+
+        if (promptAnchor == null)
+            promptAnchor = transform;
+
+        if (promptVisual == null)
+        {
+            NewspaperWorldPromptVisual[] prompts =
+                GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
+
+            for (int i = 0; i < prompts.Length; i++)
+            {
+                if (prompts[i] != null && prompts[i].name == "Newspaper_InteractionPrompt")
+                {
+                    promptVisual = prompts[i];
+                    break;
+                }
+            }
         }
     }
 }
