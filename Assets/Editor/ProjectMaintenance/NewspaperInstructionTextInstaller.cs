@@ -5,59 +5,29 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 /// <summary>
-/// Garante que cada objeto Instruction do sistema de jornal possua o editor de
-/// textos e que as configurações sejam restauradas depois de uma reconstrução visual.
+/// Instala manualmente os componentes editáveis do Instruction.
+/// Não executa em hierarchyChanged ou após recompilar, evitando que a cena volte
+/// a ficar modificada logo depois de Ctrl+S.
 /// </summary>
-[InitializeOnLoad]
 public static class NewspaperInstructionTextInstaller
 {
     private const string MenuPath =
         "Tools/MiniMarket/Jornal/Adicionar Editor de Textos ao Instruction";
 
-    private static bool installQueued;
-
-    static NewspaperInstructionTextInstaller()
-    {
-        QueueInstall();
-        EditorApplication.hierarchyChanged += QueueInstall;
-    }
-
     [MenuItem(MenuPath, priority = 2601)]
     public static void InstallFromMenu()
     {
-        InstallMissingComponents(true);
-    }
-
-    private static void QueueInstall()
-    {
-        if (installQueued)
-            return;
-
-        installQueued = true;
-        EditorApplication.delayCall += DelayedInstall;
-    }
-
-    private static void DelayedInstall()
-    {
-        installQueued = false;
-
-        if (EditorApplication.isPlayingOrWillChangePlaymode ||
-            EditorApplication.isCompiling ||
-            EditorApplication.isUpdating)
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
         {
-            QueueInstall();
+            Debug.LogWarning("[NewspaperInstruction] Saia do Play Mode antes de configurar.");
             return;
         }
 
-        InstallMissingComponents(false);
-    }
-
-    private static void InstallMissingComponents(bool logResult)
-    {
         NewspaperWorldPromptVisual[] prompts =
             Object.FindObjectsByType<NewspaperWorldPromptVisual>(FindObjectsInactive.Include);
 
         int configured = 0;
+        bool anySceneChanged = false;
 
         for (int i = 0; i < prompts.Length; i++)
         {
@@ -65,6 +35,7 @@ public static class NewspaperInstructionTextInstaller
             if (prompt == null || !prompt.gameObject.scene.IsValid())
                 continue;
 
+            bool changed = false;
             NewspaperInstructionTextProfile profile =
                 prompt.GetComponent<NewspaperInstructionTextProfile>();
 
@@ -72,9 +43,10 @@ public static class NewspaperInstructionTextInstaller
             {
                 profile = Undo.AddComponent<NewspaperInstructionTextProfile>(prompt.gameObject);
                 profile.hideFlags = HideFlags.HideInInspector;
-                EditorUtility.SetDirty(profile);
+                changed = true;
             }
 
+            prompt.EnsurePersistentVisual();
             Transform instruction = prompt.transform.Find("Instruction");
             if (instruction == null || instruction.GetComponent<TMP_Text>() == null)
                 continue;
@@ -83,22 +55,37 @@ public static class NewspaperInstructionTextInstaller
                 instruction.GetComponent<NewspaperInstructionTextSettings>();
 
             if (settings == null)
+            {
                 settings = Undo.AddComponent<NewspaperInstructionTextSettings>(instruction.gameObject);
+                changed = true;
+            }
 
             settings.InitializeFromPersistentProfile();
-            EditorUtility.SetDirty(settings);
-            EditorUtility.SetDirty(prompt.gameObject);
-            EditorSceneManager.MarkSceneDirty(prompt.gameObject.scene);
-            configured++;
+
+            if (changed)
+            {
+                EditorUtility.SetDirty(profile);
+                EditorUtility.SetDirty(settings);
+                EditorUtility.SetDirty(prompt.gameObject);
+                EditorSceneManager.MarkSceneDirty(prompt.gameObject.scene);
+                anySceneChanged = true;
+                configured++;
+            }
         }
 
-        if (logResult)
-        {
-            Debug.Log(
-                "[NewspaperInstruction] Editor de textos configurado em " +
-                configured + " prompt(s)."
-            );
-        }
+        if (anySceneChanged)
+            AssetDatabase.SaveAssets();
+
+        Debug.Log(
+            "[NewspaperInstruction] Editor de textos adicionado em " +
+            configured + " prompt(s). Nenhuma rotina automática ficou ativa."
+        );
+    }
+
+    [MenuItem(MenuPath, true)]
+    private static bool ValidateInstallFromMenu()
+    {
+        return !EditorApplication.isPlayingOrWillChangePlaymode;
     }
 }
 #endif
