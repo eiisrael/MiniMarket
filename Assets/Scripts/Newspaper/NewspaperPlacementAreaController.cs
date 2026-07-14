@@ -3,8 +3,10 @@ using UnityEngine.Rendering;
 
 /// <summary>
 /// Área onde o jogador coloca um jornal coletado.
-/// O jornal colocado pode existir permanentemente na cena e ser editado pelo
-/// Inspector. Durante o jogo ele é apenas ativado/desativado, nunca destruído.
+///
+/// O Placed_Newspaper_Runtime é preparado antes da interação, permanece editável na
+/// cena e durante o jogo é somente ativado/desativado. Renderers, física e referências
+/// são cacheados para que o clique de colocar não faça reconstruções recursivas.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class NewspaperPlacementAreaController : MonoBehaviour
@@ -20,7 +22,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     [Tooltip("Jornal real usado como fonte. Deve apontar para Newspaper_Stand/Jornal.")]
     public GameObject newspaperSourceVisual;
 
-    [Tooltip("Jornal persistente colocado dentro da Put_Area. Ele permanece na cena e pode ser editado livremente.")]
+    [Tooltip("Jornal persistente colocado dentro da Put_Area.")]
     public GameObject placedNewspaperVisual;
 
     [Tooltip("Objeto opcional usado apenas para demonstrar onde o jornal será colocado.")]
@@ -36,25 +38,18 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     public bool persistPlacedState = true;
 
     [Header("Jornal persistente da cena")]
-    [Tooltip("Mantém Placed_Newspaper_Runtime e todos os seus filhos salvos na cena, inclusive ao sair do Play Mode.")]
     public bool keepPlacedVisualInScene = true;
 
     [Tooltip("Marcado: posição, rotação e escala são controladas diretamente pelo Transform do Placed_Newspaper_Runtime.")]
     public bool usePlacedVisualTransformAsSource = true;
 
-    [Tooltip("Mostra o jornal colocado fora do Play Mode para facilitar a edição no Inspector.")]
+    [Tooltip("Mostra o jornal colocado fora do Play Mode para facilitar a edição.")]
     public bool previewPlacedVisualInEditMode = true;
 
     [Header("Transform inicial do jornal")]
-    [Tooltip("Usado somente ao criar o objeto persistente pela primeira vez ou quando Use Placed Visual Transform As Source está desmarcado.")]
     public Vector3 placedLocalPosition = Vector3.zero;
-
-    [Tooltip("Usado somente ao criar o objeto persistente pela primeira vez ou quando Use Placed Visual Transform As Source está desmarcado.")]
     public Vector3 placedLocalEuler = Vector3.zero;
-
-    [Tooltip("Usado somente ao criar o objeto persistente pela primeira vez ou quando Use Placed Visual Transform As Source está desmarcado.")]
     public Vector3 placedLocalScale = Vector3.one;
-
     public bool useSourceLocalRotation = true;
     public bool useSourceLocalScale = true;
 
@@ -74,12 +69,15 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     [Min(0f)] public float promptRotationSpeed = 28f;
     public string promptInstruction = "Pressione 'E' para colocar o jornal";
 
+    [Tooltip("Mantém o prompt voltado horizontalmente para a câmera ativa do jogador.")]
+    public bool promptFaceCamera = true;
+
     [Header("Debug")]
     public bool logEvents;
 
     private MiniMarketNewspaperInventoryService inventory;
     private Transform player;
-    private float nextPlayerResolve;
+    private float nextDependencyResolve;
     private bool occupied;
 
     private LineRenderer borderLine;
@@ -87,26 +85,35 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     private LineRenderer diagonalB;
     private Material lineMaterial;
 
+    private Renderer[] guideRenderers = System.Array.Empty<Renderer>();
+    private bool guideRenderersCached;
+    private bool placedVisualPrepared;
+    private bool lastOfferState;
+    private bool lastNearState;
+    private bool stateVisualInitialized;
+    private bool lastGuideVisible;
+    private bool guideVisibilityInitialized;
+
     public bool IsOccupied => occupied;
     public bool CanPlace => !occupied && inventory != null && inventory.PossuiJornal;
 
     private void Awake()
     {
-        NormalizeSerializedReferences();
-        ResolveReferences();
-        ResolvePersistentPlacedVisual();
+        ResolveSceneReferences();
+        ResolveRuntimeDependencies(true);
+        EnsurePromptReference();
         EnsureAreaVisual();
-        EnsurePrompt();
+        PreparePlacedVisualBeforeInteraction();
         RestorePlacedState();
     }
 
     private void OnEnable()
     {
-        NormalizeSerializedReferences();
-        ResolveReferences();
-        ResolvePersistentPlacedVisual();
+        ResolveSceneReferences();
+        ResolveRuntimeDependencies(true);
+        EnsurePromptReference();
         EnsureAreaVisual();
-        EnsurePrompt();
+        PreparePlacedVisualBeforeInteraction();
 
         if (Application.isPlaying)
             RestorePlacedState();
@@ -116,10 +123,11 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
 
     private void Update()
     {
-        ResolveReferences();
-        ResolvePersistentPlacedVisual();
-        EnsureAreaVisual();
-        EnsurePrompt();
+        ResolveRuntimeDependencies(false);
+
+        if (promptVisual == null && Time.unscaledTime >= nextDependencyResolve)
+            EnsurePromptReference();
+
         RefreshState();
     }
 
@@ -130,9 +138,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
 
         SetAreaVisualVisible(false);
         SetPlacementGuideVisible(false);
-
-        if (promptVisual != null)
-            promptVisual.SetVisible(false);
+        SetPromptVisible(false);
     }
 
     private void OnDestroy()
@@ -147,35 +153,42 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         bool shouldOffer = !occupied && (!showOnlyWhenPlayerHasNewspaper || hasNewspaper);
         bool near = shouldOffer && IsPlayerWithin(interactionRadius);
 
-        SetAreaVisualVisible(shouldOffer);
-        SetPlacementGuideVisible(shouldOffer && showPlacementGuide);
-        SetAreaColor(near ? nearbyAreaColor : availableAreaColor);
-
-        if (promptVisual != null)
+        if (!stateVisualInitialized || lastOfferState != shouldOffer || lastNearState != near)
         {
-            promptVisual.SetVisible(near);
-            promptVisual.SetInteractionPrompt(
-                "E",
-                promptInstruction,
-                0f,
-                false,
-                nearbyAreaColor
-            );
+            lastOfferState = shouldOffer;
+            lastNearState = near;
+            stateVisualInitialized = true;
+
+            SetAreaVisualVisible(shouldOffer);
+            SetPlacementGuideVisible(shouldOffer && showPlacementGuide);
+            SetAreaColor(near ? nearbyAreaColor : availableAreaColor);
+            SetPromptVisible(near);
+
+            if (promptVisual != null)
+            {
+                promptVisual.SetInteractionPrompt(
+                    "E",
+                    promptInstruction,
+                    0f,
+                    false,
+                    nearbyAreaColor
+                );
+            }
         }
 
-        if (!near || GameplayInputState.IsBlocked)
-            return;
-
-        if (Input.GetKeyDown(interactionKey))
+        if (near && !GameplayInputState.IsBlocked && Input.GetKeyDown(interactionKey))
             TryPlaceNewspaper();
     }
 
     public bool TryPlaceNewspaper()
     {
-        ResolveReferences();
-        ResolvePersistentPlacedVisual();
+        ResolveRuntimeDependencies(true);
+        PreparePlacedVisualBeforeInteraction();
 
-        if (occupied || inventory == null || !inventory.TentarConsumirJornal(1))
+        if (occupied || inventory == null || placedNewspaperVisual == null)
+            return false;
+
+        if (!inventory.TentarConsumirJornal(1))
             return false;
 
         occupied = true;
@@ -184,11 +197,10 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         if (persistPlacedState)
             inventory.DefinirJornalNoLocal(placeId, true);
 
+        stateVisualInitialized = false;
         SetAreaVisualVisible(false);
         SetPlacementGuideVisible(false);
-
-        if (promptVisual != null)
-            promptVisual.SetVisible(false);
+        SetPromptVisible(false);
 
         if (logEvents)
         {
@@ -206,7 +218,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     public void RemovePlacedNewspaper()
     {
         occupied = false;
-        ResolvePersistentPlacedVisual();
+        PreparePlacedVisualBeforeInteraction();
 
         if (placedNewspaperVisual != null)
         {
@@ -222,35 +234,37 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
                     DestroyImmediate(placedNewspaperVisual);
 
                 placedNewspaperVisual = null;
+                placedVisualPrepared = false;
             }
         }
 
-        ResolveReferences();
+        ResolveRuntimeDependencies(true);
         if (persistPlacedState && inventory != null)
             inventory.DefinirJornalNoLocal(placeId, false);
+
+        stateVisualInitialized = false;
     }
 
     private void RestorePlacedState()
     {
-        ResolveReferences();
-        ResolvePersistentPlacedVisual();
+        ResolveRuntimeDependencies(true);
+        PreparePlacedVisualBeforeInteraction();
 
         occupied = persistPlacedState && inventory != null && inventory.LocalPossuiJornal(placeId);
 
+        if (placedNewspaperVisual != null)
+            placedNewspaperVisual.SetActive(occupied);
+
         if (occupied)
-        {
-            ShowPlacedNewspaper();
             SetPlacementGuideVisible(false);
-        }
-        else if (placedNewspaperVisual != null)
-        {
-            placedNewspaperVisual.SetActive(!Application.isPlaying && previewPlacedVisualInEditMode);
-        }
+
+        stateVisualInitialized = false;
     }
 
     private void ApplyEditModePreview()
     {
-        ResolvePersistentPlacedVisual();
+        ResolveSceneReferences();
+        ResolvePersistentPlacedVisualReference();
 
         if (placedNewspaperVisual != null && keepPlacedVisualInScene)
             placedNewspaperVisual.SetActive(previewPlacedVisualInEditMode);
@@ -259,58 +273,46 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
             promptVisual.SetVisible(true);
     }
 
-    private void NormalizeSerializedReferences()
+    private void PreparePlacedVisualBeforeInteraction()
     {
-        if (putArea == null)
-            putArea = transform;
+        if (placedVisualPrepared && placedNewspaperVisual != null)
+            return;
 
-        if (placedNewspaperVisual != null && !IsPlacedVisual(placedNewspaperVisual))
-        {
-            if (placementGuideVisual == null)
-                placementGuideVisual = placedNewspaperVisual;
+        ResolvePersistentPlacedVisualReference();
 
-            placedNewspaperVisual = null;
-        }
+        if (placedNewspaperVisual == null && Application.isPlaying)
+            CreatePlacedNewspaperFallback();
 
-        if (placementGuideVisual == null && putArea != null)
-            placementGuideVisual = putArea.gameObject;
+        if (placedNewspaperVisual == null)
+            return;
+
+        EnsurePersistentMarkerRuntimeOnly(placedNewspaperVisual);
+        SanitizePlacedVisualOnce(placedNewspaperVisual);
+        SyncCompatibilityTransformFields();
+        placedVisualPrepared = true;
+
+        if (Application.isPlaying)
+            placedNewspaperVisual.SetActive(false);
     }
 
-    private void ResolvePersistentPlacedVisual()
+    private void ResolvePersistentPlacedVisualReference()
     {
         if (placedNewspaperVisual != null && IsPlacedVisual(placedNewspaperVisual))
-        {
-            EnsurePersistentMarker(placedNewspaperVisual);
-            SyncCompatibilityTransformFields();
             return;
-        }
 
         Transform root = putArea != null ? putArea : transform;
         Transform existing = FindChildByPlacedName(root);
-
-        if (existing == null)
-            return;
-
-        placedNewspaperVisual = existing.gameObject;
-        EnsurePersistentMarker(placedNewspaperVisual);
-        SanitizePlacedVisual(placedNewspaperVisual);
-        SyncCompatibilityTransformFields();
+        placedNewspaperVisual = existing != null ? existing.gameObject : null;
     }
 
     private void ShowPlacedNewspaper()
     {
-        ResolvePersistentPlacedVisual();
-
-        if (placedNewspaperVisual == null)
-            CreatePlacedNewspaperFallback();
-
         if (placedNewspaperVisual == null)
             return;
 
         if (!usePlacedVisualTransformAsSource)
             ApplyPlacedTransform(placedNewspaperVisual.transform, false);
 
-        SanitizePlacedVisual(placedNewspaperVisual);
         placedNewspaperVisual.SetActive(true);
     }
 
@@ -328,27 +330,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         placedNewspaperVisual = Instantiate(newspaperSourceVisual, putArea);
         placedNewspaperVisual.name = PersistentPlacedVisualName;
         ApplyPlacedTransform(placedNewspaperVisual.transform, true);
-        EnsurePersistentMarker(placedNewspaperVisual);
-        SanitizePlacedVisual(placedNewspaperVisual);
-    }
-
-    private static bool IsPlacedVisual(GameObject target)
-    {
-        return target != null &&
-               target.name.StartsWith(PersistentPlacedVisualName, System.StringComparison.Ordinal);
-    }
-
-    private static bool HasPersistentMarker(GameObject target)
-    {
-        return target != null && target.GetComponent<PersistentPlacedNewspaperVisual>() != null;
-    }
-
-    private static void EnsurePersistentMarker(GameObject target)
-    {
-        if (target == null || target.GetComponent<PersistentPlacedNewspaperVisual>() != null)
-            return;
-
-        target.AddComponent<PersistentPlacedNewspaperVisual>();
+        placedNewspaperVisual.SetActive(false);
     }
 
     private void ApplyPlacedTransform(Transform target, bool forceInitialization)
@@ -383,26 +365,26 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         placedLocalScale = value.localScale;
     }
 
-    private static Transform FindChildByPlacedName(Transform root)
+    private static bool IsPlacedVisual(GameObject target)
     {
-        if (root == null)
-            return null;
-
-        for (int i = 0; i < root.childCount; i++)
-        {
-            Transform child = root.GetChild(i);
-            if (child.name.StartsWith(PersistentPlacedVisualName, System.StringComparison.Ordinal))
-                return child;
-
-            Transform nested = FindChildByPlacedName(child);
-            if (nested != null)
-                return nested;
-        }
-
-        return null;
+        return target != null &&
+               target.name.StartsWith(PersistentPlacedVisualName, System.StringComparison.Ordinal);
     }
 
-    private static void SanitizePlacedVisual(GameObject target)
+    private static bool HasPersistentMarker(GameObject target)
+    {
+        return target != null && target.GetComponent<PersistentPlacedNewspaperVisual>() != null;
+    }
+
+    private static void EnsurePersistentMarkerRuntimeOnly(GameObject target)
+    {
+        if (!Application.isPlaying || target == null || HasPersistentMarker(target))
+            return;
+
+        target.AddComponent<PersistentPlacedNewspaperVisual>();
+    }
+
+    private void SanitizePlacedVisualOnce(GameObject target)
     {
         if (target == null)
             return;
@@ -420,7 +402,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         for (int i = 0; i < placementControllers.Length; i++)
         {
             NewspaperPlacementAreaController controller = placementControllers[i];
-            if (controller != null && controller.gameObject != target)
+            if (controller != null && controller != this)
                 controller.enabled = false;
         }
 
@@ -428,10 +410,12 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
             target.GetComponentsInChildren<NewspaperWorldPromptVisual>(true);
         for (int i = 0; i < prompts.Length; i++)
         {
-            if (prompts[i] == null)
+            NewspaperWorldPromptVisual prompt = prompts[i];
+            if (prompt == null)
                 continue;
-            prompts[i].SetVisible(false);
-            prompts[i].enabled = false;
+
+            prompt.SetVisible(false);
+            prompt.enabled = false;
         }
 
         NewspaperInstructionTextSettings[] textSettings =
@@ -445,21 +429,25 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         GrabbableItem[] grabbables = target.GetComponentsInChildren<GrabbableItem>(true);
         for (int i = 0; i < grabbables.Length; i++)
         {
-            if (grabbables[i] == null)
+            GrabbableItem item = grabbables[i];
+            if (item == null)
                 continue;
-            grabbables[i].canBeGrabbed = false;
-            grabbables[i].enabled = false;
-            grabbables[i].SetSelected(false);
+
+            item.canBeGrabbed = false;
+            item.enabled = false;
+            item.SetSelected(false);
         }
 
         InteractionHighlight[] highlights =
             target.GetComponentsInChildren<InteractionHighlight>(true);
         for (int i = 0; i < highlights.Length; i++)
         {
-            if (highlights[i] == null)
+            InteractionHighlight value = highlights[i];
+            if (value == null)
                 continue;
-            highlights[i].Clear();
-            highlights[i].enabled = false;
+
+            value.Clear();
+            value.enabled = false;
         }
 
         Collider[] colliders = target.GetComponentsInChildren<Collider>(true);
@@ -487,7 +475,7 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         }
     }
 
-    private void ResolveReferences()
+    private void ResolveSceneReferences()
     {
         if (putArea == null)
             putArea = transform;
@@ -509,29 +497,46 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
                 newspaperSourceVisual = stand.newspaperVisual;
         }
 
-        if (inventory == null)
-            inventory = MiniMarketNewspaperInventoryService.Instance;
+        if (placementGuideVisual == null && putArea != null)
+            placementGuideVisual = putArea.gameObject;
 
-        if (inventory == null && Application.isPlaying)
+        CacheGuideRenderers();
+    }
+
+    private void ResolveRuntimeDependencies(bool force)
+    {
+        if (!Application.isPlaying)
+            return;
+
+        if (!force && Time.unscaledTime < nextDependencyResolve)
+            return;
+
+        nextDependencyResolve = Time.unscaledTime + 0.5f;
+
+        if (inventory == null)
         {
-            inventory = UnityEngine.Object.FindAnyObjectByType<MiniMarketNewspaperInventoryService>(
-                FindObjectsInactive.Include
-            );
+            inventory = MiniMarketNewspaperInventoryService.Instance;
+            if (inventory == null)
+            {
+                inventory = UnityEngine.Object.FindAnyObjectByType<MiniMarketNewspaperInventoryService>(
+                    FindObjectsInactive.Include
+                );
+            }
         }
 
-        if (player == null && Application.isPlaying && Time.unscaledTime >= nextPlayerResolve)
+        if (player == null)
         {
-            nextPlayerResolve = Time.unscaledTime + 0.5f;
             CameraRelativeMovement movement =
                 UnityEngine.Object.FindAnyObjectByType<CameraRelativeMovement>(
                     FindObjectsInactive.Exclude
                 );
+
             if (movement != null)
                 player = movement.transform;
         }
     }
 
-    private void EnsurePrompt()
+    private void EnsurePromptReference()
     {
         if (promptVisual == null)
         {
@@ -562,18 +567,37 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
             promptVisual.rotationDegreesPerSecond = promptRotationSpeed;
         }
 
-        if (promptVisual != null && !Application.isPlaying)
+        ConfigurePlacementPrompt();
+    }
+
+    private void ConfigurePlacementPrompt()
+    {
+        if (promptVisual == null)
+            return;
+
+        promptVisual.faceCamera = promptFaceCamera;
+        promptVisual.keepBillboardUpright = true;
+        promptVisual.useRootTransformAsSource = true;
+        promptVisual.useCircularPromptTransformAsSource = true;
+
+        if (!Application.isPlaying)
             promptVisual.SetVisible(true);
+    }
+
+    private void SetPromptVisible(bool visible)
+    {
+        if (promptVisual != null)
+            promptVisual.SetVisible(visible);
     }
 
     private void EnsureAreaVisual()
     {
-        if (!Application.isPlaying)
+        if (!Application.isPlaying || borderLine != null)
             return;
 
-        borderLine = GetOrCreateLine("NewspaperPutArea_Border", borderLine, 5);
-        diagonalA = GetOrCreateLine("NewspaperPutArea_DiagonalA", diagonalA, 2);
-        diagonalB = GetOrCreateLine("NewspaperPutArea_DiagonalB", diagonalB, 2);
+        borderLine = GetOrCreateLine("NewspaperPutArea_Border", 5);
+        diagonalA = GetOrCreateLine("NewspaperPutArea_DiagonalA", 2);
+        diagonalB = GetOrCreateLine("NewspaperPutArea_DiagonalB", 2);
 
         ConfigureLine(borderLine);
         ConfigureLine(diagonalA);
@@ -581,11 +605,8 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         UpdateAreaPositions();
     }
 
-    private LineRenderer GetOrCreateLine(string objectName, LineRenderer current, int points)
+    private LineRenderer GetOrCreateLine(string objectName, int points)
     {
-        if (current != null)
-            return current;
-
         Transform existing = transform.Find(objectName);
         if (existing != null)
         {
@@ -628,6 +649,9 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
         if (shader == null) shader = Shader.Find("Sprites/Default");
         if (shader == null) shader = Shader.Find("Unlit/Color");
+
+        if (shader == null)
+            return null;
 
         lineMaterial = new Material(shader)
         {
@@ -693,29 +717,47 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
     {
         if (line == null)
             return;
+
         line.startColor = color;
         line.endColor = color;
     }
 
     private void SetAreaVisualVisible(bool visible)
     {
-        if (borderLine != null)
+        if (borderLine != null && borderLine.gameObject.activeSelf != visible)
             borderLine.gameObject.SetActive(visible);
-        if (diagonalA != null)
-            diagonalA.gameObject.SetActive(visible && showCentralX);
-        if (diagonalB != null)
-            diagonalB.gameObject.SetActive(visible && showCentralX);
+
+        bool diagonalsVisible = visible && showCentralX;
+        if (diagonalA != null && diagonalA.gameObject.activeSelf != diagonalsVisible)
+            diagonalA.gameObject.SetActive(diagonalsVisible);
+        if (diagonalB != null && diagonalB.gameObject.activeSelf != diagonalsVisible)
+            diagonalB.gameObject.SetActive(diagonalsVisible);
+    }
+
+    private void CacheGuideRenderers()
+    {
+        if (guideRenderersCached)
+            return;
+
+        guideRenderersCached = true;
+        guideRenderers = placementGuideVisual != null
+            ? placementGuideVisual.GetComponentsInChildren<Renderer>(true)
+            : System.Array.Empty<Renderer>();
     }
 
     private void SetPlacementGuideVisible(bool visible)
     {
-        if (placementGuideVisual == null)
+        CacheGuideRenderers();
+
+        if (guideVisibilityInitialized && lastGuideVisible == visible)
             return;
 
-        Renderer[] renderers = placementGuideVisual.GetComponentsInChildren<Renderer>(true);
-        for (int i = 0; i < renderers.Length; i++)
+        guideVisibilityInitialized = true;
+        lastGuideVisible = visible;
+
+        for (int i = 0; i < guideRenderers.Length; i++)
         {
-            Renderer renderer = renderers[i];
+            Renderer renderer = guideRenderers[i];
             if (renderer == null)
                 continue;
 
@@ -739,6 +781,25 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         return (player.position - point).sqrMagnitude <= maxDistance * maxDistance;
     }
 
+    private static Transform FindChildByPlacedName(Transform root)
+    {
+        if (root == null)
+            return null;
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform child = root.GetChild(i);
+            if (child.name.StartsWith(PersistentPlacedVisualName, System.StringComparison.Ordinal))
+                return child;
+
+            Transform nested = FindChildByPlacedName(child);
+            if (nested != null)
+                return nested;
+        }
+
+        return null;
+    }
+
     private void OnValidate()
     {
         interactionRadius = Mathf.Max(0.25f, interactionRadius);
@@ -747,15 +808,24 @@ public sealed class NewspaperPlacementAreaController : MonoBehaviour
         lineWidth = Mathf.Max(0.005f, lineWidth);
         promptWorldScale = Mathf.Max(0.0005f, promptWorldScale);
 
-        NormalizeSerializedReferences();
-        ResolvePersistentPlacedVisual();
-
         if (putArea == null)
             putArea = transform;
+        if (promptAnchor == null)
+            promptAnchor = putArea;
         if (areaCollider == null)
             areaCollider = GetComponent<Collider>();
 
-        if (!Application.isPlaying && placedNewspaperVisual != null && keepPlacedVisualInScene)
-            placedNewspaperVisual.SetActive(previewPlacedVisualInEditMode);
+        guideRenderersCached = false;
+        guideVisibilityInitialized = false;
+        stateVisualInitialized = false;
+
+        if (!Application.isPlaying)
+        {
+            ResolvePersistentPlacedVisualReference();
+            if (placedNewspaperVisual != null && keepPlacedVisualInScene)
+                placedNewspaperVisual.SetActive(previewPlacedVisualInEditMode);
+
+            ConfigurePlacementPrompt();
+        }
     }
 }
