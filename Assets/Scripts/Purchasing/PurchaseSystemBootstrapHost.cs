@@ -1,13 +1,14 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Repara automaticamente referências removidas pela organização antiga e recria os
-/// LineRenderers da entrada/terrenos. Reconhece explicitamente objetos Buy_Area e cria
-/// um collider filho somente para detecção, preservando o collider sólido da calçada.
+/// Repara referências de compra sem misturar lojas independentes.
+/// Lojas com BronzeMarketPurchaseLot mantêm controlador, trigger e terreno restritos à
+/// própria hierarquia. Objetos legados continuam usando um controlador global de fallback.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-20000)]
@@ -22,7 +23,10 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CreateAfterSceneLoad()
     {
-        PurchaseSystemBootstrapHost existing = Object.FindAnyObjectByType<PurchaseSystemBootstrapHost>(FindObjectsInactive.Include);
+        PurchaseSystemBootstrapHost existing = Object.FindAnyObjectByType<PurchaseSystemBootstrapHost>(
+            FindObjectsInactive.Include
+        );
+
         if (existing != null)
         {
             existing.ScheduleScan();
@@ -72,26 +76,111 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
     [ContextMenu("Compra/Reparar sistema agora")]
     public void RepairCurrentScene()
     {
-        BuySceneEntryTrigger[] triggers = Object.FindObjectsByType<BuySceneEntryTrigger>(
+        EnsureTriggersForAllNamedBuyAreas();
+
+        CameraRelativeMovement movement = Object.FindAnyObjectByType<CameraRelativeMovement>(
+            FindObjectsInactive.Include
+        );
+        PlayerCameraController playerCamera = Object.FindAnyObjectByType<PlayerCameraController>(
+            FindObjectsInactive.Include
+        );
+        BuyScenePurchaseConfirmationPanel panel = RepairConfirmationPanel();
+
+        BronzeMarketPurchaseLot[] bronzeLots = Object.FindObjectsByType<BronzeMarketPurchaseLot>(
             FindObjectsInactive.Include,
             FindObjectsSortMode.None
         );
 
-        if (triggers.Length == 0)
-            triggers = TryCreateTriggerFromNamedCollider();
+        for (int i = 0; i < bronzeLots.Length; i++)
+        {
+            BronzeMarketPurchaseLot lot = bronzeLots[i];
+            if (lot == null)
+                continue;
 
+            if (lot.cameraDoJogador == null)
+                lot.cameraDoJogador = playerCamera;
+            if (lot.movimentoDoJogador == null)
+                lot.movimentoDoJogador = movement;
+            if (lot.painelConfirmacao == null)
+                lot.painelConfirmacao = panel;
+
+            lot.AplicarVinculosRuntime();
+        }
+
+        BuySceneEntryTrigger[] triggers = Object.FindObjectsByType<BuySceneEntryTrigger>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
         BuyableLandAreaMarker[] markers = Object.FindObjectsByType<BuyableLandAreaMarker>(
             FindObjectsInactive.Include,
             FindObjectsSortMode.None
         );
 
-        if (markers.Length == 0 && triggers.Length == 0)
-            return;
+        List<BuySceneEntryTrigger> legacyTriggers = new List<BuySceneEntryTrigger>();
+        List<BuyableLandAreaMarker> legacyMarkers = new List<BuyableLandAreaMarker>();
 
-        CameraRelativeMovement movement = Object.FindAnyObjectByType<CameraRelativeMovement>(FindObjectsInactive.Include);
-        PlayerCameraController playerCamera = Object.FindAnyObjectByType<PlayerCameraController>(FindObjectsInactive.Include);
-        BuySceneCameraModeController controller = Object.FindAnyObjectByType<BuySceneCameraModeController>(FindObjectsInactive.Include);
+        for (int i = 0; i < triggers.Length; i++)
+        {
+            BuySceneEntryTrigger trigger = triggers[i];
+            if (trigger == null)
+                continue;
 
+            BronzeMarketPurchaseLot lot = trigger.GetComponentInParent<BronzeMarketPurchaseLot>();
+            if (lot != null)
+            {
+                lot.triggerEntrada = trigger;
+                lot.AplicarVinculosRuntime();
+                ConfigureTriggerVisual(trigger, movement);
+                continue;
+            }
+
+            legacyTriggers.Add(trigger);
+        }
+
+        for (int i = 0; i < markers.Length; i++)
+        {
+            BuyableLandAreaMarker marker = markers[i];
+            if (marker == null)
+                continue;
+
+            marker.exibirDemarcacao = true;
+            marker.atualizarEmTempoReal = true;
+            marker.enabled = true;
+            marker.SendMessage("CriarOuAtualizarLinhas", SendMessageOptions.DontRequireReceiver);
+
+            if (marker.GetComponentInParent<BronzeMarketPurchaseLot>() == null)
+                legacyMarkers.Add(marker);
+        }
+
+        if (legacyTriggers.Count > 0)
+        {
+            ConfigureLegacyFallback(
+                legacyTriggers,
+                legacyMarkers,
+                movement,
+                playerCamera,
+                panel
+            );
+        }
+
+        if (triggers.Length == 0 && !warnedNoTrigger)
+        {
+            warnedNoTrigger = true;
+            Debug.LogWarning(
+                "[PurchaseSystemRuntimeRepair] Nenhum BuySceneEntryTrigger ou Buy_Area válido foi localizado. " +
+                "Cada Bronze_Market deve manter Buy_Area dentro da própria hierarquia."
+            );
+        }
+    }
+
+    private void ConfigureLegacyFallback(
+        List<BuySceneEntryTrigger> triggers,
+        List<BuyableLandAreaMarker> markers,
+        CameraRelativeMovement movement,
+        PlayerCameraController playerCamera,
+        BuyScenePurchaseConfirmationPanel panel)
+    {
+        BuySceneCameraModeController controller = FindLegacyController();
         if (controller == null)
         {
             GameObject system = new GameObject("BuySceneSystemRuntime");
@@ -112,61 +201,70 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
         bridge.playerCamera = playerCamera;
         bridge.movement = movement;
 
-        BuyScenePurchaseConfirmationPanel panel = RepairConfirmationPanel();
-        BuySceneLandPurchaseController purchase = Object.FindAnyObjectByType<BuySceneLandPurchaseController>(FindObjectsInactive.Include);
+        BuySceneLandPurchaseController purchase = controller.GetComponent<BuySceneLandPurchaseController>();
         if (purchase == null)
             purchase = controller.gameObject.AddComponent<BuySceneLandPurchaseController>();
 
         purchase.controladorBuyScene = controller;
         purchase.cameraCompra = controller.cameraPrincipal;
         purchase.painelConfirmacao = panel;
-        purchase.terrenos = markers;
-        purchase.procurarTerrenosAutomaticamente = true;
+        purchase.terrenos = markers.ToArray();
+        purchase.procurarTerrenosAutomaticamente = markers.Count == 0;
         purchase.enabled = true;
 
-        for (int i = 0; i < triggers.Length; i++)
+        for (int i = 0; i < triggers.Count; i++)
         {
             BuySceneEntryTrigger trigger = triggers[i];
             if (trigger == null)
                 continue;
 
             trigger.controladorBuyScene = controller;
-            trigger.jogadorRaizOpcional = movement != null ? movement.transform : trigger.jogadorRaizOpcional;
-            trigger.mostrarMarcacaoVisual = true;
-            trigger.mostrarXCentral = true;
-            trigger.larguraLinha = Mathf.Max(trigger.larguraLinha, 0.14f);
-            trigger.alturaAcimaDoCollider = Mathf.Max(trigger.alturaAcimaDoCollider, 0.12f);
-            trigger.atualizarVisualEmTempoReal = true;
-            trigger.enabled = true;
-            trigger.SendMessage("CriarRenderizadores", SendMessageOptions.DontRequireReceiver);
-            trigger.SendMessage("AtualizarVisualCompleto", SendMessageOptions.DontRequireReceiver);
+            trigger.jogadorRaizOpcional = movement != null
+                ? movement.transform
+                : trigger.jogadorRaizOpcional;
+            ConfigureTriggerVisual(trigger, movement);
         }
+    }
 
-        for (int i = 0; i < markers.Length; i++)
+    private static BuySceneCameraModeController FindLegacyController()
+    {
+        BuySceneCameraModeController[] controllers = Object.FindObjectsByType<BuySceneCameraModeController>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+
+        for (int i = 0; i < controllers.Length; i++)
         {
-            BuyableLandAreaMarker marker = markers[i];
-            if (marker == null)
-                continue;
-
-            marker.exibirDemarcacao = true;
-            marker.atualizarEmTempoReal = true;
-            marker.enabled = true;
-            marker.SendMessage("CriarOuAtualizarLinhas", SendMessageOptions.DontRequireReceiver);
+            BuySceneCameraModeController controller = controllers[i];
+            if (controller != null && controller.GetComponentInParent<BronzeMarketPurchaseLot>() == null)
+                return controller;
         }
 
-        if (triggers.Length == 0 && !warnedNoTrigger)
-        {
-            warnedNoTrigger = true;
-            Debug.LogWarning(
-                "[PurchaseSystemRuntimeRepair] Terrenos encontrados, mas nenhum BuySceneEntryTrigger ou objeto Buy_Area foi localizado. " +
-                "Mantenha um collider no objeto da calçada/Buy_Area para que a entrada seja criada com segurança."
-            );
-        }
+        return null;
+    }
+
+    private static void ConfigureTriggerVisual(
+        BuySceneEntryTrigger trigger,
+        CameraRelativeMovement movement)
+    {
+        trigger.jogadorRaizOpcional = movement != null
+            ? movement.transform
+            : trigger.jogadorRaizOpcional;
+        trigger.mostrarMarcacaoVisual = true;
+        trigger.mostrarXCentral = true;
+        trigger.larguraLinha = Mathf.Max(trigger.larguraLinha, 0.14f);
+        trigger.alturaAcimaDoCollider = Mathf.Max(trigger.alturaAcimaDoCollider, 0.12f);
+        trigger.atualizarVisualEmTempoReal = true;
+        trigger.enabled = true;
+        trigger.SendMessage("CriarRenderizadores", SendMessageOptions.DontRequireReceiver);
+        trigger.SendMessage("AtualizarVisualCompleto", SendMessageOptions.DontRequireReceiver);
     }
 
     private BuyScenePurchaseConfirmationPanel RepairConfirmationPanel()
     {
-        BuyScenePurchaseConfirmationPanel panel = Object.FindAnyObjectByType<BuyScenePurchaseConfirmationPanel>(FindObjectsInactive.Include);
+        BuyScenePurchaseConfirmationPanel panel = Object.FindAnyObjectByType<BuyScenePurchaseConfirmationPanel>(
+            FindObjectsInactive.Include
+        );
         if (panel != null)
         {
             panel.enabled = true;
@@ -183,17 +281,32 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
 
         panel.painelRaiz = root.gameObject;
 
-        Transform textTransform = FindChildByNames(root, "TextAsking", "TextoConfirmacao", "Texto_Confirmacao");
+        Transform textTransform = FindChildByNames(
+            root,
+            "TextAsking",
+            "TextoConfirmacao",
+            "Texto_Confirmacao"
+        );
         if (textTransform != null)
             panel.textoPrincipal = textTransform.GetComponent<Text>();
 
-        panel.botaoConfirmar = EnsureImageButton(root, "ButtonConfirm", "BotaoConfirmar", "Botao_Confirmar");
-        panel.botaoFechar = EnsureImageButton(root, "ButtonClose", "BotaoFechar", "Botao_Fechar");
+        panel.botaoConfirmar = EnsureImageButton(
+            root,
+            "ButtonConfirm",
+            "BotaoConfirmar",
+            "Botao_Confirmar"
+        );
+        panel.botaoFechar = EnsureImageButton(
+            root,
+            "ButtonClose",
+            "BotaoFechar",
+            "Botao_Fechar"
+        );
         panel.enabled = true;
         return panel;
     }
 
-    private BuySceneUIImageButton EnsureImageButton(Transform root, params string[] names)
+    private static BuySceneUIImageButton EnsureImageButton(Transform root, params string[] names)
     {
         Transform target = FindChildByNames(root, names);
         if (target == null)
@@ -202,85 +315,82 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
         BuySceneUIImageButton button = target.GetComponent<BuySceneUIImageButton>();
         if (button == null)
             button = target.gameObject.AddComponent<BuySceneUIImageButton>();
-
         return button;
     }
 
-    private BuySceneEntryTrigger[] TryCreateTriggerFromNamedCollider()
+    private static void EnsureTriggersForAllNamedBuyAreas()
     {
-        Collider[] colliders = Object.FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        Collider best = null;
-        int bestScore = int.MinValue;
+        Collider[] colliders = Object.FindObjectsByType<Collider>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
 
         for (int i = 0; i < colliders.Length; i++)
         {
-            Collider collider = colliders[i];
-            if (collider == null || collider.GetComponentInParent<Canvas>() != null)
+            Collider source = colliders[i];
+            if (!IsNamedBuyAreaSource(source))
                 continue;
 
-            string lower = collider.name.ToLowerInvariant();
-            string compact = Compact(lower);
-            bool exactBuyArea = compact.Contains("buyarea") || compact.Contains("areabuy");
-            bool entryName = ContainsAny(lower, "entrada", "entry", "calcada", "calçada", "pisar", "trigger");
-            bool purchaseName = ContainsAny(lower, "compra", "buy", "terreno", "land", "area", "área");
-
-            if (!exactBuyArea && !(entryName && purchaseName))
+            BuySceneEntryTrigger direct = source.GetComponent<BuySceneEntryTrigger>();
+            if (direct != null)
                 continue;
 
-            int score = exactBuyArea ? 100 : 20;
-            if (collider.gameObject.activeInHierarchy) score += 5;
-            if (collider.enabled) score += 3;
-            if (collider.bounds.size.x * collider.bounds.size.z > 0.5f) score += 2;
+            Transform existing = source.transform.Find(RuntimeTriggerName);
+            GameObject triggerObject;
+            BoxCollider triggerCollider;
 
-            if (score > bestScore)
+            if (existing != null)
             {
-                best = collider;
-                bestScore = score;
+                triggerObject = existing.gameObject;
+                triggerCollider = triggerObject.GetComponent<BoxCollider>();
+                if (triggerCollider == null)
+                    triggerCollider = triggerObject.AddComponent<BoxCollider>();
+            }
+            else
+            {
+                triggerObject = new GameObject(RuntimeTriggerName);
+                triggerObject.transform.SetParent(source.transform, false);
+                triggerCollider = triggerObject.AddComponent<BoxCollider>();
+            }
+
+            ConfigureChildTriggerFromSource(source, triggerObject.transform, triggerCollider);
+
+            BuySceneEntryTrigger trigger = triggerObject.GetComponent<BuySceneEntryTrigger>();
+            if (trigger == null)
+                trigger = triggerObject.AddComponent<BuySceneEntryTrigger>();
+
+            BronzeMarketPurchaseLot lot = source.GetComponentInParent<BronzeMarketPurchaseLot>();
+            if (lot != null)
+            {
+                lot.buyArea = source.transform;
+                lot.colliderSolidoDaCalcada = source;
+                lot.triggerEntrada = trigger;
             }
         }
-
-        if (best == null)
-            return Array.Empty<BuySceneEntryTrigger>();
-
-        BuySceneEntryTrigger direct = best.GetComponent<BuySceneEntryTrigger>();
-        if (direct != null)
-            return new[] { direct };
-
-        Transform existing = best.transform.Find(RuntimeTriggerName);
-        GameObject triggerObject;
-        BoxCollider triggerCollider;
-
-        if (existing != null)
-        {
-            triggerObject = existing.gameObject;
-            triggerCollider = triggerObject.GetComponent<BoxCollider>();
-            if (triggerCollider == null)
-                triggerCollider = triggerObject.AddComponent<BoxCollider>();
-        }
-        else
-        {
-            triggerObject = new GameObject(RuntimeTriggerName);
-            triggerObject.transform.SetParent(best.transform, false);
-            triggerCollider = triggerObject.AddComponent<BoxCollider>();
-        }
-
-        ConfigureChildTriggerFromSource(best, triggerObject.transform, triggerCollider);
-
-        BuySceneEntryTrigger trigger = triggerObject.GetComponent<BuySceneEntryTrigger>();
-        if (trigger == null)
-            trigger = triggerObject.AddComponent<BuySceneEntryTrigger>();
-
-        trigger.mostrarMarcacaoVisual = true;
-        trigger.mostrarXCentral = true;
-        trigger.larguraLinha = Mathf.Max(trigger.larguraLinha, 0.14f);
-        trigger.alturaAcimaDoCollider = Mathf.Max(trigger.alturaAcimaDoCollider, 0.12f);
-        trigger.atualizarVisualEmTempoReal = true;
-        trigger.enabled = true;
-
-        return new[] { trigger };
     }
 
-    private void ConfigureChildTriggerFromSource(Collider source, Transform triggerTransform, BoxCollider triggerCollider)
+    private static bool IsNamedBuyAreaSource(Collider collider)
+    {
+        if (collider == null || collider.GetComponentInParent<Canvas>() != null)
+            return false;
+        if (collider.GetComponent<BuySceneEntryTrigger>() != null)
+            return false;
+        if (string.Equals(collider.name, RuntimeTriggerName, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        string lower = collider.name.ToLowerInvariant();
+        string compact = Compact(lower);
+        bool exactBuyArea = compact.Contains("buyarea") || compact.Contains("areabuy");
+        bool entryName = ContainsAny(lower, "entrada", "entry", "calcada", "calçada", "pisar");
+        bool purchaseName = ContainsAny(lower, "compra", "buy", "terreno", "land", "area", "área");
+
+        return exactBuyArea || (entryName && purchaseName);
+    }
+
+    private static void ConfigureChildTriggerFromSource(
+        Collider source,
+        Transform triggerTransform,
+        BoxCollider triggerCollider)
     {
         Bounds worldBounds = source.bounds;
         Vector3 scale = source.transform.lossyScale;
@@ -302,9 +412,13 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
         triggerCollider.enabled = true;
     }
 
-    private Transform FindTransformByNames(params string[] names)
+    private static Transform FindTransformByNames(params string[] names)
     {
-        Transform[] transforms = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Transform[] transforms = Object.FindObjectsByType<Transform>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+
         for (int i = 0; i < transforms.Length; i++)
         {
             Transform current = transforms[i];
@@ -321,7 +435,7 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
         return null;
     }
 
-    private Transform FindChildByNames(Transform root, params string[] names)
+    private static Transform FindChildByNames(Transform root, params string[] names)
     {
         if (root == null)
             return null;
@@ -340,23 +454,22 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
         return null;
     }
 
-    private bool ContainsAny(string value, params string[] terms)
+    private static bool ContainsAny(string value, params string[] terms)
     {
         for (int i = 0; i < terms.Length; i++)
         {
             if (value.Contains(terms[i]))
                 return true;
         }
-
         return false;
     }
 
-    private string Compact(string value)
+    private static string Compact(string value)
     {
         return value.Replace("_", string.Empty)
-                    .Replace("-", string.Empty)
-                    .Replace(" ", string.Empty)
-                    .Replace("á", "a")
-                    .Replace("ç", "c");
+            .Replace("-", string.Empty)
+            .Replace(" ", string.Empty)
+            .Replace("á", "a")
+            .Replace("ç", "c");
     }
 }
