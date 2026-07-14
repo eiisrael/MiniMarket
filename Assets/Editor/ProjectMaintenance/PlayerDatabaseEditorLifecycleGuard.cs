@@ -16,6 +16,8 @@ using Object = UnityEngine.Object;
 internal static class PlayerDatabaseEditorLifecycleGuard
 {
     private const BindingFlags StaticPrivate = BindingFlags.Static | BindingFlags.NonPublic;
+    private const BindingFlags InstanceFields =
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
     private static readonly FieldInfo ClosingField =
         typeof(PlayerDatabase).GetField("encerrandoAplicacao", StaticPrivate);
@@ -27,7 +29,6 @@ internal static class PlayerDatabaseEditorLifecycleGuard
     {
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-
         SetDatabaseCreationBlocked(!EditorApplication.isPlaying);
     }
 
@@ -36,7 +37,6 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         switch (state)
         {
             case PlayModeStateChange.ExitingEditMode:
-                // OnValidate ainda pode ser executado durante esta etapa.
                 SetDatabaseCreationBlocked(true);
                 SuspendPurchaseDatabaseSync();
                 ClearRuntimeDatabaseReferencesFromOpenScenes();
@@ -104,7 +104,7 @@ internal static class PlayerDatabaseEditorLifecycleGuard
             TriggerDatabaseSync[BuildStableObjectKey(trigger.transform)] =
                 trigger.sincronizarMarcacaoComStatusDosTerrenos;
 
-            // Atribuição apenas em memória. Não usa SetDirty e não altera o arquivo da cena.
+            // Apenas em memória; não marca a cena como alterada.
             trigger.sincronizarMarcacaoComStatusDosTerrenos = false;
         }
     }
@@ -170,50 +170,43 @@ internal static class PlayerDatabaseEditorLifecycleGuard
                 {
                     Component component = components[componentIndex];
                     if (component != null)
-                        ClearDatabaseReferences(component);
+                        ClearDatabaseReferencesInMemory(component);
                 }
             }
         }
     }
 
-    private static void ClearDatabaseReferences(Component component)
+    private static void ClearDatabaseReferencesInMemory(Component component)
     {
-        SerializedObject serializedObject;
-        try
-        {
-            serializedObject = new SerializedObject(component);
-        }
-        catch
-        {
-            return;
-        }
+        Type type = component.GetType();
 
-        bool changed = false;
-        SerializedProperty iterator = serializedObject.GetIterator();
-        bool enterChildren = true;
-
-        while (iterator.NextVisible(enterChildren))
+        while (type != null && type != typeof(MonoBehaviour) && type != typeof(Behaviour) &&
+               type != typeof(Component) && type != typeof(Object))
         {
-            enterChildren = false;
-
-            if (iterator.propertyType != SerializedPropertyType.ObjectReference ||
-                iterator.propertyPath == "m_Script")
+            FieldInfo[] fields = type.GetFields(InstanceFields);
+            for (int i = 0; i < fields.Length; i++)
             {
-                continue;
+                FieldInfo field = fields[i];
+                if (field.IsStatic || field.IsInitOnly ||
+                    !typeof(Object).IsAssignableFrom(field.FieldType))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Object referenced = field.GetValue(component) as Object;
+                    if (IsRuntimeDatabaseReference(referenced))
+                        field.SetValue(component, null);
+                }
+                catch
+                {
+                    // Alguns campos internos do Unity não permitem leitura/escrita.
+                }
             }
 
-            Object referenced = iterator.objectReferenceValue;
-            if (!IsRuntimeDatabaseReference(referenced))
-                continue;
-
-            iterator.objectReferenceValue = null;
-            changed = true;
+            type = type.BaseType;
         }
-
-        // Intencionalmente não chama EditorUtility.SetDirty/MarkSceneDirty.
-        // A limpeza vale para a transição atual sem reabrir a cena como modificada.
-        if (changed)
-            serializedObject.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static bool IsRuntimeDatabaseReference(Object referenced)
@@ -228,10 +221,7 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         if (target == null && referenced is Component component)
             target = component.gameObject;
 
-        if (target == null)
-            return false;
-
-        return string.Equals(
+        return target != null && string.Equals(
             target.name,
             "MiniMarket_PlayerDatabase",
             StringComparison.OrdinalIgnoreCase
