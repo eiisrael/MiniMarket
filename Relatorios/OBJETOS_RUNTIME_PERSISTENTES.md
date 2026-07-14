@@ -2,6 +2,31 @@
 
 Atualizado em: 2026-07-14
 
+## Atualização de 2026-07-14 — escala persistente do Newspaper_PlacePrompt
+
+Foi criado:
+
+```text
+Assets/Editor/ProjectMaintenance/NewspaperPlacePromptScalePersistence.cs
+```
+
+Comportamento:
+
+- a escala da raiz `Newspaper_PlacePrompt` passa a vir exclusivamente do `Transform` editado no Inspector;
+- o reparo legado que normalizava escalas pequenas é desativado em memória antes do Play Mode;
+- a escala exata anterior ao Play é registrada no `SessionState` do Editor;
+- ao pressionar Stop, a escala só é restaurada quando algum código antigo realmente a modificou;
+- não existe `Update`, busca por frame ou salvamento automático da cena;
+- escalas uniformes e não uniformes são preservadas;
+- o sistema não altera posição, rotação, tamanho, filhos, cores ou transparências.
+
+Fluxo recomendado:
+
+1. fora do Play Mode, alterar `Transform > Scale` de `Newspaper_PlacePrompt`;
+2. salvar a cena com `Ctrl + S`;
+3. entrar e sair do Play Mode;
+4. confirmar que os três eixos permanecem exatamente iguais.
+
 ## Atualização de 2026-07-14 — sistema de jornal
 
 ### Hierarquia persistente
@@ -240,6 +265,7 @@ Esses itens não são layouts editáveis da Hierarchy. Os respectivos hosts e pa
 - usar `Ctrl + S` depois das alterações;
 - não editar objetos sob `DontDestroyOnLoad` durante o Play esperando persistência;
 - para o jornal, editar `Newspaper_InteractionPrompt`, `Newspaper_PlacePrompt`, `Instruction`, `CircularPrompt` e `Placed_Newspaper_Runtime` fora do Play;
+- a escala da raiz `Newspaper_PlacePrompt` é controlada diretamente por `Transform > Scale` e não deve ser normalizada pelo reparo legado;
 - quando `Face Camera` estiver marcado, a rotação mundial da raiz do prompt é controlada pelo billboard durante o Play; usar `Billboard Euler Offset` para ajuste fino ou desmarcar `Face Camera` para rotação manual;
 - para a energia, editar `EnergyProgressFill` ou `MiniMarketEnergyProgressBar`;
 - para mobile, editar os objetos persistentes e também os valores do `MobileControlsHUD`;
@@ -262,6 +288,7 @@ Foram revisados:
 - `NewspaperStandController`;
 - `NewspaperPlacementAreaController`;
 - `MiniMarketNewspaperInventoryService`;
-- `NewspaperWorldPromptVisual`.
+- `NewspaperWorldPromptVisual`;
+- `NewspaperPlacePromptScalePersistence`.
 
 A compilação e o comportamento visual final precisam ser confirmados no Unity local.
