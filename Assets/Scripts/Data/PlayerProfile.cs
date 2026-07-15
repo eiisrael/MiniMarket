@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// Fachada de perfil do jogador.
-/// Mantem compatibilidade com os scripts existentes, mas agora le/escreve no PlayerDatabase.
+/// Mantem compatibilidade com os scripts existentes, mas agora le/escreve no MiniMarketPlayerDatabase.
 /// </summary>
 [DisallowMultipleComponent]
 public class PlayerProfile : MonoBehaviour
@@ -20,7 +20,7 @@ public class PlayerProfile : MonoBehaviour
     [Header("Debug")]
     public bool logarAlteracoes = true;
 
-    private PlayerDatabase banco;
+    private MiniMarketPlayerDatabase banco;
 
     public event Action OnDadosAlterados;
 
@@ -176,10 +176,10 @@ public class PlayerProfile : MonoBehaviour
             return;
 
         if (banco == null)
-            banco = PlayerDatabase.ObterOuCriar();
+            banco = MiniMarketPlayerDatabase.ObterOuCriar();
     }
 
-    private void AoBancoAlterado(PlayerDatabase.MiniMarketPlayerData dados)
+    private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
     {
         DispararAlteracao();
     }
