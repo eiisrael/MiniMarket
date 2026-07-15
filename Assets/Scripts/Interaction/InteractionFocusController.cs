@@ -317,7 +317,7 @@ public sealed class InteractionFocusController : MonoBehaviour
                 continue;
             }
 
-            Vector3 targetPoint = candidateCollider.ClosestPoint(origin);
+            Vector3 targetPoint = GetSafeClosestPoint(candidateCollider, origin);
             if ((targetPoint - origin).sqrMagnitude <= 0.0001f)
                 targetPoint = candidateCollider.bounds.center;
 
@@ -368,6 +368,26 @@ public sealed class InteractionFocusController : MonoBehaviour
         }
 
         return best;
+    }
+
+    private static Vector3 GetSafeClosestPoint(Collider collider, Vector3 origin)
+    {
+        if (collider == null)
+            return origin;
+
+        if (collider is BoxCollider ||
+            collider is SphereCollider ||
+            collider is CapsuleCollider)
+        {
+            return collider.ClosestPoint(origin);
+        }
+
+        MeshCollider meshCollider = collider as MeshCollider;
+        if (meshCollider != null && meshCollider.convex)
+            return meshCollider.ClosestPoint(origin);
+
+        // ClosestPoint em malhas não convexas e colliders customizados gera warnings.
+        return collider.bounds.ClosestPoint(origin);
     }
 
     private bool HasLineOfSight(
