@@ -19,7 +19,8 @@ public class PlayerDatabase : MonoBehaviour
     public static bool EncerrandoAplicacao => encerrandoAplicacao;
 
     private const int VersaoSchemaAtual = 1;
-    private const string NomeArquivoBanco = "player_database.mmdb";
+    // Defesa de compatibilidade: esta classe legada nunca deve tocar o save MMDB2 autoritativo.
+    private const string NomeArquivoBanco = "player_database_legacy.mmdb";
     private const string PrefixoArquivo = "MMDB1";
     private const string SaltTexto = "MiniMarket.LocalSecureDatabase.v1.ErickIsrael";
 
@@ -182,7 +183,8 @@ public class PlayerDatabase : MonoBehaviour
         if (encerrandoAplicacao || !Application.isPlaying)
             return null;
 
-        PlayerDatabase encontrado = FindObjectOfType<PlayerDatabase>(true);
+        PlayerDatabase encontrado =
+            UnityEngine.Object.FindAnyObjectByType<PlayerDatabase>(FindObjectsInactive.Include);
         if (encontrado != null)
         {
             Instance = encontrado;
@@ -190,7 +192,7 @@ public class PlayerDatabase : MonoBehaviour
             return Instance;
         }
 
-        GameObject go = new GameObject("MiniMarket_PlayerDatabase");
+        GameObject go = new GameObject("MiniMarket_PlayerDatabase_Legacy");
         Instance = go.AddComponent<PlayerDatabase>();
         return Instance;
     }

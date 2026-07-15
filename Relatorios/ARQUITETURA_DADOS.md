@@ -8,7 +8,11 @@ Atualizado em: 2026-07-15
 
 `PlayerGold` e `MiniMarketPlayerProfile` são fachadas de compatibilidade. Elas não devem manter saves paralelos em `PlayerPrefs`.
 
+`PlayerGold` é um componente de cena e não usa `DontDestroyOnLoad`. A continuidade pertence ao banco; isso impede que o componente arraste toda a raiz do personagem e seus filhos para a cena persistente.
+
 `PlayerProfile`, `BuyableLandAreaMarker` e `RuntimeDiagnostics` também consomem `MiniMarketPlayerDatabase`. A classe `Assets/Scripts/Data/PlayerDatabase.cs` é legado preservado por compatibilidade de GUID e não deve ser instanciada por código novo.
+
+Como defesa adicional, a classe legada aponta para `player_database_legacy.mmdb`; mesmo se for instanciada por conteúdo antigo, ela não pode sobrescrever o save MMDB2 autoritativo.
 
 `CameraRelativeMovement` mantém o estado runtime da stamina para responder imediatamente ao gameplay, mas sincroniza esse estado com o banco em intervalos controlados e nos eventos de pausa/saída.
 
@@ -93,6 +97,7 @@ Depois da migração, o conteúdo é normalizado e salvo no formato atual.
 - O banco salva ao pausar, perder foco e sair.
 - Eventos `OnDatabaseChanged` atualizam HUD/menu sem polling pesado.
 - Nenhum componente da cena deve guardar uma referência serializada para o objeto runtime do banco.
+- Fachadas de HUD/menu resolvem banco e gold por instância/cache e não serializam referências para objetos que atravessam cenas.
 
 ## APIs principais
 

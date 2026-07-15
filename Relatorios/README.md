@@ -39,6 +39,7 @@ Antes de alterar código, cena, prefab, banco, HUD, interação, câmera, movime
 - `CORRECAO_DUPLICACAO_BRONZE_MARKET.md`: cópia fiel do layout, ID visual e reconciliação segura fora do Play Mode.
 - `TESTES_POS_GIT_PULL.md`: checklist de compilação e validação manual.
 - `CHANGELOG_TECNICO.md`: histórico das mudanças que afetam arquitetura ou comportamento.
+- `VALIDACAO_UNITY_6.md`: gates de qualidade, validação em batch mode e referências oficiais do Unity.
 
 ## Arquitetura que deve ser considerada atual
 

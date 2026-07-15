@@ -513,7 +513,9 @@ public class MenuController : MonoBehaviour
             perfil = PlayerProfile.ObterOuCriar();
 
         if (playerGold == null)
-            playerGold = PlayerGold.Instance != null ? PlayerGold.Instance : FindObjectOfType<PlayerGold>();
+            playerGold = PlayerGold.Instance != null
+                ? PlayerGold.Instance
+                : UnityEngine.Object.FindAnyObjectByType<PlayerGold>(FindObjectsInactive.Include);
 
         GarantirComponenteEnergiaValido();
     }
@@ -524,7 +526,9 @@ public class MenuController : MonoBehaviour
             perfil = PlayerProfile.ObterOuCriar();
 
         if (playerGold == null)
-            playerGold = PlayerGold.Instance != null ? PlayerGold.Instance : FindObjectOfType<PlayerGold>();
+            playerGold = PlayerGold.Instance != null
+                ? PlayerGold.Instance
+                : UnityEngine.Object.FindAnyObjectByType<PlayerGold>(FindObjectsInactive.Include);
 
         GarantirComponenteEnergiaValido();
     }
@@ -569,7 +573,10 @@ public class MenuController : MonoBehaviour
 
     private Component EncontrarMelhorComponenteEnergia()
     {
-        MonoBehaviour[] scripts = FindObjectsOfType<MonoBehaviour>(true);
+        MonoBehaviour[] scripts = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
 
         Component melhor = null;
         int melhorPontuacao = -1;

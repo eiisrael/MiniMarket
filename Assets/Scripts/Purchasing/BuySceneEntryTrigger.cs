@@ -525,6 +525,14 @@ public sealed class BuySceneEntryTrigger : MonoBehaviour
         return manterMarcacaoVisivelQuandoIndisponivel || !TodosTerrenosIndisponiveis();
     }
 
+    /// <summary>
+    /// API tipada para bootstraps e ferramentas atualizarem o visual sem SendMessage.
+    /// </summary>
+    public void AtualizarVisualRuntime()
+    {
+        AtualizarVisualCompleto();
+    }
+
     private void CriarRenderizadores()
     {
         linhaBorda = ObterOuCriarLinha(NomeLinhaBorda, linhaBorda, 5);

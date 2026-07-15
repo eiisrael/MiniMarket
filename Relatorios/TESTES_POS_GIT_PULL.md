@@ -244,6 +244,8 @@ Repetir o teste na cópia:
 12. Confirmar ausência de referência cross-scene inválida.
 13. Confirmar que não há múltiplas gravações no mesmo frame da coleta/colocação.
 14. No painel de diagnósticos, confirmar que banco, gold, stamina e empresas refletem o mesmo estado usado pela compra.
+15. Confirmar que `Character 01` e a câmera permanecem na `SampleScene`, enquanto somente `MiniMarket_PlayerDatabase` aparece em `DontDestroyOnLoad`.
+16. Confirmar ausência de warnings `Cross Scene References` envolvendo Menu, PlayerGold, jogador ou câmera.
 
 ## 11. Interação e jogador
 
@@ -256,6 +258,8 @@ Repetir o teste na cópia:
 - uma câmera e um AudioListener de gameplay;
 - compra assume e devolve a câmera sem disputa;
 - aproximar-se de objetos com `MeshCollider` não convexo não gera warning de `Collider.ClosestPoint` no Console.
+- abrir/fechar o menu repetidamente mantém movimento bloqueado somente enquanto o painel está aberto;
+- abrir o modo de compra não gera warnings de `SendMessage`.
 
 ## 12. Desktop e Mobile
 
@@ -289,3 +293,11 @@ Antes de encerrar:
 ## Validação ainda necessária no ambiente local
 
 A revisão desta alteração é estática. Compilação do projeto, comportamento visual e persistência final precisam ser confirmados no Unity local depois do pull.
+
+Antes do Play, executar:
+
+```text
+Tools > Game Systems > Validate Current Architecture
+```
+
+Para automação em batch mode, seguir `Relatorios/VALIDACAO_UNITY_6.md`.

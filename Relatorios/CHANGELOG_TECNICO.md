@@ -16,12 +16,21 @@ Este arquivo registra mudanças que alteram arquitetura, persistência, contrato
 - os consumidores ativos citados foram migrados para `MiniMarketPlayerDatabase`;
 - o arquivo/classe legado foi preservado para manter GUIDs, mas não deve receber novos consumidores;
 - `InteractionFocusController` usa `Bounds.ClosestPoint` como fallback seguro para colliders que não suportam `Collider.ClosestPoint`.
+- o guard de ciclo de vida do Editor passa a criar e proteger somente `MiniMarketPlayerDatabase`;
+- a implementação legada recebe arquivo isolado `player_database_legacy.mmdb` e não pode sobrescrever o MMDB2;
+- `PlayerGold` deixa de mover a raiz do jogador/câmera para `DontDestroyOnLoad`; apenas o banco persistente atravessa cenas;
+- a `SampleScene` passa a usar `MiniMarketMenuController`, elimina referências serializadas ao `PlayerGold` runtime e alinha identificadores de classe;
+- `SceneReferenceRepair` fica desativado e preservado apenas por compatibilidade de GUID;
+- `CrossSceneReferenceCleaner` passa a ser manual, com Undo e sem salvamento automático;
+- o sistema de compra e o materializador usam APIs tipadas no lugar de `SendMessage`;
+- `GameplayArchitectureValidator` valida banco legado, IDs Bronze, física de `MeshCollider`, hosts persistentes e oferece entrada para batch mode.
 
 ### Validação
 
 - revisão estática do código e das assinaturas públicas concluída;
 - compilação, Play Mode, persistência após reinício e Console sem warnings ainda devem ser confirmados no Unity local;
-- nenhuma cena ou asset de `Assets/Brick Project Studio` foi alterado.
+- a `SampleScene` recebeu somente migrações pontuais de componente/referência, sem reformatar o YAML;
+- nenhum asset de `Assets/Brick Project Studio` foi alterado.
 
 ## 2026-07-14 — Visual premium circular e editável da tecla E do jornal
 

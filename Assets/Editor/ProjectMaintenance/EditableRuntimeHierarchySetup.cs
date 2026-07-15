@@ -502,8 +502,7 @@ public static class EditableRuntimeHierarchySetup
             if (trigger == null)
                 continue;
 
-            trigger.SendMessage("CriarRenderizadores", SendMessageOptions.DontRequireReceiver);
-            trigger.SendMessage("AtualizarVisualCompleto", SendMessageOptions.DontRequireReceiver);
+            trigger.AtualizarVisualRuntime();
             AssignLineMaterial(trigger.transform, persistentLineMaterial);
             EditorUtility.SetDirty(trigger);
         }
@@ -519,7 +518,7 @@ public static class EditableRuntimeHierarchySetup
                 continue;
 
             marker.materialLinha = persistentLineMaterial;
-            marker.SendMessage("CriarOuAtualizarLinhas", SendMessageOptions.DontRequireReceiver);
+            marker.AtualizarVisualRuntime();
             AssignLineMaterial(marker.transform, persistentLineMaterial);
             EditorUtility.SetDirty(marker);
         }

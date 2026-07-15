@@ -283,6 +283,14 @@ public class BuyableLandAreaMarker : MonoBehaviour
         return id.Trim().ToUpperInvariant().Replace(' ', '_');
     }
 
+    /// <summary>
+    /// API tipada para bootstraps e ferramentas atualizarem o visual sem SendMessage.
+    /// </summary>
+    public void AtualizarVisualRuntime()
+    {
+        CriarOuAtualizarLinhas();
+    }
+
     private void CriarOuAtualizarLinhas()
     {
         linhaBorda = ObterOuCriarLinha("BuyScene_Borda_Terreno", linhaBorda, 5);

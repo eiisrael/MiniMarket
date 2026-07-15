@@ -146,7 +146,7 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
             marker.exibirDemarcacao = true;
             marker.atualizarEmTempoReal = true;
             marker.enabled = true;
-            marker.SendMessage("CriarOuAtualizarLinhas", SendMessageOptions.DontRequireReceiver);
+            marker.AtualizarVisualRuntime();
 
             if (marker.GetComponentInParent<BronzeMarketPurchaseLot>() == null)
                 legacyMarkers.Add(marker);
@@ -256,8 +256,7 @@ public sealed class PurchaseSystemBootstrapHost : MonoBehaviour
         trigger.alturaAcimaDoCollider = Mathf.Max(trigger.alturaAcimaDoCollider, 0.12f);
         trigger.atualizarVisualEmTempoReal = true;
         trigger.enabled = true;
-        trigger.SendMessage("CriarRenderizadores", SendMessageOptions.DontRequireReceiver);
-        trigger.SendMessage("AtualizarVisualCompleto", SendMessageOptions.DontRequireReceiver);
+        trigger.AtualizarVisualRuntime();
     }
 
     private BuyScenePurchaseConfirmationPanel RepairConfirmationPanel()

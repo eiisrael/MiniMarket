@@ -95,7 +95,8 @@ public class PlayerProfile : MonoBehaviour
         if (Instance != null)
             return Instance;
 
-        PlayerProfile encontrado = FindObjectOfType<PlayerProfile>(true);
+        PlayerProfile encontrado =
+            UnityEngine.Object.FindAnyObjectByType<PlayerProfile>(FindObjectsInactive.Include);
         if (encontrado != null)
         {
             Instance = encontrado;
