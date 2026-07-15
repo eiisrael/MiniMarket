@@ -1,12 +1,14 @@
 # Arquitetura de dados do jogador
 
-Atualizado em: 2026-07-11
+Atualizado em: 2026-07-15
 
 ## Autoridade
 
 `Assets/Scripts/Database/MiniMarketPlayerDatabase.cs` é a única fonte persistente de verdade.
 
 `PlayerGold` e `MiniMarketPlayerProfile` são fachadas de compatibilidade. Elas não devem manter saves paralelos em `PlayerPrefs`.
+
+`PlayerProfile`, `BuyableLandAreaMarker` e `RuntimeDiagnostics` também consomem `MiniMarketPlayerDatabase`. A classe `Assets/Scripts/Data/PlayerDatabase.cs` é legado preservado por compatibilidade de GUID e não deve ser instanciada por código novo.
 
 `CameraRelativeMovement` mantém o estado runtime da stamina para responder imediatamente ao gameplay, mas sincroniza esse estado com o banco em intervalos controlados e nos eventos de pausa/saída.
 
@@ -80,6 +82,8 @@ O banco V2 deve aceitar:
 3. JSON não criptografado quando a opção de criptografia estiver desligada;
 4. segmentos antigos encontrados nas chaves `PlayerPrefs` do sistema anterior.
 
+O bootstrap de recuperação estrutural aceita os prefixos `MMDB1` e `MMDB2`; arquivos JSON são validados contra `MiniMarketPlayerDatabase.MiniMarketPlayerData`.
+
 Depois da migração, o conteúdo é normalizado e salvo no formato atual.
 
 ## Regras de escrita
@@ -131,6 +135,7 @@ Depois da migração, o conteúdo é normalizado e salvo no formato atual.
 ## Não fazer
 
 - Não criar outra classe que grave gold, empresas ou stamina em arquivo separado.
+- Não usar nem instanciar `Assets/Scripts/Data/PlayerDatabase.cs` em novos fluxos; migrar consumidores para `MiniMarketPlayerDatabase`.
 - Não chamar `PlayerPrefs.Save()` por frame.
 - Não serializar o banco no Inspector de objetos da cena.
 - Não alterar o salt/algoritmo sem manter migração do formato anterior.
@@ -144,4 +149,5 @@ Depois da migração, o conteúdo é normalizado e salvo no formato atual.
 4. Gastar energia, aguardar debounce e reiniciar.
 5. Restaurar energia e verificar segmentos completos.
 6. Pausar aplicativo no mobile/emulação e retornar.
-7. Corromper uma cópia de teste do arquivo e verificar recuperação pelo `.bak`.
+7. Abrir um save `MMDB2` válido duas vezes e confirmar que ele não recebe sufixo `.corrupt_*.bak`.
+8. Corromper uma cópia de teste do arquivo e verificar recuperação pelo `.bak`.
