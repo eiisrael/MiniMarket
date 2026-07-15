@@ -11757,7 +11757,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 604454071}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: dc9a88b06fed27041a29ac0e4cd49548, type: 3}
+  m_Script: {fileID: 11500000, guid: b633854b89c640841a91429946ce7c7a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MiniMarketMenuController
   painelMenu: {fileID: 604454071}
@@ -11775,7 +11775,7 @@ MonoBehaviour:
   botaoGemasGratis: {fileID: 968645237}
   usarCliqueManualDeSeguranca: 1
   perfil: {fileID: 0}
-  playerGold: {fileID: 1149804565}
+  playerGold: {fileID: 0}
   componenteStaminaOuMovimento: {fileID: 0}
   nomeTemporario: Player
   procurarComponenteStaminaAutomaticamente: 1
@@ -13305,8 +13305,8 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 82f7d5fb109e8604596563422550f1d0, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GoldHUDHardcore
-  playerGold: {fileID: 1149804565}
+  m_EditorClassIdentifier: Assembly-CSharp::GoldHUD
+  playerGold: {fileID: 0}
   textoGold: {fileID: 1307503858}
   canvasGroup: {fileID: 666549775}
   procurarPlayerAutomaticamente: 1
@@ -20031,7 +20031,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cfcf5e1f55f2a4e429a26e99303c4e5c, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MiniMarketUIButtonSpriteSwap
+  m_EditorClassIdentifier: Assembly-CSharp::UIButtonSpriteSwap
   imagemDoBotao: {fileID: 968645238}
   spriteOff: {fileID: 21300000, guid: 72a84dc670b7b9444b4870fa3b3b72a9, type: 3}
   spriteOn: {fileID: 21300000, guid: e5826ef312060194d9689bb7f3e4b90d, type: 3}
@@ -25158,11 +25158,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 63f7ab9a28ee16a45bd238f3e520ffa4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerGoldHardcore
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerGold
   goldInicial: 20000
   goldAtual: 20000
   usarBancoDeDados: 1
-  manterGoldEntreCenas: 1
+  manterGoldEntreCenas: 0
   permitirEditarGoldAtualNoInspector: 1
   sincronizarGoldAtualComInicialNoEditor: 1
   logarAlteracoes: 0
@@ -41555,7 +41555,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cfcf5e1f55f2a4e429a26e99303c4e5c, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MiniMarketUIButtonSpriteSwap
+  m_EditorClassIdentifier: Assembly-CSharp::UIButtonSpriteSwap
   imagemDoBotao: {fileID: 1878958183}
   spriteOff: {fileID: 21300000, guid: 771d182b85102af4b9b53cf9b3837b87, type: 3}
   spriteOn: {fileID: 21300000, guid: ae7d23a34df2cb04c84e5562a702e56a, type: 3}
