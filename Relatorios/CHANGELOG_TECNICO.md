@@ -2,6 +2,27 @@
 
 Este arquivo registra mudanças que alteram arquitetura, persistência, contratos públicos, cena ou comportamento de gameplay.
 
+## 2026-07-15 — Proteção do save MMDB2 e correção de foco em colliders complexos
+
+### Problemas corrigidos
+
+- o bootstrap de recuperação reconhecia somente `MMDB1` e podia colocar um save `MMDB2` válido em quarentena na abertura seguinte;
+- `PlayerProfile`, `BuyableLandAreaMarker` e `RuntimeDiagnostics` ainda consumiam a implementação antiga de `PlayerDatabase`, criando risco de duas autoridades no mesmo arquivo;
+- a busca de interação em terceira pessoa chamava `Collider.ClosestPoint` em malhas não convexas, gerando warnings do Unity.
+
+### Implementação
+
+- `PlayerDatabaseFileRecoveryBootstrap` aceita envelopes `MMDB1` e `MMDB2` e valida JSON usando o schema autoritativo;
+- os consumidores ativos citados foram migrados para `MiniMarketPlayerDatabase`;
+- o arquivo/classe legado foi preservado para manter GUIDs, mas não deve receber novos consumidores;
+- `InteractionFocusController` usa `Bounds.ClosestPoint` como fallback seguro para colliders que não suportam `Collider.ClosestPoint`.
+
+### Validação
+
+- revisão estática do código e das assinaturas públicas concluída;
+- compilação, Play Mode, persistência após reinício e Console sem warnings ainda devem ser confirmados no Unity local;
+- nenhuma cena ou asset de `Assets/Brick Project Studio` foi alterado.
+
 ## 2026-07-14 — Visual premium circular e editável da tecla E do jornal
 
 ### Problema
