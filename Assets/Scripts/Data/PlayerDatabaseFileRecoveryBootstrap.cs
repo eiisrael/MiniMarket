@@ -6,12 +6,13 @@ using UnityEngine;
 /// <summary>
 /// Valida o arquivo do banco antes de qualquer Awake da cena.
 /// Arquivos vazios, JSON inválido ou envelopes MMDB quebrados são movidos para
-/// um backup e o PlayerDatabase pode criar um arquivo novo sem repetir o erro.
+/// um backup e o MiniMarketPlayerDatabase pode criar um arquivo novo sem repetir o erro.
 /// </summary>
 public static class PlayerDatabaseFileRecoveryBootstrap
 {
     private const string DatabaseFileName = "player_database.mmdb";
-    private const string EncryptedPrefix = "MMDB1:";
+    private const string EncryptedPrefixV1 = "MMDB1:";
+    private const string EncryptedPrefixV2 = "MMDB2:";
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void ValidateDatabaseFileBeforeSceneLoad()
@@ -48,16 +49,19 @@ public static class PlayerDatabaseFileRecoveryBootstrap
 
         string trimmed = content.Trim().TrimStart('\uFEFF');
 
-        if (trimmed.StartsWith(EncryptedPrefix, StringComparison.Ordinal))
+        if (trimmed.StartsWith(EncryptedPrefixV1, StringComparison.Ordinal) ||
+            trimmed.StartsWith(EncryptedPrefixV2, StringComparison.Ordinal))
+        {
             return IsEncryptedEnvelopeValid(trimmed);
+        }
 
         if (!trimmed.StartsWith("{", StringComparison.Ordinal))
             return false;
 
         try
         {
-            PlayerDatabase.MiniMarketPlayerData data =
-                JsonUtility.FromJson<PlayerDatabase.MiniMarketPlayerData>(trimmed);
+            MiniMarketPlayerDatabase.MiniMarketPlayerData data =
+                JsonUtility.FromJson<MiniMarketPlayerDatabase.MiniMarketPlayerData>(trimmed);
             return data != null;
         }
         catch
@@ -69,7 +73,9 @@ public static class PlayerDatabaseFileRecoveryBootstrap
     private static bool IsEncryptedEnvelopeValid(string content)
     {
         string[] parts = content.Split(':');
-        if (parts.Length != 4 || parts[0] != "MMDB1")
+        bool prefixoConhecido = parts.Length == 4 &&
+                                (parts[0] == "MMDB1" || parts[0] == "MMDB2");
+        if (!prefixoConhecido)
             return false;
 
         try
