@@ -1,6 +1,6 @@
 # Testes após Git Pull
 
-Atualizado em: 2026-07-14
+Atualizado em: 2026-07-15
 
 Execute este checklist depois de qualquer atualização relevante.
 
@@ -230,16 +230,20 @@ Repetir o teste na cópia:
 
 ## 10. Banco
 
-1. Alterar gold e nome.
-2. Comprar duas lojas Bronze com IDs diferentes.
-3. Coletar e colocar um jornal.
-4. Parar Play.
-5. Iniciar novamente.
-6. Confirmar que as duas propriedades continuam compradas.
-7. Confirmar que quantidade e local do jornal continuam corretos.
-8. Confirmar que uma terceira cópia com ID novo continua disponível.
-9. Confirmar ausência de referência cross-scene inválida.
-10. Confirmar que não há múltiplas gravações no mesmo frame da coleta/colocação.
+1. Faça uma cópia externa de `player_database.mmdb`.
+2. Alterar gold e nome.
+3. Comprar duas lojas Bronze com IDs diferentes.
+4. Coletar e colocar um jornal.
+5. Parar Play.
+6. Iniciar novamente.
+7. Confirmar que gold, nome e as duas propriedades continuam corretos.
+8. Confirmar que quantidade e local do jornal continuam corretos.
+9. Parar e iniciar Play mais uma vez com o mesmo save `MMDB2`.
+10. Confirmar que não surgiu arquivo `player_database.mmdb.corrupt_*.bak`.
+11. Confirmar que uma terceira cópia de loja com ID novo continua disponível.
+12. Confirmar ausência de referência cross-scene inválida.
+13. Confirmar que não há múltiplas gravações no mesmo frame da coleta/colocação.
+14. No painel de diagnósticos, confirmar que banco, gold, stamina e empresas refletem o mesmo estado usado pela compra.
 
 ## 11. Interação e jogador
 
@@ -250,7 +254,8 @@ Repetir o teste na cópia:
 - porta abre em terceira pessoa com `E` sem exigir mira central;
 - menu bloqueia input;
 - uma câmera e um AudioListener de gameplay;
-- compra assume e devolve a câmera sem disputa.
+- compra assume e devolve a câmera sem disputa;
+- aproximar-se de objetos com `MeshCollider` não convexo não gera warning de `Collider.ClosestPoint` no Console.
 
 ## 12. Desktop e Mobile
 
