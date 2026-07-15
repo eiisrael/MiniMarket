@@ -109,7 +109,7 @@ public class RuntimeDiagnostics : MonoBehaviour
         long reserved = Profiler.GetTotalReservedMemoryLong();
         long unused = Profiler.GetTotalUnusedReservedMemoryLong();
 
-        PlayerDatabase banco = PlayerDatabase.Instance;
+        MiniMarketPlayerDatabase banco = MiniMarketPlayerDatabase.Instance;
 
         sb.Length = 0;
         sb.AppendLine("MINIMARKET DIAGNOSTICS  (F10 fecha)");
