@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 
 /// <summary>
 /// Marca visualmente uma area/terreno a venda no chao.
-/// Sincroniza status com PlayerDatabase.
+/// Sincroniza status com MiniMarketPlayerDatabase.
 ///
 /// Correção:
 /// - OnValidate não cria mais GameObject/LineRenderer/SetParent.
@@ -57,7 +57,7 @@ public class BuyableLandAreaMarker : MonoBehaviour
     private Material materialGerado;
     private bool hoverAtivo;
     private bool selecionadoAtivo;
-    private PlayerDatabase banco;
+    private MiniMarketPlayerDatabase banco;
 
     public Bounds BoundsMundo
     {
@@ -255,10 +255,10 @@ public class BuyableLandAreaMarker : MonoBehaviour
             return;
 
         if (banco == null)
-            banco = PlayerDatabase.ObterOuCriar();
+            banco = MiniMarketPlayerDatabase.ObterOuCriar();
     }
 
-    private void AoBancoAlterado(PlayerDatabase.MiniMarketPlayerData dados)
+    private void AoBancoAlterado(MiniMarketPlayerDatabase.MiniMarketPlayerData dados)
     {
         if (Application.isPlaying)
             SincronizarEstadoComBanco();
@@ -281,6 +281,14 @@ public class BuyableLandAreaMarker : MonoBehaviour
             return string.Empty;
 
         return id.Trim().ToUpperInvariant().Replace(' ', '_');
+    }
+
+    /// <summary>
+    /// API tipada para bootstraps e ferramentas atualizarem o visual sem SendMessage.
+    /// </summary>
+    public void AtualizarVisualRuntime()
+    {
+        CriarOuAtualizarLinhas();
     }
 
     private void CriarOuAtualizarLinhas()

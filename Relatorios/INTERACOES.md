@@ -1,6 +1,6 @@
 # Interações, realce visual e objetos móveis
 
-Atualizado em: 2026-07-14
+Atualizado em: 2026-07-15
 
 ## Atualização de 2026-07-14 — portas em terceira pessoa
 
@@ -35,7 +35,8 @@ A reflexão não acontece no `Update`. Ela é usada somente na resolução inici
 `InteractionFocusController` agora:
 
 - mantém o raycast central como primeira opção;
-- usa `Collider.ClosestPoint` na busca de proximidade;
+- usa `Collider.ClosestPoint` somente em primitivas e `MeshCollider` convexo;
+- usa `Bounds.ClosestPoint` como fallback seguro para malha não convexa, terrain e collider customizado;
 - considera a frente da câmera e a frente do personagem;
 - amplia a busca somente quando o jogador pressiona `E`/INTERACT;
 - ignora objetos com `GrabbableItem` nesse fallback;
@@ -213,3 +214,4 @@ Objetos com `GrabbableItem` pertencem ao `GetItemController`. O instalador não 
 15. Abrir menu e confirmar remoção do foco.
 16. Testar dois objetos com o mesmo material e confirmar alteração somente no alvo.
 17. Testar os botões mobile de interagir, pegar, soltar e arremessar.
+18. Aproximar-se de uma malha não convexa e confirmar que o Console não registra warning de `ClosestPoint`.

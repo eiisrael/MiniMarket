@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Protege o PlayerDatabase durante as transições do Play Mode do Unity 6.
+/// Protege o MiniMarketPlayerDatabase durante as transições do Play Mode do Unity 6.
 /// Não grava alterações nas cenas e não deixa referências para objetos que foram
 /// movidos para DontDestroyOnLoad.
 /// </summary>
@@ -20,7 +20,7 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
     private static readonly FieldInfo ClosingField =
-        typeof(PlayerDatabase).GetField("encerrandoAplicacao", StaticPrivate);
+        typeof(MiniMarketPlayerDatabase).GetField("encerrandoAplicacao", StaticPrivate);
 
     private static readonly Dictionary<string, bool> TriggerDatabaseSync =
         new Dictionary<string, bool>(StringComparer.Ordinal);
@@ -85,7 +85,7 @@ internal static class PlayerDatabaseEditorLifecycleGuard
             return;
 
         SetDatabaseCreationBlocked(false);
-        PlayerDatabase.ObterOuCriar();
+        MiniMarketPlayerDatabase.ObterOuCriar();
     }
 
     private static void SuspendPurchaseDatabaseSync()
@@ -214,7 +214,7 @@ internal static class PlayerDatabaseEditorLifecycleGuard
         if (referenced == null || referenced is MonoScript)
             return false;
 
-        if (referenced is PlayerDatabase)
+        if (referenced is MiniMarketPlayerDatabase || referenced is PlayerDatabase)
             return true;
 
         GameObject target = referenced as GameObject;

@@ -16,7 +16,8 @@ public class PlayerGold : MonoBehaviour
 
     [Header("Banco de Dados")]
     public bool usarBancoDeDados = true;
-    public bool manterGoldEntreCenas = true;
+    [Tooltip("Legado: a persistência pertence ao MiniMarketPlayerDatabase. O jogador não é movido para DontDestroyOnLoad.")]
+    public bool manterGoldEntreCenas;
 
     [Header("Inspector em Tempo Real")]
     public bool permitirEditarGoldAtualNoInspector = true;
@@ -54,13 +55,6 @@ public class PlayerGold : MonoBehaviour
         }
 
         Instance = this;
-
-        if (manterGoldEntreCenas)
-        {
-            if (transform.parent != null)
-                transform.SetParent(null);
-            DontDestroyOnLoad(gameObject);
-        }
 
         InicializarGold();
         SincronizarInspectorComGoldGlobal();

@@ -1,7 +1,11 @@
 #if UNITY_EDITOR
+using System;
+using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -11,8 +15,33 @@ using Object = UnityEngine.Object;
 /// </summary>
 public static class GameplayArchitectureValidator
 {
+    private const string MainScenePath = "Assets/Scenes/SampleScene.unity";
+
     [MenuItem("Tools/Game Systems/Validate Current Architecture", priority = 2)]
     public static void Validate()
+    {
+        ValidateInternal();
+    }
+
+    /// <summary>
+    /// Entrada para validação em batch mode:
+    /// -executeMethod GameplayArchitectureValidator.ValidateForCommandLine
+    /// </summary>
+    public static void ValidateForCommandLine()
+    {
+        if (!AssetDatabase.LoadAssetAtPath<SceneAsset>(MainScenePath))
+        {
+            Debug.LogError("[GameplayArchitectureValidator] Cena principal não encontrada: " + MainScenePath);
+            EditorApplication.Exit(1);
+            return;
+        }
+
+        EditorSceneManager.OpenScene(MainScenePath, OpenSceneMode.Single);
+        int errors = ValidateInternal();
+        EditorApplication.Exit(errors == 0 ? 0 : 1);
+    }
+
+    private static int ValidateInternal()
     {
         StringBuilder report = new StringBuilder();
         int errors = 0;
@@ -56,6 +85,23 @@ public static class GameplayArchitectureValidator
         }
 
         Check(huds.Length > 0, "HUD de energia encontrado", true, ref errors, ref warnings, report);
+
+        PlayerDatabase[] legacyDatabases = Object.FindObjectsByType<PlayerDatabase>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+        Check(legacyDatabases.Length == 0,
+            "Nenhum PlayerDatabase legado serializado na cena",
+            true, ref errors, ref warnings, report);
+
+        MiniMarketPlayerDatabase[] sceneDatabases =
+            Object.FindObjectsByType<MiniMarketPlayerDatabase>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None
+            );
+        Check(sceneDatabases.Length == 0,
+            "MiniMarketPlayerDatabase não está serializado na cena (criação runtime)",
+            true, ref errors, ref warnings, report);
 
         for (int i = 0; i < huds.Length; i++)
         {
@@ -113,6 +159,10 @@ public static class GameplayArchitectureValidator
                 false, ref errors, ref warnings, report);
         }
 
+        ValidatePhysics(ref errors, ref warnings, report);
+        ValidateBronzeLots(ref errors, ref warnings, report);
+        ValidatePersistentSceneHosts(ref errors, ref warnings, report);
+
         report.Insert(0,
             "[GameplayArchitectureValidator] Erros=" + errors +
             ", avisos=" + warnings + "\n");
@@ -123,6 +173,95 @@ public static class GameplayArchitectureValidator
             Debug.LogWarning(report.ToString());
         else
             Debug.Log(report.ToString());
+
+        return errors;
+    }
+
+    private static void ValidatePhysics(ref int errors, ref int warnings, StringBuilder report)
+    {
+        MeshCollider[] meshColliders = Object.FindObjectsByType<MeshCollider>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+
+        for (int i = 0; i < meshColliders.Length; i++)
+        {
+            MeshCollider meshCollider = meshColliders[i];
+            if (meshCollider == null || meshCollider.convex)
+                continue;
+
+            Rigidbody body = meshCollider.attachedRigidbody;
+            bool valid = body == null || body.isKinematic;
+            Check(valid,
+                "MeshCollider não convexo " + GetHierarchyPath(meshCollider.transform) +
+                " não pertence a Rigidbody dinâmico",
+                true, ref errors, ref warnings, report);
+        }
+    }
+
+    private static void ValidateBronzeLots(ref int errors, ref int warnings, StringBuilder report)
+    {
+        BronzeMarketPurchaseLot[] lots = Object.FindObjectsByType<BronzeMarketPurchaseLot>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None
+        );
+        HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+
+        for (int i = 0; i < lots.Length; i++)
+        {
+            BronzeMarketPurchaseLot lot = lots[i];
+            if (lot == null)
+                continue;
+
+            string id = lot.IdLoteNormalizado;
+            Check(!string.IsNullOrEmpty(id),
+                "Loja Bronze " + GetHierarchyPath(lot.transform) + " possui ID",
+                true, ref errors, ref warnings, report);
+            Check(string.IsNullOrEmpty(id) || ids.Add(id),
+                "ID da loja Bronze é exclusivo: " + id,
+                true, ref errors, ref warnings, report);
+            Check(lot.terrenoPrincipal != null,
+                "Loja Bronze " + lot.name + " possui terreno principal",
+                true, ref errors, ref warnings, report);
+            Check(lot.triggerEntrada != null,
+                "Loja Bronze " + lot.name + " possui trigger de entrada",
+                true, ref errors, ref warnings, report);
+        }
+    }
+
+    private static void ValidatePersistentSceneHosts(
+        ref int errors,
+        ref int warnings,
+        StringBuilder report)
+    {
+        Check(Object.FindAnyObjectByType<RuntimeMiniMapHierarchyBinding>(FindObjectsInactive.Include) != null,
+            "Binding persistente do minimapa materializado na cena",
+            false, ref errors, ref warnings, report);
+        Check(Object.FindAnyObjectByType<MobileControlsHierarchyBinding>(FindObjectsInactive.Include) != null,
+            "Binding persistente dos controles mobile materializado na cena",
+            false, ref errors, ref warnings, report);
+        Check(Object.FindAnyObjectByType<MiniMarketEnergyProgressBar>(FindObjectsInactive.Include) != null,
+            "Progress bar de energia materializada na cena",
+            false, ref errors, ref warnings, report);
+        Check(Object.FindAnyObjectByType<PlatformRenderProfile>(FindObjectsInactive.Include) != null,
+            "Perfil de renderização materializado na cena",
+            false, ref errors, ref warnings, report);
+    }
+
+    private static string GetHierarchyPath(Transform target)
+    {
+        if (target == null)
+            return "<ausente>";
+
+        string path = target.name;
+        Transform current = target.parent;
+        while (current != null)
+        {
+            path = current.name + "/" + path;
+            current = current.parent;
+        }
+
+        return path;
     }
 
     private static int CountEnabled<T>(T[] components) where T : Behaviour

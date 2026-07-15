@@ -10,27 +10,12 @@ using Object = UnityEngine.Object;
 /// Remove referências serializadas inválidas de cenas normais para objetos da cena
 /// especial DontDestroyOnLoad.
 ///
-/// Esta versão nunca modifica, marca ou salva cenas durante Play Mode ou durante a
-/// transição para Play Mode. A limpeza acontece somente em Edit Mode.
+/// A limpeza é manual, registra Undo e deixa a cena marcada como alterada para revisão.
+/// Nunca salva uma cena automaticamente.
 /// </summary>
-[InitializeOnLoad]
 public static class CrossSceneReferenceCleaner
 {
-    private const double ScanIntervalSeconds = 2d;
-
     private static bool isCleaning;
-    private static double nextScanTime;
-
-    static CrossSceneReferenceCleaner()
-    {
-        EditorApplication.update -= EditorUpdate;
-        EditorApplication.update += EditorUpdate;
-
-        EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
-        EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-
-        EditorApplication.delayCall += TryCleanWhenSafe;
-    }
 
     [MenuItem("Tools/Project Maintenance/Clean Cross-Scene References", priority = 2)]
     public static void CleanLoadedScenes()
@@ -43,45 +28,7 @@ public static class CrossSceneReferenceCleaner
             return;
         }
 
-        CleanLoadedScenesInternal(saveSceneChanges: true);
-    }
-
-    private static void EditorUpdate()
-    {
-        if (!CanModifyScenes() || isCleaning)
-            return;
-
-        if (EditorApplication.timeSinceStartup < nextScanTime)
-            return;
-
-        nextScanTime = EditorApplication.timeSinceStartup + ScanIntervalSeconds;
-        CleanLoadedScenesInternal(saveSceneChanges: true);
-    }
-
-    private static void OnPlayModeStateChanged(PlayModeStateChange state)
-    {
-        switch (state)
-        {
-            case PlayModeStateChange.ExitingEditMode:
-            case PlayModeStateChange.EnteredPlayMode:
-            case PlayModeStateChange.ExitingPlayMode:
-                // Não tocar em SerializedObject, MarkSceneDirty ou SaveScene durante
-                // qualquer etapa do Play Mode.
-                break;
-
-            case PlayModeStateChange.EnteredEditMode:
-                nextScanTime = 0d;
-                EditorApplication.delayCall += TryCleanWhenSafe;
-                break;
-        }
-    }
-
-    private static void TryCleanWhenSafe()
-    {
-        if (!CanModifyScenes() || isCleaning)
-            return;
-
-        CleanLoadedScenesInternal(saveSceneChanges: true);
+        CleanLoadedScenesInternal();
     }
 
     private static bool CanModifyScenes()
@@ -93,7 +40,7 @@ public static class CrossSceneReferenceCleaner
                !EditorApplication.isUpdating;
     }
 
-    private static void CleanLoadedScenesInternal(bool saveSceneChanges)
+    private static void CleanLoadedScenesInternal()
     {
         if (!CanModifyScenes() || isCleaning)
             return;
@@ -135,11 +82,8 @@ public static class CrossSceneReferenceCleaner
 
                 changedScenes++;
 
-                if (saveSceneChanges && CanModifyScenes())
-                {
+                if (CanModifyScenes())
                     EditorSceneManager.MarkSceneDirty(scene);
-                    EditorSceneManager.SaveScene(scene);
-                }
             }
 
             if (clearedReferences > 0)
@@ -147,7 +91,7 @@ public static class CrossSceneReferenceCleaner
                 Debug.Log(
                     "[CrossSceneReferenceCleaner] " + clearedReferences +
                     " referência(s) inválida(s) removida(s) em " + changedScenes +
-                    " cena(s)."
+                    " cena(s). Revise as alterações e salve manualmente."
                 );
             }
         }
@@ -226,13 +170,21 @@ public static class CrossSceneReferenceCleaner
                 continue;
             }
 
+            if (cleared == 0)
+                Undo.RecordObject(owner, "Clean cross-scene references");
+
             iterator.objectReferenceValue = null;
             cleared++;
             sceneChanged = true;
         }
 
         if (cleared > 0)
-            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        {
+            serializedObject.ApplyModifiedProperties();
+
+            if (PrefabUtility.IsPartOfPrefabInstance(owner))
+                PrefabUtility.RecordPrefabInstancePropertyModifications(owner);
+        }
 
         return cleared;
     }

@@ -1,10 +1,11 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class GoldHUD : MonoBehaviour
 {
     [Header("Referências")]
-    public PlayerGold playerGold;
+    [NonSerialized] public PlayerGold playerGold;
 
     [Tooltip("Texto que mostra o gold. Pode ser UI > Legacy > Text.")]
     public Text textoGold;
@@ -14,6 +15,7 @@ public class GoldHUD : MonoBehaviour
 
     [Header("Configuração")]
     public bool procurarPlayerAutomaticamente = true;
+    [Min(0.25f)] public float intervaloBuscaPlayer = 1f;
 
     [Tooltip("Prefixo antes do número. Exemplo: Gold: ou vazio.")]
     public string prefixo = "M$: ";
@@ -33,11 +35,11 @@ public class GoldHUD : MonoBehaviour
 
     private float goldVisual;
     private int goldReal;
+    private float proximaBuscaPlayer;
 
     private void Awake()
     {
-        if (playerGold == null && procurarPlayerAutomaticamente)
-            playerGold = FindObjectOfType<PlayerGold>();
+        ResolverPlayerGold(true);
 
         if (canvasGroup == null)
             canvasGroup = GetComponent<CanvasGroup>();
@@ -66,11 +68,7 @@ public class GoldHUD : MonoBehaviour
     {
         if (playerGold == null)
         {
-            if (procurarPlayerAutomaticamente)
-            {
-                playerGold = FindObjectOfType<PlayerGold>();
-                TentarRegistrarEvento();
-            }
+            ResolverPlayerGold(false);
 
             return;
         }
@@ -113,6 +111,23 @@ public class GoldHUD : MonoBehaviour
         goldVisual = goldReal;
 
         AtualizarTextoInstantaneo();
+    }
+
+    private void ResolverPlayerGold(bool forcar)
+    {
+        if (playerGold != null || !procurarPlayerAutomaticamente)
+            return;
+
+        if (!forcar && Time.unscaledTime < proximaBuscaPlayer)
+            return;
+
+        proximaBuscaPlayer = Time.unscaledTime + Mathf.Max(0.25f, intervaloBuscaPlayer);
+        playerGold = PlayerGold.Instance != null
+            ? PlayerGold.Instance
+            : UnityEngine.Object.FindAnyObjectByType<PlayerGold>(FindObjectsInactive.Include);
+
+        if (playerGold != null)
+            TentarRegistrarEvento();
     }
 
     private void ReceberGoldAlterado(int novoGold)

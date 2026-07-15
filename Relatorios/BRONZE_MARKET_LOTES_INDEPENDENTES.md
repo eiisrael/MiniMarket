@@ -1,6 +1,6 @@
 # Bronze_Market como lotes de compra independentes
 
-Atualizado em: 2026-07-13
+Atualizado em: 2026-07-15
 
 ## Objetivo
 
@@ -136,6 +136,7 @@ procurarTerrenosAutomaticamente
 
 O reparo não conecta mais todos os triggers Bronze ao primeiro controlador encontrado.
 Também cria triggers de fallback para todos os objetos `Buy_Area`, e não somente para um.
+O bootstrap e o materializador chamam `AtualizarVisualRuntime()` por API tipada; não há despacho por string com `SendMessage`.
 
 ## Visualização ao pressionar E
 

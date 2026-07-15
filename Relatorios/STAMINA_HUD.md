@@ -1,6 +1,6 @@
 # Stamina, energia segmentada e HUD
 
-Atualizado em: 2026-07-13
+Atualizado em: 2026-07-15
 
 ## Sistema ativo
 
@@ -67,7 +67,7 @@ A movimentação não grava no banco a cada frame. Ela sincroniza quando a difer
 - mantém verificação lenta de segurança;
 - não usa reflexão;
 - não busca o jogador a cada frame;
-- mantém o texto `atual/maximo` e as barras segmentadas auxiliares.
+- mantém as barras segmentadas auxiliares; o texto usa porcentagem quando `mostrarPercentualDaBarra` está ativo e usa `atual/maximo` no modo alternativo.
 
 ## Barra visual Canvas/StaminaHUD/Energy
 
